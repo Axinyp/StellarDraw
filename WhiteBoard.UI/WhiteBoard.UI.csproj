@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WhiteBoard.UI</RootNamespace>
+    <AssemblyName>WhiteBoard.UI</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Core\WhiteBoard.Core.csproj" />
+    <ProjectReference Include="..\WhiteBoard.AI\WhiteBoard.AI.csproj" />
+  </ItemGroup>
+</Project>
