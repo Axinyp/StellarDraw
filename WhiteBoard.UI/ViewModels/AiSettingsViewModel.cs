@@ -181,8 +181,16 @@ public sealed class AiSettingsViewModel : ViewModelBase
     public string ConnectionTestStatus
     {
         get => _connectionTestStatus;
-        set => Set(ref _connectionTestStatus, value);
+        set
+        {
+            if (Set(ref _connectionTestStatus, value))
+                OnPropertyChanged(nameof(ConnectionTestStatusBrush));
+        }
     }
+
+    public string ConnectionTestStatusBrush =>
+        _connectionTestStatus.StartsWith("✓") ? "#2E7D32" :
+        _connectionTestStatus.StartsWith("✗") ? "#C62828" : "#757575";
 
     public bool IsTestingConnection
     {

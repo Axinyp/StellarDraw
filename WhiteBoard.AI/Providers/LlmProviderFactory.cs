@@ -72,14 +72,17 @@ public static class LlmProviderFactory
 
     private static IChatClient CreateCustomEndpoint(AIWhiteboardSettings s, ISecretStore secrets)
     {
-        var apiKey = string.IsNullOrWhiteSpace(s.LlmApiKeyRef) ? "" : secrets.Load(s.LlmApiKeyRef);
-        return BuildChatClient(apiKey ?? "", s.LlmModel, new Uri(s.LlmEndpoint));
+        var apiKey = string.IsNullOrWhiteSpace(s.LlmApiKeyRef)
+            ? "none"
+            : (secrets.Load(s.LlmApiKeyRef) is { Length: > 0 } k ? k : "none");
+        return BuildChatClient(apiKey, s.LlmModel, new Uri(s.LlmEndpoint));
     }
 
     private static IChatClient BuildChatClient(string apiKey, string model, Uri endpoint)
     {
+        var key = string.IsNullOrWhiteSpace(apiKey) ? "none" : apiKey;
         var options = new OpenAIClientOptions { Endpoint = endpoint };
-        return new OpenAIClient(new ApiKeyCredential(apiKey), options)
+        return new OpenAIClient(new ApiKeyCredential(key), options)
             .GetChatClient(model)
             .AsIChatClient();
     }
