@@ -147,6 +147,14 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         RequestRedraw();
     }
 
+    public async Task RotateSelectedAsync(float angleDeg, float pivotDocX, float pivotDocY)
+    {
+        var ids = _session.Selection.ToList();
+        if (ids.Count == 0) return;
+        await _session.RotateObjectsAsync(ids, angleDeg, pivotDocX, pivotDocY);
+        RequestRedraw();
+    }
+
     // ── Undo / Redo ──────────────────────────────────────────────────────────
 
     private void Undo()

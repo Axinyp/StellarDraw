@@ -7,16 +7,21 @@ using WhiteBoard.UI.ViewModels;
 namespace WhiteBoard.UI.Controls;
 
 /// <summary>
-/// 选择工具交互控制器：管理橡皮筋圈选、选中框渲染、对象拖移和缩放手柄。
+/// 选择工具交互控制器：管理橡皮筋圈选、选中框渲染、对象拖移、缩放手柄和旋转手柄。
 /// 所有渲染输出至屏幕空间 DrawingVisual（不带视图矩阵变换）。
 /// </summary>
 public sealed class SelectionController
 {
-    private enum DragMode { None, RubberBand, MoveObjects, ResizeHandle }
+    private enum DragMode { None, RubberBand, MoveObjects, ResizeHandle, RotateHandle }
 
-    private const double HandleSize = 8.0;
-    private const double HandleHalf = HandleSize / 2;
-    private const double HandleHitR = 10.0;
+    // ── 尺寸常量 ─────────────────────────────────────────────────────────────
+    private const double HandleSize      = 8.0;
+    private const double HandleHalf      = HandleSize / 2;
+    private const double HandleHitR      = 10.0;
+    private const double RotateLineLen   = 48.0;   // 旋转虚线长度（从选中框底边向下）
+    private const double RotateRadius    = 10.0;   // 旋转圆形手柄半径
+    private const double RotateHitR      = 14.0;   // 旋转手柄命中半径
+    private const double ToolbarGap      = 8.0;    // 工具栏与旋转圆形手柄的间距
 
     private readonly DrawingVisual       _visual;
     private readonly WhiteboardViewModel _vm;
@@ -36,6 +41,12 @@ public sealed class SelectionController
     private Rect _anchorDocBounds;
     private Rect _anchorScreenBounds;
     private List<(Guid Id, Rect DocBounds)>? _resizeSnapshot;
+
+    // RotateHandle 状态
+    private Point  _rotatePivotScreen;   // 选中框中心（屏幕坐标）
+    private Point  _rotatePivotDoc;      // 选中框中心（文档坐标）
+    private double _rotateStartAngleDeg; // 开始拖拽时的绝对角度
+    private Rect   _rotateAnchorScreenBounds;
 
     public SelectionController(
         DrawingVisual       visual,
@@ -70,6 +81,7 @@ public sealed class SelectionController
             {
                 var screenBounds = DocToScreen(docBounds, view);
 
+                // 先检测缩放手柄（8 个角/边手柄）
                 int h = HitTestHandle(screen, screenBounds);
                 if (h >= 0)
                 {
@@ -82,6 +94,20 @@ public sealed class SelectionController
                         .Where(o => o is not null)
                         .Select(o => (o!.Id, new Rect(o.BoundsX, o.BoundsY, o.BoundsWidth, o.BoundsHeight)))
                         .ToList();
+                    return;
+                }
+
+                // 检测旋转手柄
+                if (HitTestRotateHandle(screen, screenBounds))
+                {
+                    _mode                    = DragMode.RotateHandle;
+                    _rotateAnchorScreenBounds = screenBounds;
+                    _rotatePivotScreen       = new Point(
+                        screenBounds.Left + screenBounds.Width  / 2,
+                        screenBounds.Top  + screenBounds.Height / 2);
+                    var inv = view; inv.Invert();
+                    _rotatePivotDoc    = inv.Transform(_rotatePivotScreen);
+                    _rotateStartAngleDeg = VectorAngleDeg(screen - _rotatePivotScreen);
                     return;
                 }
 
@@ -120,6 +146,10 @@ public sealed class SelectionController
 
             case DragMode.ResizeHandle:
                 RenderResizePreview(screen);
+                break;
+
+            case DragMode.RotateHandle:
+                RenderRotatePreview(screen);
                 break;
         }
     }
@@ -165,6 +195,16 @@ public sealed class SelectionController
                 RenderOverlay();
                 break;
             }
+
+            case DragMode.RotateHandle:
+            {
+                double angleDeg = ComputeRotateAngleDeg(screen);
+                if (Math.Abs(angleDeg) > 0.1)
+                    await _vm.RotateSelectedAsync((float)angleDeg,
+                        (float)_rotatePivotDoc.X, (float)_rotatePivotDoc.Y);
+                RenderOverlay();
+                break;
+            }
         }
 
         _mode = DragMode.None;
@@ -179,28 +219,21 @@ public sealed class SelectionController
         ClearOverlay();
     }
 
-    /// <summary>根据当前选中集合重绘选中框和手柄，并更新浮动工具栏位置。</summary>
+    /// <summary>根据当前选中集合重绘选中框、手柄、旋转柄，并更新浮动工具栏位置。</summary>
     public void RenderOverlay()
     {
         var selIds = _vm.Selection.ToList();
         using var dc = _visual.RenderOpen();
 
-        if (selIds.Count == 0)
-        {
-            _toolbar.Hide();
-            return;
-        }
+        if (selIds.Count == 0) { _toolbar.Hide(); return; }
 
         var view   = _getView();
         var doc    = GetSelectionDocBounds(selIds);
         if (doc.IsEmpty) { _toolbar.Hide(); return; }
 
         var screen = DocToScreen(doc, view);
-        DrawSelectionRect(dc, screen);
-        DrawHandles(dc, screen);
-
-        // 工具栏显示在选中框右上角偏移处
-        _toolbar.ShowAt(screen.Right - _toolbar.Width, screen.Top - _toolbar.Height - 6);
+        DrawSelectionContent(dc, screen);
+        PositionToolbar(screen);
     }
 
     public void ClearOverlay()
@@ -233,7 +266,6 @@ public sealed class SelectionController
         if (doc.IsEmpty) return;
 
         // Ghost 渲染：将选中对象绘制在拖拽偏移后的位置
-        // 矩阵 = viewMatrix 附加屏幕空间平移（view.OffsetX + moveDx，而非 Matrix.Translate）
         dc.PushTransform(new MatrixTransform(
             view.M11, view.M12, view.M21, view.M22,
             view.OffsetX + _moveDx, view.OffsetY + _moveDy));
@@ -244,37 +276,101 @@ public sealed class SelectionController
         }
         dc.Pop();
 
-        // 选中框和手柄（屏幕空间，带拖拽偏移）
+        // 选中框和手柄（屏幕空间，带拖拽偏移）；拖拽中工具栏隐藏
         var screen = DocToScreen(doc, view);
         screen.Offset(_moveDx, _moveDy);
-        DrawSelectionRect(dc, screen);
-        DrawHandles(dc, screen);
+        DrawSelectionContent(dc, screen);
+        _toolbar.Hide();
     }
 
     private void RenderResizePreview(Point cursor)
     {
-        using var dc      = _visual.RenderOpen();
+        using var dc = _visual.RenderOpen();
         var preview = ComputeNewScreenBounds(cursor, _anchorScreenBounds, _activeHandle);
-        DrawSelectionRect(dc, preview);
-        DrawHandles(dc, preview);
+        DrawSelectionContent(dc, preview);
     }
 
-    private static void DrawSelectionRect(DrawingContext dc, Rect r)
+    private void RenderRotatePreview(Point cursor)
     {
+        using var dc = _visual.RenderOpen();
+        double angleDeg = ComputeRotateAngleDeg(cursor);
+        // 以选中框中心为轴旋转显示预览
+        dc.PushTransform(new RotateTransform(
+            angleDeg,
+            _rotatePivotScreen.X,
+            _rotatePivotScreen.Y));
+        DrawSelectionContent(dc, _rotateAnchorScreenBounds);
+        dc.Pop();
+    }
+
+    // ── 绘制选中框 + 手柄 + 旋转线 ──────────────────────────────────────────
+
+    /// <summary>绘制选中框、8 个缩放手柄、旋转虚线+圆形手柄。</summary>
+    private static void DrawSelectionContent(DrawingContext dc, Rect r)
+    {
+        // 选中框
         dc.DrawRectangle(
             new SolidColorBrush(Color.FromArgb(15, 0, 120, 212)),
             new Pen(new SolidColorBrush(Color.FromRgb(0, 120, 212)), 1.5) { DashStyle = DashStyles.Dash },
             r);
-    }
 
-    private static void DrawHandles(DrawingContext dc, Rect r)
-    {
+        // 8 个缩放手柄
         var fill   = Brushes.White;
         var stroke = new Pen(new SolidColorBrush(Color.FromRgb(0, 120, 212)), 1.5);
         foreach (var pt in GetHandlePoints(r))
             dc.DrawRectangle(fill, stroke,
                 new Rect(pt.X - HandleHalf, pt.Y - HandleHalf, HandleSize, HandleSize));
+
+        // 旋转手柄：底边中心向下延伸虚线 + 圆形
+        double cx = r.Left + r.Width / 2;
+        var dashPen = new Pen(new SolidColorBrush(Color.FromRgb(0, 120, 212)), 1.5)
+        {
+            DashStyle = new DashStyle(new double[] { 4, 3 }, 0)
+        };
+        dc.DrawLine(dashPen,
+            new Point(cx, r.Bottom),
+            new Point(cx, r.Bottom + RotateLineLen));
+
+        var rotatePt = new Point(cx, r.Bottom + RotateLineLen);
+        dc.DrawEllipse(Brushes.White, stroke, rotatePt, RotateRadius, RotateRadius);
+
+        // 旋转图标：在圆内绘制两段弧（简化为两条弯线表示旋转感）
+        DrawRotateIcon(dc, rotatePt, RotateRadius * 0.55);
     }
+
+    private static void DrawRotateIcon(DrawingContext dc, Point center, double r)
+    {
+        // 用 4 段短线模拟旋转箭头（十字形+弯曲感）
+        var pen = new Pen(new SolidColorBrush(Color.FromRgb(0, 120, 212)), 1.5)
+        {
+            StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round
+        };
+
+        // 顺时针旋转图标：两段圆弧（用 StreamGeometry 近似）
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            // 上半弧（从约 330° 到 210°，顺时针上弧）
+            ctx.BeginFigure(new Point(center.X + r * 0.87, center.Y - r * 0.5), false, false);
+            ctx.ArcTo(new Point(center.X - r * 0.87, center.Y - r * 0.5),
+                new Size(r, r), 0, false, SweepDirection.Counterclockwise, true, false);
+            // 箭头头部
+            ctx.LineTo(new Point(center.X - r * 0.87 - 2, center.Y - r * 0.5 - 3), true, false);
+            ctx.BeginFigure(new Point(center.X - r * 0.87, center.Y - r * 0.5), false, false);
+            ctx.LineTo(new Point(center.X - r * 0.87 - 3, center.Y - r * 0.5 + 2), true, false);
+        }
+        geo.Freeze();
+        dc.DrawGeometry(null, pen, geo);
+    }
+
+    private static void PositionToolbarHelper(SelectionToolbar toolbar, Rect screenBounds)
+    {
+        double cx = screenBounds.Left + screenBounds.Width / 2;
+        double top = screenBounds.Bottom + RotateLineLen + RotateRadius * 2 + ToolbarGap;
+        toolbar.ShowAt(cx - toolbar.Width / 2, top);
+    }
+
+    // ── 手柄命中检测 ─────────────────────────────────────────────────────────
 
     // 8 手柄中心点顺序：TL TC TR L R BL BC BR
     private static Point[] GetHandlePoints(Rect r)
@@ -294,8 +390,6 @@ public sealed class SelectionController
         ];
     }
 
-    // ── 手柄命中检测 ─────────────────────────────────────────────────────────
-
     private static int HitTestHandle(Point screen, Rect selScreen)
     {
         var pts = GetHandlePoints(selScreen);
@@ -306,6 +400,25 @@ public sealed class SelectionController
         }
         return -1;
     }
+
+    private static bool HitTestRotateHandle(Point screen, Rect selScreen)
+    {
+        double cx = selScreen.Left + selScreen.Width / 2;
+        var handleCenter = new Point(cx, selScreen.Bottom + RotateLineLen);
+        var d = screen - handleCenter;
+        return d.LengthSquared <= RotateHitR * RotateHitR;
+    }
+
+    // ── 旋转角度计算 ─────────────────────────────────────────────────────────
+
+    private double ComputeRotateAngleDeg(Point screen)
+    {
+        double currentAngleDeg = VectorAngleDeg(screen - _rotatePivotScreen);
+        return currentAngleDeg - _rotateStartAngleDeg;
+    }
+
+    private static double VectorAngleDeg(Vector v)
+        => Math.Atan2(v.Y, v.X) * (180.0 / Math.PI);
 
     // ── 坐标转换 ─────────────────────────────────────────────────────────────
 
@@ -349,24 +462,26 @@ public sealed class SelectionController
         return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
+    // ── 工具栏定位 ───────────────────────────────────────────────────────────
+
+    private void PositionToolbar(Rect screenBounds)
+        => PositionToolbarHelper(_toolbar, screenBounds);
+
     // ── 缩放手柄拖拽计算 ─────────────────────────────────────────────────────
 
-    // 根据被拖动的手柄编号和当前鼠标位置，计算新的屏幕空间选中框。
-    // 固定角/边：TL→固定BR，TR→固定BL，BL→固定TR，BR→固定TL，
-    //            TC→固定底边，BC→固定顶边，L→固定右边，R→固定左边。
     private static Rect ComputeNewScreenBounds(Point cursor, Rect anchor, int handle)
     {
         double l = anchor.Left, t = anchor.Top, r = anchor.Right, b = anchor.Bottom;
         return handle switch
         {
-            0 => MakeRect(cursor,              new Point(r, b)),  // TL: BR 固定
-            1 => MakeRect(new Point(l, cursor.Y), new Point(r, b)),  // TC: 底边固定
-            2 => MakeRect(new Point(l, cursor.Y), new Point(cursor.X, b)),  // TR: BL 固定
-            3 => MakeRect(new Point(cursor.X, t), new Point(r, b)),  // L: 右边固定
-            4 => MakeRect(new Point(l, t),     new Point(cursor.X, b)),  // R: 左边固定
-            5 => MakeRect(cursor,              new Point(r, t)),  // BL: TR 固定
-            6 => MakeRect(new Point(l, t),     new Point(r, cursor.Y)),  // BC: 顶边固定
-            7 => MakeRect(new Point(l, t),     cursor),          // BR: TL 固定
+            0 => MakeRect(cursor,                   new Point(r, b)),
+            1 => MakeRect(new Point(l, cursor.Y),   new Point(r, b)),
+            2 => MakeRect(new Point(l, cursor.Y),   new Point(cursor.X, b)),
+            3 => MakeRect(new Point(cursor.X, t),   new Point(r, b)),
+            4 => MakeRect(new Point(l, t),          new Point(cursor.X, b)),
+            5 => MakeRect(cursor,                   new Point(r, t)),
+            6 => MakeRect(new Point(l, t),          new Point(r, cursor.Y)),
+            7 => MakeRect(new Point(l, t),          cursor),
             _ => anchor,
         };
     }
@@ -378,7 +493,7 @@ public sealed class SelectionController
         var newScreenBounds = ComputeNewScreenBounds(cursor, _anchorScreenBounds, _activeHandle);
         var newDocBounds    = ScreenToDoc(newScreenBounds, view);
 
-        if (newDocBounds.Width < 4 || newDocBounds.Height < 4) return; // 防止退化
+        if (newDocBounds.Width < 4 || newDocBounds.Height < 4) return;
 
         double sx = _anchorDocBounds.Width  > 0 ? newDocBounds.Width  / _anchorDocBounds.Width  : 1;
         double sy = _anchorDocBounds.Height > 0 ? newDocBounds.Height / _anchorDocBounds.Height : 1;

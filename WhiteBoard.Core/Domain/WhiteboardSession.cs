@@ -412,6 +412,90 @@ public sealed class WhiteboardSession : IAsyncDisposable
         await done.Task.WaitAsync(ct);
     }
 
+    /// <summary>
+    /// 将选中对象绕文档坐标系内的轴心点旋转指定角度（顺时针，度数），并更新 Bounds + Transform。
+    /// </summary>
+    public async Task RotateObjectsAsync(
+        IReadOnlyList<Guid> objectIds,
+        float angleDeg,
+        float pivotDocX, float pivotDocY,
+        CancellationToken ct = default)
+    {
+        var page = _pages.Current;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await PostOperationAsync(() =>
+        {
+            float rad = angleDeg * MathF.PI / 180f;
+            float cos = MathF.Cos(rad), sin = MathF.Sin(rad);
+
+            var objs = objectIds
+                .Select(id => page.GetObject(id))
+                .Where(o => o is not null)
+                .Select(o => o!)
+                .ToList();
+
+            if (objs.Count == 0) { done.TrySetResult(); return ValueTask.CompletedTask; }
+
+            // 旋转矩阵（绕 pivot 顺时针）× 旧 Transform，计算新 Transform 和新 AABB
+            var newStates = objs.Select(obj =>
+            {
+                var t = obj.Transform;
+
+                // new_transform = old_transform × Rotate(angle, pivot)
+                // WPF 行向量约定：x' = x*M11 + y*M21 + OX
+                float newM11 = t[0]*cos - t[1]*sin;
+                float newM12 = t[0]*sin + t[1]*cos;
+                float newM21 = t[2]*cos - t[3]*sin;
+                float newM22 = t[2]*sin + t[3]*cos;
+                float px = pivotDocX, py = pivotDocY;
+                float newOX = t[4]*cos - t[5]*sin + px*(1-cos) + py*sin;
+                float newOY = t[4]*sin + t[5]*cos + py*(1-cos) - px*sin;
+
+                // 旋转旧 Bounds 的 4 个角点后取 AABB
+                var (nx, ny, nw, nh) = RotatedAABB(
+                    obj.BoundsX, obj.BoundsY, obj.BoundsWidth, obj.BoundsHeight,
+                    cos, sin, px, py);
+
+                return (nx, ny, nw, nh, new float[] { newM11, newM12, newM21, newM22, newOX, newOY });
+            }).ToList<(float, float, float, float, float[])>();
+
+            _history.Execute(new Commands.RotateBoundsCommand(objs, newStates, page));
+            done.TrySetResult();
+            return ValueTask.CompletedTask;
+        }, ct);
+
+        await done.Task.WaitAsync(ct);
+    }
+
+    private static (float x, float y, float w, float h) RotatedAABB(
+        float bx, float by, float bw, float bh, float cos, float sin, float px, float py)
+    {
+        Span<(float, float)> corners = stackalloc (float, float)[4]
+        {
+            RotPt(bx,      by,      cos, sin, px, py),
+            RotPt(bx + bw, by,      cos, sin, px, py),
+            RotPt(bx,      by + bh, cos, sin, px, py),
+            RotPt(bx + bw, by + bh, cos, sin, px, py),
+        };
+        float minX = corners[0].Item1, minY = corners[0].Item2;
+        float maxX = minX, maxY = minY;
+        for (int i = 1; i < 4; i++)
+        {
+            minX = MathF.Min(minX, corners[i].Item1);
+            minY = MathF.Min(minY, corners[i].Item2);
+            maxX = MathF.Max(maxX, corners[i].Item1);
+            maxY = MathF.Max(maxY, corners[i].Item2);
+        }
+        return (minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private static (float x, float y) RotPt(float x, float y, float cos, float sin, float px, float py)
+    {
+        float dx = x - px, dy = y - py;
+        return (px + dx*cos - dy*sin, py + dx*sin + dy*cos);
+    }
+
     private async Task RunExecutorAsync(CancellationToken ct)
     {
         await foreach (var op in _ops.Reader.ReadAllAsync(ct))
