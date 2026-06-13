@@ -157,6 +157,7 @@ public partial class MainWindow : Window
 
         var settingsVm = new AiSettingsViewModel();
         settingsVm.LoadFrom(settings);
+        settingsVm.TestConnectionRequested += OnTestConnectionRequested;
 
         _aiSession = new WhiteboardAISession(llmProvider, session);
         _aiChatVm  = new AiChatViewModel(_aiSession, settingsVm);
@@ -176,10 +177,37 @@ public partial class MainWindow : Window
         SetStatus($"设置已保存并应用: {settings.LlmProviderType}/{settings.LlmModel}");
     }
 
+    private async void OnTestConnectionRequested(object? sender, AIWhiteboardSettings settings)
+    {
+        if (sender is not AiSettingsViewModel vm) return;
+        vm.IsTestingConnection = true;
+        vm.ConnectionTestStatus = "正在连接…";
+        try
+        {
+            var secrets = new EnvSecretStore();
+            var provider = new SettingsBackedLlmProvider(settings, secrets);
+            using var client = provider.CreateClient();
+            var response = await client.CompleteAsync(
+                [new Microsoft.Extensions.AI.ChatMessage(
+                    Microsoft.Extensions.AI.ChatRole.User, "ping")],
+                cancellationToken: CancellationToken.None);
+            vm.ConnectionTestStatus = "✓ 连接成功";
+        }
+        catch (Exception ex)
+        {
+            vm.ConnectionTestStatus = $"✗ {ex.Message}";
+        }
+        finally
+        {
+            vm.IsTestingConnection = false;
+        }
+    }
+
     private async Task DisposeAiSessionAsync()
     {
         if (_aiChatVm is not null)
         {
+            _aiChatVm.SettingsVm.TestConnectionRequested -= OnTestConnectionRequested;
             _aiChatVm.SettingsChanged -= OnSettingsChanged;
             _aiChatVm.Dispose();
             _aiChatVm = null;

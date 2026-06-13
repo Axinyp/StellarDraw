@@ -248,58 +248,60 @@
             </StackPanel>
         </Border>
 
-        <!-- 消息列表（设置页打开时隐藏） -->
-        <ScrollViewer x:Name="MessagesScroll"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,4"
-                      Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}">
-            <ItemsControl ItemsSource="{Binding Messages}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:AiChatViewModel+ChatMessage}">
-                        <Grid Margin="0,1">
-                            <!-- 用户消息 -->
-                            <Border Style="{StaticResource UserBubble}"
-                                    Visibility="{Binding IsUser, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="{Binding Text}"
-                                           Foreground="White"
-                                           FontSize="13"
-                                           TextWrapping="Wrap"/>
-                            </Border>
-
-                            <!-- AI / 系统消息 -->
-                            <Border Style="{StaticResource AiBubble}"
-                                    Visibility="{Binding IsUser, Converter={StaticResource InvBoolToVis}}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding Author}"
-                                               FontSize="10"
-                                               Foreground="#9E9E9E"
-                                               Margin="0,0,0,2"/>
+        <!-- 消息列表与设置面板共享剩余空间，通过 Visibility 切换 -->
+        <Grid>
+            <ScrollViewer x:Name="MessagesScroll"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="0,4"
+                          Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}">
+                <ItemsControl ItemsSource="{Binding Messages}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:AiChatViewModel+ChatMessage}">
+                            <Grid Margin="0,1">
+                                <!-- 用户消息 -->
+                                <Border Style="{StaticResource UserBubble}"
+                                        Visibility="{Binding IsUser, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding Text}"
+                                               Foreground="White"
                                                FontSize="13"
-                                               TextWrapping="Wrap">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#212121"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsError}" Value="True">
-                                                        <Setter Property="Foreground" Value="#E53935"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                                               TextWrapping="Wrap"/>
+                                </Border>
 
-        <!-- 设置面板（ShowSettings = true 时显示） -->
-        <conv:AiSettingsView DataContext="{Binding SettingsVm}"
-                             Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}"/>
+                                <!-- AI / 系统消息 -->
+                                <Border Style="{StaticResource AiBubble}"
+                                        Visibility="{Binding IsUser, Converter={StaticResource InvBoolToVis}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Author}"
+                                                   FontSize="10"
+                                                   Foreground="#9E9E9E"
+                                                   Margin="0,0,0,2"/>
+                                        <TextBlock Text="{Binding Text}"
+                                                   FontSize="13"
+                                                   TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#212121"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                            <Setter Property="Foreground" Value="#E53935"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- 设置面板（ShowSettings = true 时显示） -->
+            <conv:AiSettingsView DataContext="{Binding SettingsVm}"
+                                 Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
 
     </DockPanel>
 </UserControl>

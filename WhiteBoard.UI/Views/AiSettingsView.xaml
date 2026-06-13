@@ -152,7 +152,23 @@
                         <ComboBox ItemsSource="{Binding ExecutionModes}"
                                   SelectedItem="{Binding ExecutionMode}"
                                   FontSize="12"
-                                  Margin="0,0,0,0"/>
+                                  Margin="0,0,0,10"/>
+
+                        <!-- 连接测试 -->
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Content="测试连接"
+                                    Command="{Binding TestConnectionCommand}"
+                                    Style="{StaticResource SecondaryBtn}"
+                                    Padding="10,5"
+                                    FontSize="11"/>
+                            <TextBlock Text="{Binding ConnectionTestStatus}"
+                                       FontSize="11"
+                                       Foreground="#616161"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Margin="0,0,8,0"/>
+                        </DockPanel>
                     </StackPanel>
                 </Border>
 
@@ -160,10 +176,33 @@
                 <TextBlock Text="语音交互" Style="{StaticResource SectionHeader}"/>
                 <Border Style="{StaticResource GroupBox}">
                     <StackPanel>
+                        <!-- STT -->
                         <CheckBox Content="启用语音识别（STT）"
                                   IsChecked="{Binding SttEnabled}"
                                   FontSize="12"
                                   Margin="0,0,0,8"/>
+
+                        <TextBlock Text="STT 提供商" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox ItemsSource="{Binding SttProviders}"
+                                  SelectedItem="{Binding SttProviderType}"
+                                  FontSize="12"
+                                  Margin="0,0,0,8"/>
+
+                        <!-- Whisper 模型路径 -->
+                        <TextBlock Text="Whisper 模型文件路径（ggml-*.bin）"
+                                   Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}"/>
+                        <TextBox Text="{Binding SttModelPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource FieldBox}"
+                                 Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}"/>
+
+                        <!-- Azure / 自定义 STT 接入点 -->
+                        <TextBlock Text="STT 接入点 URL（Azure/自定义）"
+                                   Style="{StaticResource FieldLabel}"
+                                   Visibility="{Binding IsWhisperStt, Converter={StaticResource InvBoolToVis}}"/>
+                        <TextBox Text="{Binding SttEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource FieldBox}"
+                                 Visibility="{Binding IsWhisperStt, Converter={StaticResource InvBoolToVis}}"/>
 
                         <TextBlock Text="识别语言" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding SttLanguage, UpdateSourceTrigger=PropertyChanged}"
@@ -189,9 +228,19 @@
                                      Style="{StaticResource FieldBox}"/>
                         </StackPanel>
 
+                        <!-- TTS -->
                         <CheckBox Content="启用语音播报（TTS）"
                                   IsChecked="{Binding TtsEnabled}"
-                                  FontSize="12"/>
+                                  FontSize="12"
+                                  Margin="0,0,0,8"/>
+
+                        <StackPanel Visibility="{Binding TtsEnabled, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="TTS 提供商" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding TtsProviders}"
+                                      SelectedItem="{Binding TtsProviderType}"
+                                      FontSize="12"
+                                      Margin="0,0,0,0"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

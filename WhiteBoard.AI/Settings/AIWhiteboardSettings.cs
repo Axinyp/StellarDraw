@@ -39,6 +39,14 @@ public sealed class AIWhiteboardSettings
     [JsonPropertyName("sttEnabled")]
     public bool SttEnabled { get; set; } = true;
 
+    /// <summary>Whisper.net 模型文件路径（ggml-*.bin），留空时使用内置 tiny 模型。</summary>
+    [JsonPropertyName("sttModelPath")]
+    public string SttModelPath { get; set; } = "";
+
+    /// <summary>自定义 STT 接入点 URL（provider = azure 或 custom 时有效）。</summary>
+    [JsonPropertyName("sttEndpoint")]
+    public string SttEndpoint { get; set; } = "";
+
     [JsonPropertyName("voiceMode")]
     public string VoiceMode { get; set; } = "push-to-talk";  // push-to-talk | wake-word
 

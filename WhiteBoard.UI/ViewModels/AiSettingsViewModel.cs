@@ -17,14 +17,20 @@ public sealed class AiSettingsViewModel : ViewModelBase
     private string _llmApiKeyRef = "";
     private string _executionMode = "ConfirmRequired";
     private bool   _sttEnabled  = true;
+    private string _sttProviderType = "whisper";
     private string _sttLanguage = "zh";
+    private string _sttModelPath = "";
+    private string _sttEndpoint = "";
     private string _voiceMode   = "push-to-talk";
     private bool   _wakeWordEnabled = false;
     private string _wakeWord    = "嘿白板";
     private string _wakeWordProviderType = "windows";
     private int    _wakeWordUtteranceSeconds = 5;
     private bool   _ttsEnabled  = false;
+    private string _ttsProviderType = "windows";
     private bool   _showStatusBar = true;
+    private string _connectionTestStatus = "";
+    private bool   _isTestingConnection;
 
     // ── MCP Server ────────────────────────────────────────────────────────────
 
@@ -48,6 +54,12 @@ public sealed class AiSettingsViewModel : ViewModelBase
 
     public IReadOnlyList<string> VoiceModes { get; } =
         ["push-to-talk", "wake-word"];
+
+    public IReadOnlyList<string> SttProviders { get; } =
+        ["whisper", "windows", "azure", "custom"];
+
+    public IReadOnlyList<string> TtsProviders { get; } =
+        ["windows", "azure", "custom"];
 
     // ── Properties ─────────────────────────────────────────────────────────────
 
@@ -87,11 +99,31 @@ public sealed class AiSettingsViewModel : ViewModelBase
         set => Set(ref _sttEnabled, value);
     }
 
+    public string SttProviderType
+    {
+        get => _sttProviderType;
+        set { if (Set(ref _sttProviderType, value)) OnPropertyChanged(nameof(IsWhisperStt)); }
+    }
+
     public string SttLanguage
     {
         get => _sttLanguage;
         set => Set(ref _sttLanguage, value);
     }
+
+    public string SttModelPath
+    {
+        get => _sttModelPath;
+        set => Set(ref _sttModelPath, value);
+    }
+
+    public string SttEndpoint
+    {
+        get => _sttEndpoint;
+        set => Set(ref _sttEndpoint, value);
+    }
+
+    public bool IsWhisperStt => _sttProviderType == "whisper";
 
     public string VoiceMode
     {
@@ -131,10 +163,32 @@ public sealed class AiSettingsViewModel : ViewModelBase
         set => Set(ref _ttsEnabled, value);
     }
 
+    public string TtsProviderType
+    {
+        get => _ttsProviderType;
+        set => Set(ref _ttsProviderType, value);
+    }
+
     public bool ShowStatusBar
     {
         get => _showStatusBar;
         set => Set(ref _showStatusBar, value);
+    }
+
+    public string ConnectionTestStatus
+    {
+        get => _connectionTestStatus;
+        set => Set(ref _connectionTestStatus, value);
+    }
+
+    public bool IsTestingConnection
+    {
+        get => _isTestingConnection;
+        set
+        {
+            if (Set(ref _isTestingConnection, value))
+                (TestConnectionCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     public bool IsEndpointVisible =>
@@ -209,11 +263,6 @@ public sealed class AiSettingsViewModel : ViewModelBase
 
     public ObservableCollection<McpClientConnectionItemViewModel> McpConnections { get; } = [];
 
-    // ── Events ────────────────────────────────────────────────────────────────
-
-    public event EventHandler<AIWhiteboardSettings>? SaveRequested;
-    public event EventHandler? RegenerateMcpTokenRequested;
-
     public ICommand SaveCommand               { get; }
     public ICommand ResetCommand              { get; }
     public ICommand RegenerateMcpTokenCommand { get; }
@@ -221,6 +270,13 @@ public sealed class AiSettingsViewModel : ViewModelBase
     public ICommand CopyClaudeConfigCommand   { get; }
     public ICommand AddMcpConnectionCommand   { get; }
     public ICommand RemoveMcpConnectionCommand { get; }
+    public ICommand TestConnectionCommand     { get; }
+
+    // ── Events ────────────────────────────────────────────────────────────────
+
+    public event EventHandler<AIWhiteboardSettings>? SaveRequested;
+    public event EventHandler? RegenerateMcpTokenRequested;
+    public event EventHandler<AIWhiteboardSettings>? TestConnectionRequested;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -234,6 +290,9 @@ public sealed class AiSettingsViewModel : ViewModelBase
         AddMcpConnectionCommand    = new RelayCommand(() => McpConnections.Add(new McpClientConnectionItemViewModel()));
         RemoveMcpConnectionCommand = new RelayCommand<McpClientConnectionItemViewModel>(
             item => { if (item is not null) McpConnections.Remove(item); });
+        TestConnectionCommand      = new RelayCommand(
+            () => TestConnectionRequested?.Invoke(this, ToSettings()),
+            () => !IsTestingConnection);
     }
 
     // ── Methods ───────────────────────────────────────────────────────────────
@@ -246,13 +305,17 @@ public sealed class AiSettingsViewModel : ViewModelBase
         LlmApiKeyRef   = s.LlmApiKeyRef;
         ExecutionMode  = s.ExecutionMode;
         SttEnabled     = s.SttEnabled;
+        SttProviderType = s.SttProviderType;
         SttLanguage    = s.SttLanguage;
+        SttModelPath   = s.SttModelPath;
+        SttEndpoint    = s.SttEndpoint;
         VoiceMode      = s.VoiceMode;
         WakeWordEnabled           = s.WakeWordEnabled;
         WakeWord                  = s.WakeWord;
         WakeWordProviderType      = s.WakeWordProviderType;
         WakeWordUtteranceSeconds  = s.WakeWordUtteranceSeconds;
         TtsEnabled     = s.TtsEnabled;
+        TtsProviderType = s.TtsProviderType;
         ShowStatusBar  = s.ShowToolCallStatusBar;
 
         McpServerEnabled         = s.McpServer.Enabled;
@@ -277,13 +340,17 @@ public sealed class AiSettingsViewModel : ViewModelBase
         LlmApiKeyRef       = LlmApiKeyRef,
         ExecutionMode      = ExecutionMode,
         SttEnabled         = SttEnabled,
+        SttProviderType    = SttProviderType,
         SttLanguage        = SttLanguage,
+        SttModelPath       = SttModelPath,
+        SttEndpoint        = SttEndpoint,
         VoiceMode          = VoiceMode,
         WakeWordEnabled           = WakeWordEnabled,
         WakeWord                  = WakeWord,
         WakeWordProviderType      = WakeWordProviderType,
         WakeWordUtteranceSeconds  = WakeWordUtteranceSeconds,
         TtsEnabled         = TtsEnabled,
+        TtsProviderType    = TtsProviderType,
         ShowToolCallStatusBar = ShowStatusBar,
         McpServer = new McpServerSettings
         {
