@@ -1,12 +1,14 @@
 {
   "id": "unit-tests",
   "title": "新建 xUnit 测试项目：画布尺寸、工具注册表、设置序列化",
-  "status": "in_progress",
+  "status": "completed",
   "strategy": "guided-develop",
-  "currentPhase": "4-implement",
-  "nextAction": "Create WhiteBoard.Tests project with xUnit, write test classes",
+  "currentPhase": "done",
+  "nextAction": null,
   "gate": null,
   "branch": "master",
-  "scope": "WhiteBoard.AI.Tests (new)",
-  "createdAt": "2026-06-13T00:00:00Z"
+  "scope": "WhiteBoard.AI.Tests + WhiteBoard.Core.Tests + WhiteBoard.Protocol.Tests",
+  "createdAt": "2026-06-13T00:00:00Z",
+  "completedAt": "2026-06-13T00:00:00Z",
+  "completionSummary": "已建立 3 个 xUnit 测试项目：WhiteBoard.AI.Tests（ToolRegistryTests 验证工具注册表、SettingsTests 验证 AIWhiteboardSettings 序列化往返、SceneAnalysisTests、AgentLoopEventTests）；WhiteBoard.Core.Tests（UndoRedoStackTests、PageSerializerObjectTests）；WhiteBoard.Protocol.Tests（HubEnvelopeSerializerTests、PageSerializerTests）。均在 commit 21e6d2f / 23b76c3 阶段落地。"
 }

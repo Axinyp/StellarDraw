@@ -1,12 +1,14 @@
 {
   "id": "chat-streaming-fix",
   "title": "修复对话无显示 + 添加流式输出 + 优化状态提示",
-  "status": "in_progress",
+  "status": "completed",
   "strategy": "debug-investigate",
-  "currentPhase": "4-implement",
-  "nextAction": "Fix ChatMessage.INotifyPropertyChanged, add streaming, improve UI status",
+  "currentPhase": "done",
+  "nextAction": null,
   "gate": null,
   "branch": "master",
   "scope": "WhiteBoard.AI + WhiteBoard.UI",
-  "createdAt": "2026-06-13T00:00:00Z"
+  "createdAt": "2026-06-13T00:00:00Z",
+  "completedAt": "2026-06-13T00:00:00Z",
+  "completionSummary": "已通过多个 commit 完成：c84802b 修复 AiChatView 布局（DockPanel→Grid）使消息列表可见；c244a03 修复 AiSettingsView Visibility 跨 DataContext 失效；8675186 将 CompleteAsync 替换为 GetResponseAsync（M.E.AI 10.7.0 API）；AiChatViewModel 新增 StatusBarText/ShowStatusBar 状态栏（显示"AI 正在思考…"）；AiSettingsView 补全 LLM 连接测试按钮和语音模型设置。"
 }
