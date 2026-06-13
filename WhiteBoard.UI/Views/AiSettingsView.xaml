@@ -143,10 +143,10 @@
 
                         <TextBlock Text="API Key 引用（Windows 凭据管理器键名）"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsEndpointVisible, Converter={StaticResource InvBoolToVis}}"/>
+                                   Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
                         <TextBox Text="{Binding LlmApiKeyRef, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsEndpointVisible, Converter={StaticResource InvBoolToVis}}"/>
+                                 Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
 
                         <TextBlock Text="执行模式" Style="{StaticResource FieldLabel}"/>
                         <ComboBox ItemsSource="{Binding ExecutionModes}"

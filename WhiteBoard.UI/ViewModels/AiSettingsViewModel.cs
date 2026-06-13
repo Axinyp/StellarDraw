@@ -66,7 +66,10 @@ public sealed class AiSettingsViewModel : ViewModelBase
     public string LlmProvider
     {
         get => _llmProvider;
-        set { if (Set(ref _llmProvider, value)) OnPropertyChanged(nameof(IsEndpointVisible)); }
+        set { if (Set(ref _llmProvider, value)) {
+            OnPropertyChanged(nameof(IsEndpointVisible));
+            OnPropertyChanged(nameof(IsApiKeyVisible));
+        }}
     }
 
     public string LlmEndpoint
@@ -193,6 +196,9 @@ public sealed class AiSettingsViewModel : ViewModelBase
 
     public bool IsEndpointVisible =>
         LlmProvider is "ollama" or "azure" or "custom";
+
+    public bool IsApiKeyVisible =>
+        LlmProvider is not "ollama";
 
     // ── MCP Server Properties ─────────────────────────────────────────────────
 
