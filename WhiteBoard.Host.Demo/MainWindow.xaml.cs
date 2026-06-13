@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using WhiteBoard.AI.Providers;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Closed  += async (_, _) => await TearDownAsync();
         Loaded  += async (_, _) => await AutoLoadAsync();
+        PluginHost.SizeChanged += OnPluginHostSizeChanged;
     }
 
     // ── AI 面板切换 ───────────────────────────────────────────────────────────
@@ -34,6 +36,16 @@ public partial class MainWindow : Window
 
     private void OnAiToggleUnchecked(object sender, RoutedEventArgs e)
         => ColAi.Width = new GridLength(0);
+
+    // ── 画布尺寸同步 ──────────────────────────────────────────────────────────
+
+    private void OnPluginHostSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var session = _manager.GetExportedSession();
+        if (session is null) return;
+        session.CanvasWidth  = (float)e.NewSize.Width;
+        session.CanvasHeight = (float)e.NewSize.Height;
+    }
 
     // ── 自动加载 ──────────────────────────────────────────────────────────────
 
@@ -132,36 +144,46 @@ public partial class MainWindow : Window
     private void InitAiSession(WhiteboardSession session)
     {
         // 同步路径：调用时已确保旧 session 已被 DisposeAiSessionAsync 清理
-        var settings    = BuildDemoSettings();
+        var settings    = LoadSettings();
         var secrets     = new EnvSecretStore();
         var llmProvider = new SettingsBackedLlmProvider(settings, secrets);
 
+        // 以 PluginHost 当前实际尺寸初始化画布大小，后续通过 SizeChanged 持续同步
+        if (PluginHost.ActualWidth > 0 && PluginHost.ActualHeight > 0)
+        {
+            session.CanvasWidth  = (float)PluginHost.ActualWidth;
+            session.CanvasHeight = (float)PluginHost.ActualHeight;
+        }
+
+        var settingsVm = new AiSettingsViewModel();
+        settingsVm.LoadFrom(settings);
+
         _aiSession = new WhiteboardAISession(llmProvider, session);
-        _aiChatVm  = new AiChatViewModel(_aiSession);
+        _aiChatVm  = new AiChatViewModel(_aiSession, settingsVm);
+        _aiChatVm.SettingsChanged += OnSettingsChanged;
         AiPanel.DataContext = _aiChatVm;
 
         TxtInfo.Text += $"  |  AI: {settings.LlmProviderType}/{settings.LlmModel}";
     }
 
-    private void DisposeAiSession()
+    private async void OnSettingsChanged(object? sender, AIWhiteboardSettings settings)
     {
-        _aiChatVm?.Dispose();
-        _aiChatVm = null;
-
-        if (_aiSession is not null)
-        {
-            // 同步路径仅在确保不会并发调用时使用（UI 线程单入口）
-            _ = _aiSession.DisposeAsync().AsTask();
-            _aiSession = null;
-        }
-
-        AiPanel.DataContext = null;
+        SaveSettings(settings);
+        var session = _manager.GetExportedSession();
+        if (session is null) return;
+        await DisposeAiSessionAsync();
+        InitAiSession(session);
+        SetStatus($"设置已保存并应用: {settings.LlmProviderType}/{settings.LlmModel}");
     }
 
     private async Task DisposeAiSessionAsync()
     {
-        _aiChatVm?.Dispose();
-        _aiChatVm = null;
+        if (_aiChatVm is not null)
+        {
+            _aiChatVm.SettingsChanged -= OnSettingsChanged;
+            _aiChatVm.Dispose();
+            _aiChatVm = null;
+        }
 
         if (_aiSession is not null)
         {
@@ -178,9 +200,34 @@ public partial class MainWindow : Window
         await _manager.DisposeAsync();
     }
 
-    // ── 设置读取（Demo 级别，从环境变量）────────────────────────────────────────
+    // ── 设置持久化 ────────────────────────────────────────────────────────────
 
-    private static AIWhiteboardSettings BuildDemoSettings() => new()
+    private static string SettingsFilePath =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.local.json");
+
+    private static AIWhiteboardSettings LoadSettings()
+    {
+        if (File.Exists(SettingsFilePath))
+        {
+            try
+            {
+                var json = File.ReadAllText(SettingsFilePath);
+                var loaded = JsonSerializer.Deserialize<AIWhiteboardSettings>(json);
+                if (loaded is not null) return loaded;
+            }
+            catch { /* 文件损坏则回退到默认 */ }
+        }
+        return BuildDefaultSettings();
+    }
+
+    private static void SaveSettings(AIWhiteboardSettings settings)
+    {
+        var json = JsonSerializer.Serialize(settings,
+            new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(SettingsFilePath, json);
+    }
+
+    private static AIWhiteboardSettings BuildDefaultSettings() => new()
     {
         LlmProviderType = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_PROVIDER") ?? "ollama",
         LlmEndpoint     = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_ENDPOINT") ?? "http://localhost:11434",

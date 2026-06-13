@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WhiteBoard.AI.Session;
+using WhiteBoard.AI.Settings;
 
 namespace WhiteBoard.UI.ViewModels;
 
@@ -18,6 +19,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     private bool    _isRecording;
     private string  _statusBarText  = "";
     private bool    _showStatusBar;
+    private bool    _showSettings;
     private bool    _confirmVisible;
     private string  _confirmMessage = "";
     private Action? _confirmOk;
@@ -78,6 +80,12 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         set => Set(ref _showStatusBar, value);
     }
 
+    public bool ShowSettings
+    {
+        get => _showSettings;
+        set => Set(ref _showSettings, value);
+    }
+
     public bool ConfirmVisible
     {
         get => _confirmVisible;
@@ -104,20 +112,37 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     // ── Commands ───────────────────────────────────────────────────────────────
 
-    public ICommand SendCommand      { get; }
-    public ICommand InterruptCommand { get; }
-    public ICommand ClearCommand     { get; }
-    public ICommand ConfirmOkCommand { get; }
+    public ICommand SendCommand          { get; }
+    public ICommand InterruptCommand     { get; }
+    public ICommand ClearCommand         { get; }
+    public ICommand ConfirmOkCommand     { get; }
     public ICommand ConfirmCancelCommand { get; }
-    public ICommand PttStartCommand  { get; }
-    public ICommand PttStopCommand   { get; }
+    public ICommand PttStartCommand      { get; }
+    public ICommand PttStopCommand       { get; }
+    public ICommand ToggleSettingsCommand { get; }
+
+    // ── Settings ──────────────────────────────────────────────────────────────
+
+    public AiSettingsViewModel SettingsVm { get; }
+
+    /// <summary>用户在设置页点击"保存"后触发，由宿主负责持久化并重建 AI 会话。</summary>
+    public event EventHandler<AIWhiteboardSettings>? SettingsChanged;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    public AiChatViewModel(WhiteboardAISession aiSession, bool showStatusBar = true)
+    public AiChatViewModel(WhiteboardAISession aiSession,
+                           AiSettingsViewModel? settingsVm = null,
+                           bool showStatusBar = true)
     {
         _aiSession    = aiSession;
         _showStatusBar = showStatusBar;
+
+        SettingsVm = settingsVm ?? new AiSettingsViewModel();
+        SettingsVm.SaveRequested += (_, settings) =>
+        {
+            ShowSettings = false;
+            SettingsChanged?.Invoke(this, settings);
+        };
 
         SendCommand          = new RelayCommand(() => _ = SendAsync(),
                                    () => CanSend);
@@ -129,6 +154,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                                    () => _aiSession.IsRecording == false);
         PttStopCommand       = new RelayCommand(() => _ = StopPttAsync(),
                                    () => _aiSession.IsRecording);
+        ToggleSettingsCommand = new RelayCommand(() => ShowSettings = !ShowSettings);
 
         _aiSession.VoiceTextReady += OnVoiceTextReady;
     }

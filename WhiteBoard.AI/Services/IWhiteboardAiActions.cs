@@ -57,6 +57,9 @@ public interface IWhiteboardAiActions
 
     /// <summary>清空别名映射（新会话开始或翻页时调用）。</summary>
     void ClearAliases();
+
+    /// <summary>获取当前画布的逻辑尺寸（宽×高，像素）。</summary>
+    (float Width, float Height) GetCanvasSize();
 }
 
 // ── 参数规格 ──────────────────────────────────────────────────────────────────

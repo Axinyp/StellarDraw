@@ -52,6 +52,10 @@ public sealed class WhiteboardSession : IAsyncDisposable
     public SelectionModel Selection => _selection;
     public IStrokePredictor? Predictor => _predictor;
 
+    /// <summary>画布逻辑尺寸（像素）。由宿主在 UI 布局完成后设置，默认 1920×1080。</summary>
+    public float CanvasWidth  { get; set; } = 1920f;
+    public float CanvasHeight { get; set; } = 1080f;
+
     public void RegisterPredictor(IStrokePredictor predictor) => _predictor = predictor;
 
     public async Task StartAsync(CancellationToken ct = default)
@@ -167,8 +171,8 @@ public sealed class WhiteboardSession : IAsyncDisposable
             {
                 PageId  = page.Id,
                 Version = page.Version,
-                Width   = 1920f,
-                Height  = 1080f,
+                Width   = CanvasWidth,
+                Height  = CanvasHeight,
                 Objects = summaries,
             };
             done.TrySetResult(snapshot);

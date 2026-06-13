@@ -21,6 +21,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
     public IReadOnlyDictionary<string, Guid> GetAliasMap()  => _aliasMap;
     public void RegisterAlias(string alias, Guid objectId)  => _aliasMap[alias] = objectId;
     public void ClearAliases()                              => _aliasMap.Clear();
+    public (float Width, float Height) GetCanvasSize()      => (_session.CanvasWidth, _session.CanvasHeight);
 
     private Guid? Resolve(string aliasOrId)
     {

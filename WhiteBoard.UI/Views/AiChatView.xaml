@@ -102,12 +102,25 @@
                         Content="清空"
                         Command="{Binding ClearCommand}"
                         Style="{StaticResource ActionBtn}"
-                        FontSize="12"/>
+                        FontSize="12"
+                        Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}"/>
+                <Button DockPanel.Dock="Right"
+                        Content="⚙"
+                        Command="{Binding ToggleSettingsCommand}"
+                        Style="{StaticResource ActionBtn}"
+                        FontSize="14"
+                        ToolTip="AI 设置"/>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="AI 对话"
                                FontWeight="SemiBold"
                                FontSize="13"
-                               Foreground="#424242"/>
+                               Foreground="#424242"
+                               Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}"/>
+                    <TextBlock Text="AI 设置"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               Foreground="#424242"
+                               Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}"/>
                     <!-- MCP 活动指示 -->
                     <Border Background="#E8F5E9"
                             CornerRadius="8"
@@ -122,12 +135,13 @@
             </DockPanel>
         </Border>
 
-        <!-- 底部输入区域 -->
+        <!-- 底部输入区域（设置页打开时隐藏） -->
         <Border DockPanel.Dock="Bottom"
                 Background="White"
                 BorderBrush="#E0E0E0"
                 BorderThickness="0,1,0,0"
-                Padding="8">
+                Padding="8"
+                Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}">
             <StackPanel>
                 <!-- 确认对话框 -->
                 <Border Background="#FFF3E0"
@@ -234,11 +248,12 @@
             </StackPanel>
         </Border>
 
-        <!-- 消息列表 -->
+        <!-- 消息列表（设置页打开时隐藏） -->
         <ScrollViewer x:Name="MessagesScroll"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="0,4">
+                      Padding="0,4"
+                      Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}">
             <ItemsControl ItemsSource="{Binding Messages}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:AiChatViewModel+ChatMessage}">
@@ -281,6 +296,10 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- 设置面板（ShowSettings = true 时显示） -->
+        <conv:AiSettingsView DataContext="{Binding SettingsVm}"
+                             Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}"/>
 
     </DockPanel>
 </UserControl>

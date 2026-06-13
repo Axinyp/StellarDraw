@@ -32,7 +32,7 @@ public sealed class ProgressiveContextBuilder
             {tools}
 
             ## 坐标系
-            - 画布宽 1920px，高 1080px，左上角为原点 (0, 0)
+            - 画布宽 {_session.CanvasWidth}px，高 {_session.CanvasHeight}px，左上角为原点 (0, 0)
             - 所有坐标单位为像素
 
             ## 操作规则
