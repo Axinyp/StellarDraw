@@ -66,12 +66,16 @@ public static class LlmProviderFactory
 
     private static IChatClient CreateAzureOpenAI(AIWhiteboardSettings s, ISecretStore secrets)
     {
+        if (string.IsNullOrWhiteSpace(s.LlmEndpoint))
+            throw new InvalidOperationException("Azure OpenAI endpoint URL is required.");
         var apiKey = LoadKey(s.LlmApiKeyRef, secrets, "Azure OpenAI");
         return BuildChatClient(apiKey, s.LlmModel, new Uri(s.LlmEndpoint));
     }
 
     private static IChatClient CreateCustomEndpoint(AIWhiteboardSettings s, ISecretStore secrets)
     {
+        if (string.IsNullOrWhiteSpace(s.LlmEndpoint))
+            throw new InvalidOperationException("Custom endpoint URL is required.");
         var apiKey = string.IsNullOrWhiteSpace(s.LlmApiKeyRef)
             ? "none"
             : (secrets.Load(s.LlmApiKeyRef) is { Length: > 0 } k ? k : "none");
@@ -80,6 +84,8 @@ public static class LlmProviderFactory
 
     private static IChatClient BuildChatClient(string apiKey, string model, Uri endpoint)
     {
+        if (string.IsNullOrWhiteSpace(model))
+            throw new InvalidOperationException("Model name cannot be empty.");
         var key = string.IsNullOrWhiteSpace(apiKey) ? "none" : apiKey;
         var options = new OpenAIClientOptions { Endpoint = endpoint };
         return new OpenAIClient(new ApiKeyCredential(key), options)

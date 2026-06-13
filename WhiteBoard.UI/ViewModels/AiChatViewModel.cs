@@ -47,7 +47,11 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     public string InputText
     {
         get => _inputText;
-        set => Set(ref _inputText, value);
+        set
+        {
+            if (Set(ref _inputText, value))
+                OnPropertyChanged(nameof(CanSend));
+        }
     }
 
     public bool IsProcessing

@@ -24,6 +24,12 @@ public sealed class AiSettingsViewModel : ViewModelBase
     private string _voiceMode   = "push-to-talk";
     private bool   _wakeWordEnabled = false;
     private string _wakeWord    = "嘿白板";
+
+    // 缓存 UI 未暴露的 ImageGen 设置，避免保存时丢失
+    private bool   _imageGenEnabled;
+    private string _imageGenProviderType = "dalle3";
+    private string _imageGenEndpoint     = "";
+    private string _imageGenApiKeyRef    = "";
     private string _wakeWordProviderType = "windows";
     private int    _wakeWordUtteranceSeconds = 5;
     private bool   _ttsEnabled  = false;
@@ -105,7 +111,10 @@ public sealed class AiSettingsViewModel : ViewModelBase
     public string SttProviderType
     {
         get => _sttProviderType;
-        set { if (Set(ref _sttProviderType, value)) OnPropertyChanged(nameof(IsWhisperStt)); }
+        set { if (Set(ref _sttProviderType, value)) {
+            OnPropertyChanged(nameof(IsWhisperStt));
+            OnPropertyChanged(nameof(IsSttEndpointVisible));
+        }}
     }
 
     public string SttLanguage
@@ -127,6 +136,8 @@ public sealed class AiSettingsViewModel : ViewModelBase
     }
 
     public bool IsWhisperStt => _sttProviderType == "whisper";
+
+    public bool IsSttEndpointVisible => _sttProviderType is "azure" or "custom";
 
     public string VoiceMode
     {
@@ -344,6 +355,12 @@ public sealed class AiSettingsViewModel : ViewModelBase
         McpConnections.Clear();
         foreach (var conn in s.McpClient.Connections)
             McpConnections.Add(McpClientConnectionItemViewModel.From(conn));
+
+        // 缓存 UI 不暴露的字段，避免保存时丢失
+        _imageGenEnabled      = s.ImageGenEnabled;
+        _imageGenProviderType = s.ImageGenProviderType;
+        _imageGenEndpoint     = s.ImageGenEndpoint;
+        _imageGenApiKeyRef    = s.ImageGenApiKeyRef;
     }
 
     public AIWhiteboardSettings ToSettings() => new()
@@ -366,6 +383,10 @@ public sealed class AiSettingsViewModel : ViewModelBase
         TtsEnabled         = TtsEnabled,
         TtsProviderType    = TtsProviderType,
         ShowToolCallStatusBar = ShowStatusBar,
+        ImageGenEnabled      = _imageGenEnabled,
+        ImageGenProviderType = _imageGenProviderType,
+        ImageGenEndpoint     = _imageGenEndpoint,
+        ImageGenApiKeyRef    = _imageGenApiKeyRef,
         McpServer = new McpServerSettings
         {
             Enabled               = McpServerEnabled,

@@ -210,10 +210,10 @@
                         <!-- Azure / 自定义 STT 接入点 -->
                         <TextBlock Text="STT 接入点 URL（Azure/自定义）"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsWhisperStt, Converter={StaticResource InvBoolToVis}}"/>
+                                   Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}"/>
                         <TextBox Text="{Binding SttEndpoint, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsWhisperStt, Converter={StaticResource InvBoolToVis}}"/>
+                                 Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}"/>
 
                         <TextBlock Text="识别语言" Style="{StaticResource FieldLabel}"/>
                         <TextBox Text="{Binding SttLanguage, UpdateSourceTrigger=PropertyChanged}"
@@ -234,6 +234,13 @@
                             <TextBlock Text="唤醒词（中文短语）" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding WakeWord, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource FieldBox}"/>
+                            <TextBlock Text="唤醒词引擎" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox SelectedItem="{Binding WakeWordProviderType}"
+                                      FontSize="12"
+                                      Margin="0,0,0,8">
+                                <ComboBoxItem Content="windows"/>
+                                <ComboBoxItem Content="custom"/>
+                            </ComboBox>
                             <TextBlock Text="话语捕获时长（秒）" Style="{StaticResource FieldLabel}"/>
                             <TextBox Text="{Binding WakeWordUtteranceSeconds, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource FieldBox}"/>
@@ -319,7 +326,7 @@
                                         <TextBlock Text="当前 Token" Style="{StaticResource FieldLabel}"
                                                    VerticalAlignment="Center"/>
                                     </DockPanel>
-                                    <TextBox Text="{Binding CurrentMcpToken}"
+                                    <TextBox Text="{Binding CurrentMcpToken, Mode=OneWay}"
                                              IsReadOnly="True"
                                              FontSize="10"
                                              FontFamily="Consolas"
