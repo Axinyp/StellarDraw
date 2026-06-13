@@ -1,0 +1,12 @@
+{
+  "id": "chat-streaming-fix",
+  "title": "修复对话无显示 + 添加流式输出 + 优化状态提示",
+  "status": "in_progress",
+  "strategy": "debug-investigate",
+  "currentPhase": "4-implement",
+  "nextAction": "Fix ChatMessage.INotifyPropertyChanged, add streaming, improve UI status",
+  "gate": null,
+  "branch": "master",
+  "scope": "WhiteBoard.AI + WhiteBoard.UI",
+  "createdAt": "2026-06-13T00:00:00Z"
+}

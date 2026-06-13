@@ -1,0 +1,12 @@
+{
+  "id": "unit-tests",
+  "title": "新建 xUnit 测试项目：画布尺寸、工具注册表、设置序列化",
+  "status": "in_progress",
+  "strategy": "guided-develop",
+  "currentPhase": "4-implement",
+  "nextAction": "Create WhiteBoard.Tests project with xUnit, write test classes",
+  "gate": null,
+  "branch": "master",
+  "scope": "WhiteBoard.AI.Tests (new)",
+  "createdAt": "2026-06-13T00:00:00Z"
+}
