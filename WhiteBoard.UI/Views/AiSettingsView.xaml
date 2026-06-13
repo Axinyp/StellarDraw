@@ -344,7 +344,7 @@
                                             FontSize="11"
                                             Cursor="Hand"
                                             Margin="0,0,0,4"/>
-                                    <TextBox Text="{Binding ClaudeDesktopConfigSnippet}"
+                                    <TextBox Text="{Binding ClaudeDesktopConfigSnippet, Mode=OneWay}"
                                              IsReadOnly="True"
                                              FontSize="10"
                                              FontFamily="Consolas"
