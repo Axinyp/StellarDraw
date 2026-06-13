@@ -141,7 +141,7 @@
                         <TextBox Text="{Binding LlmModel, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"/>
 
-                        <TextBlock Text="API Key 引用（Windows 凭据管理器键名）"
+                        <TextBlock Text="API Key"
                                    Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
                         <TextBox Text="{Binding LlmApiKeyRef, UpdateSourceTrigger=PropertyChanged}"

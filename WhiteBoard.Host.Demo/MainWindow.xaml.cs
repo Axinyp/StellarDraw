@@ -268,15 +268,15 @@ public partial class MainWindow : Window
 }
 
 /// <summary>
-/// Demo 用 ISecretStore：从环境变量读取密钥，无需 Windows Credential Manager。
-/// WHITEBOARD_LLM_APIKEY 对应 LlmApiKeyRef；键名中的 "." 替换为 "_" 后大写查找。
+/// Demo 用 ISecretStore：优先从环境变量读取密钥，找不到时直接将 key 本身当作密钥值返回。
+/// 这样用户既可以填环境变量名（如 OPENAI_API_KEY），也可以直接填实际 API Key（如 sk-xxx）。
 /// </summary>
 file sealed class EnvSecretStore : ISecretStore
 {
     public string Load(string key)
         => Environment.GetEnvironmentVariable(key)
         ?? Environment.GetEnvironmentVariable(key.Replace(".", "_").ToUpperInvariant())
-        ?? "";
+        ?? key;   // 兜底：直接将 keyRef 本身当密钥值使用
 
     public void Save(string key, string value) { }
     public void Delete(string key) { }
