@@ -27,7 +27,7 @@ public sealed class PathObject : WhiteboardObject
         StrokeWidth = strokeWidth;
         IsFilled    = isFilled;
 
-        var bounds = ComputeBounds(pathData);
+        var bounds = ComputeBounds(pathData, strokeWidth);
         SetBounds(bounds.x, bounds.y, bounds.w, bounds.h);
     }
 
@@ -49,7 +49,7 @@ public sealed class PathObject : WhiteboardObject
         IsFilled    = isFilled;
     }
 
-    private static (float x, float y, float w, float h) ComputeBounds(string pathData)
+    private static (float x, float y, float w, float h) ComputeBounds(string pathData, float strokeWidth = 0f)
     {
         var nums = new List<float>();
 
@@ -74,6 +74,7 @@ public sealed class PathObject : WhiteboardObject
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
         }
-        return (minX, minY, maxX - minX, maxY - minY);
+        float pad = strokeWidth * 0.5f;
+        return (minX - pad, minY - pad, maxX - minX + strokeWidth, maxY - minY + strokeWidth);
     }
 }

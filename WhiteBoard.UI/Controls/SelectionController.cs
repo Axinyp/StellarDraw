@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using WhiteBoard.UI.Rendering;
 using WhiteBoard.UI.ViewModels;
 
 namespace WhiteBoard.UI.Controls;
@@ -19,6 +21,7 @@ public sealed class SelectionController
     private readonly DrawingVisual       _visual;
     private readonly WhiteboardViewModel _vm;
     private readonly Func<Matrix>        _getView;
+    private readonly SelectionToolbar    _toolbar;
 
     // 拖拽状态
     private DragMode _mode;
@@ -34,11 +37,22 @@ public sealed class SelectionController
     private Rect _anchorScreenBounds;
     private List<(Guid Id, Rect DocBounds)>? _resizeSnapshot;
 
-    public SelectionController(DrawingVisual visual, WhiteboardViewModel vm, Func<Matrix> getView)
+    public SelectionController(
+        DrawingVisual       visual,
+        WhiteboardViewModel vm,
+        Func<Matrix>        getView,
+        Canvas              overlayCanvas)
     {
         _visual  = visual;
         _vm      = vm;
         _getView = getView;
+
+        _toolbar = new SelectionToolbar();
+        overlayCanvas.Children.Add(_toolbar);
+
+        _toolbar.DeleteClicked      += () => _ = _vm.DeleteSelectedAsync();
+        _toolbar.CopyClicked        += () => _ = _vm.CopySelectedAsync();
+        _toolbar.BringToFrontClicked += () => _ = _vm.BringToFrontSelectedAsync();
     }
 
     // ── 事件入口（由 InkSurface 在 Select 工具模式下调用）───────────────────
@@ -165,24 +179,35 @@ public sealed class SelectionController
         ClearOverlay();
     }
 
-    /// <summary>根据当前选中集合重绘选中框和手柄。</summary>
+    /// <summary>根据当前选中集合重绘选中框和手柄，并更新浮动工具栏位置。</summary>
     public void RenderOverlay()
     {
         var selIds = _vm.Selection.ToList();
         using var dc = _visual.RenderOpen();
 
-        if (selIds.Count == 0) return;
+        if (selIds.Count == 0)
+        {
+            _toolbar.Hide();
+            return;
+        }
 
         var view   = _getView();
         var doc    = GetSelectionDocBounds(selIds);
-        if (doc.IsEmpty) return;
+        if (doc.IsEmpty) { _toolbar.Hide(); return; }
 
         var screen = DocToScreen(doc, view);
         DrawSelectionRect(dc, screen);
         DrawHandles(dc, screen);
+
+        // 工具栏显示在选中框右上角偏移处
+        _toolbar.ShowAt(screen.Right - _toolbar.Width, screen.Top - _toolbar.Height - 6);
     }
 
-    public void ClearOverlay() { using (_visual.RenderOpen()) { } }
+    public void ClearOverlay()
+    {
+        using (_visual.RenderOpen()) { }
+        _toolbar.Hide();
+    }
 
     // ── 私有渲染 ─────────────────────────────────────────────────────────────
 
@@ -207,6 +232,19 @@ public sealed class SelectionController
         var doc    = GetSelectionDocBounds(selIds);
         if (doc.IsEmpty) return;
 
+        // Ghost 渲染：将选中对象绘制在拖拽偏移后的位置
+        // 矩阵 = viewMatrix 附加屏幕空间平移（view.OffsetX + moveDx，而非 Matrix.Translate）
+        dc.PushTransform(new MatrixTransform(
+            view.M11, view.M12, view.M21, view.M22,
+            view.OffsetX + _moveDx, view.OffsetY + _moveDy));
+        foreach (var id in selIds)
+        {
+            var obj = _vm.CurrentPage.GetObject(id);
+            if (obj != null) InkRenderer.RenderObject(dc, obj);
+        }
+        dc.Pop();
+
+        // 选中框和手柄（屏幕空间，带拖拽偏移）
         var screen = DocToScreen(doc, view);
         screen.Offset(_moveDx, _moveDy);
         DrawSelectionRect(dc, screen);

@@ -55,10 +55,9 @@ public static class InkRenderer
     {
         if (s.Points.Count < 2) return;
 
-        var tx        = s.Transform[4];
-        var ty        = s.Transform[5];
-        bool hasOffset = tx != 0f || ty != 0f;
-        if (hasOffset) dc.PushTransform(new TranslateTransform(tx, ty));
+        var t = s.Transform;
+        bool isIdentity = t[0] == 1f && t[1] == 0f && t[2] == 0f && t[3] == 1f && t[4] == 0f && t[5] == 0f;
+        if (!isIdentity) dc.PushTransform(new MatrixTransform(t[0], t[1], t[2], t[3], t[4], t[5]));
 
         var smoothed = BezierSmoothing.Smooth(s.Points, iterations: 2);
         var geometry = BuildStrokeGeometry(smoothed);
@@ -79,7 +78,7 @@ public static class InkRenderer
         dc.DrawGeometry(s.Style.IsFilled ? new SolidColorBrush(color) : null, pen, geometry);
         dc.Pop(); // guideline
 
-        if (hasOffset) dc.Pop(); // transform
+        if (!isIdentity) dc.Pop(); // transform
     }
 
     /// <summary>渲染湿墨迹（正在绘制的笔画，仅连折线，无平滑）。</summary>
@@ -122,10 +121,9 @@ public static class InkRenderer
 
         geo.Freeze();
 
-        var tx        = path.Transform[4];
-        var ty        = path.Transform[5];
-        bool hasOffset = tx != 0f || ty != 0f;
-        if (hasOffset) dc.PushTransform(new TranslateTransform(tx, ty));
+        var t = path.Transform;
+        bool isIdentity = t[0] == 1f && t[1] == 0f && t[2] == 0f && t[3] == 1f && t[4] == 0f && t[5] == 0f;
+        if (!isIdentity) dc.PushTransform(new MatrixTransform(t[0], t[1], t[2], t[3], t[4], t[5]));
 
         var fillColor   = ArgbToColor(path.FillArgb);
         var strokeColor = ArgbToColor(path.StrokeArgb);
@@ -139,7 +137,7 @@ public static class InkRenderer
 
         dc.DrawGeometry(fill, stroke, geo);
 
-        if (hasOffset) dc.Pop();
+        if (!isIdentity) dc.Pop();
     }
 
     // ── Text ──────────────────────────────────────────────────────────────────

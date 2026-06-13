@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -31,6 +32,7 @@ public sealed class InkSurface : FrameworkElement
     private readonly DrawingVisual    _latencyVisual   = new();   // 延迟 Overlay（仅 ShowLatency=true 时使用）
     private readonly VisualCollection _visuals;
     private readonly MatrixTransform  _viewMatrixTransform = new();
+    private readonly Canvas           _overlayCanvas   = new() { IsHitTestVisible = true }; // 浮动工具栏宿主
 
     private Matrix _viewMatrix = Matrix.Identity;
 
@@ -66,6 +68,10 @@ public sealed class InkSurface : FrameworkElement
         _wetInkVisual.Transform    = _viewMatrixTransform;
         _predictedVisual.Transform = _viewMatrixTransform;
         // _selectionVisual 和 _latencyVisual 均为屏幕空间，不附加视图变换
+
+        // _overlayCanvas 作为额外 UIElement 子级挂载（用于浮动工具栏按钮）
+        AddVisualChild(_overlayCanvas);
+        AddLogicalChild(_overlayCanvas);
 
         Focusable             = true;
         ClipToBounds          = true;
@@ -161,7 +167,7 @@ public sealed class InkSurface : FrameworkElement
         }
         if (e.NewValue is WhiteboardViewModel vm)
         {
-            s._controller = new SelectionController(s._selectionVisual, vm, () => s._viewMatrix);
+            s._controller = new SelectionController(s._selectionVisual, vm, () => s._viewMatrix, s._overlayCanvas);
             vm.RedrawRequested   += s.RenderCommitted;
             vm.SelectionChanged  += s.OnSelectionChanged;
             s.RenderCommitted();
@@ -172,8 +178,22 @@ public sealed class InkSurface : FrameworkElement
 
     // ── Visual tree ──────────────────────────────────────────────────────────
 
-    protected override int    VisualChildrenCount => _visuals.Count;
-    protected override Visual GetVisualChild(int index) => _visuals[index];
+    // _overlayCanvas 作为额外 UIElement 子级（不在 VisualCollection 中），需单独处理
+    protected override int    VisualChildrenCount => _visuals.Count + 1;
+    protected override Visual GetVisualChild(int index)
+        => index < _visuals.Count ? _visuals[index] : _overlayCanvas;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        _overlayCanvas.Measure(availableSize);
+        return new Size(0, 0); // InkSurface 填满父容器，由父元素决定尺寸
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        _overlayCanvas.Arrange(new Rect(finalSize));
+        return finalSize;
+    }
 
     // ── Rendering ─────────────────────────────────────────────────────────────
 
@@ -422,6 +442,8 @@ public sealed class InkSurface : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         // 触控设备走通道 A/B；此处只处理真正的鼠标
         if (e.StylusDevice is not null) return;
+        // 工具栏按钮点击不触发画布操作
+        if (e.OriginalSource is Button) return;
 
         var vm = ViewModel;
         if (vm is null) return;

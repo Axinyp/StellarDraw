@@ -56,4 +56,10 @@ public abstract class WhiteboardObject
         Transform[4] += dx;
         Transform[5] += dy;
     }
+
+    internal void SetBoundsAndTransform(float bx, float by, float bw, float bh, float[] transform)
+    {
+        SetBounds(bx, by, bw, bh);
+        SetTransform(transform);
+    }
 }
