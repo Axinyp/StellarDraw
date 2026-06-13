@@ -26,6 +26,15 @@ public abstract class WhiteboardObject
     public float BoundsWidth  { get; private set; }
     public float BoundsHeight { get; private set; }
 
+    // 对象创建时的局部坐标（在 Transform 为 identity 时的初始 Bounds）。
+    // 平移/旋转时不变，仅在 SetBounds 首次调用（构造）时初始化，resize 不修改。
+    // 用于旋转 AABB 计算：world_corner = NewTransform × local_corner，避免 AABB 每次旋转膨胀。
+    public float LocalBoundsX { get; private set; }
+    public float LocalBoundsY { get; private set; }
+    public float LocalBoundsW { get; private set; }
+    public float LocalBoundsH { get; private set; }
+    private bool _localBoundsInitialized;
+
     // Matrix3x2 stored as 6 floats: M11,M12,M21,M22,OffsetX,OffsetY
     public float[] Transform { get; private set; } = [1f, 0f, 0f, 1f, 0f, 0f];
 
@@ -41,6 +50,11 @@ public abstract class WhiteboardObject
     internal void SetBounds(float x, float y, float width, float height)
     {
         BoundsX = x; BoundsY = y; BoundsWidth = width; BoundsHeight = height;
+        if (!_localBoundsInitialized)
+        {
+            LocalBoundsX = x; LocalBoundsY = y; LocalBoundsW = width; LocalBoundsH = height;
+            _localBoundsInitialized = true;
+        }
     }
 
     internal void SetTransform(float[] m)
@@ -60,6 +74,13 @@ public abstract class WhiteboardObject
     internal void SetBoundsAndTransform(float bx, float by, float bw, float bh, float[] transform)
     {
         SetBounds(bx, by, bw, bh);
+        SetTransform(transform);
+    }
+
+    // 仅更新 World Bounds 和 Transform，不触碰 LocalBounds（旋转专用）。
+    internal void SetWorldBoundsAndTransform(float bx, float by, float bw, float bh, float[] transform)
+    {
+        BoundsX = bx; BoundsY = by; BoundsWidth = bw; BoundsHeight = bh;
         SetTransform(transform);
     }
 }

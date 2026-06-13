@@ -42,7 +42,7 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
             var snap = _snapshots[i];
             var (nx, ny, nw, nh, nt) = _newStates[i];
             _page.SpatialIndex.Update(snap.Obj, () =>
-                snap.Obj.SetBoundsAndTransform(nx, ny, nw, nh, nt));
+                snap.Obj.SetWorldBoundsAndTransform(nx, ny, nw, nh, nt));
         }
     }
 
@@ -50,7 +50,7 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
     {
         foreach (var snap in _snapshots)
             _page.SpatialIndex.Update(snap.Obj, () =>
-                snap.Obj.SetBoundsAndTransform(
+                snap.Obj.SetWorldBoundsAndTransform(
                     snap.OldX, snap.OldY, snap.OldW, snap.OldH, snap.OldTransform));
     }
 }

@@ -452,12 +452,13 @@ public sealed class WhiteboardSession : IAsyncDisposable
                 float newOX = t[4]*cos - t[5]*sin + px*(1-cos) + py*sin;
                 float newOY = t[4]*sin + t[5]*cos + py*(1-cos) - px*sin;
 
-                // 旋转旧 Bounds 的 4 个角点后取 AABB
-                var (nx, ny, nw, nh) = RotatedAABB(
-                    obj.BoundsX, obj.BoundsY, obj.BoundsWidth, obj.BoundsHeight,
-                    cos, sin, px, py);
+                // 用 LocalBounds + 新累积 Transform 计算无膨胀的 World AABB
+                var newTransform = new float[] { newM11, newM12, newM21, newM22, newOX, newOY };
+                var (nx, ny, nw, nh) = ComputeWorldAABB(
+                    obj.LocalBoundsX, obj.LocalBoundsY, obj.LocalBoundsW, obj.LocalBoundsH,
+                    newTransform);
 
-                return (nx, ny, nw, nh, new float[] { newM11, newM12, newM21, newM22, newOX, newOY });
+                return (nx, ny, nw, nh, newTransform);
             }).ToList<(float, float, float, float, float[])>();
 
             _history.Execute(new Commands.RotateBoundsCommand(objs, newStates, page));
@@ -466,6 +467,29 @@ public sealed class WhiteboardSession : IAsyncDisposable
         }, ct);
 
         await done.Task.WaitAsync(ct);
+    }
+
+    private static (float x, float y, float w, float h) ComputeWorldAABB(
+        float lx, float ly, float lw, float lh, float[] t)
+    {
+        // WPF 行向量约定：x' = x*t[0] + y*t[2] + t[4]，y' = x*t[1] + y*t[3] + t[5]
+        Span<(float, float)> corners = stackalloc (float, float)[4]
+        {
+            (lx*t[0]      + ly*t[2]      + t[4], lx*t[1]      + ly*t[3]      + t[5]),
+            ((lx+lw)*t[0] + ly*t[2]      + t[4], (lx+lw)*t[1] + ly*t[3]      + t[5]),
+            (lx*t[0]      + (ly+lh)*t[2] + t[4], lx*t[1]      + (ly+lh)*t[3] + t[5]),
+            ((lx+lw)*t[0] + (ly+lh)*t[2] + t[4], (lx+lw)*t[1] + (ly+lh)*t[3] + t[5]),
+        };
+        float minX = corners[0].Item1, minY = corners[0].Item2;
+        float maxX = minX, maxY = minY;
+        for (int i = 1; i < 4; i++)
+        {
+            minX = MathF.Min(minX, corners[i].Item1);
+            minY = MathF.Min(minY, corners[i].Item2);
+            maxX = MathF.Max(maxX, corners[i].Item1);
+            maxY = MathF.Max(maxY, corners[i].Item2);
+        }
+        return (minX, minY, maxX - minX, maxY - minY);
     }
 
     private static (float x, float y, float w, float h) RotatedAABB(
