@@ -332,6 +332,86 @@ public sealed class WhiteboardSession : IAsyncDisposable
             return ValueTask.CompletedTask;
         }, ct).AsTask();
 
+    public Task ClearSelectionAsync(CancellationToken ct = default)
+        => PostOperationAsync(() => { _selection.Clear(); return ValueTask.CompletedTask; }, ct).AsTask();
+
+    public async Task BringToFrontAsync(IReadOnlyList<Guid> objectIds, CancellationToken ct = default)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await PostOperationAsync(() =>
+        {
+            var page  = _pages.Current;
+            int zMax  = page.GetAllObjects().Select(o => o.ZIndex).DefaultIfEmpty(0).Max();
+            int z     = zMax + 1;
+            foreach (var id in objectIds)
+            {
+                var obj = page.GetObject(id);
+                if (obj is not null) obj.ZIndex = z++;
+            }
+            done.TrySetResult();
+            return ValueTask.CompletedTask;
+        }, ct);
+        await done.Task.WaitAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Guid>> CopyObjectsAsync(
+        IReadOnlyList<Guid> objectIds, float dx = 20f, float dy = 20f,
+        CancellationToken ct = default)
+    {
+        var page   = _pages.Current;
+        var newIds = new List<Guid>();
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await PostOperationAsync(() =>
+        {
+            foreach (var id in objectIds)
+            {
+                var obj = page.GetObject(id);
+                if (obj is null) continue;
+
+                var raw    = PageSerializer.SerializeObject(obj);
+                var cloned = PageSerializer.CloneObjectWithOffset(raw, dx, dy);
+                var copy   = PageSerializer.DeserializeObject(cloned);
+                if (copy is null) continue;
+
+                _history.Execute(new AddObjectCommand(copy, page));
+                newIds.Add(copy.Id);
+            }
+            done.TrySetResult();
+            return ValueTask.CompletedTask;
+        }, ct);
+        await done.Task.WaitAsync(ct);
+
+        return newIds;
+    }
+
+    public async Task ResizeBoundsAsync(
+        IReadOnlyList<(Guid Id, float X, float Y, float W, float H)> updates,
+        CancellationToken ct = default)
+    {
+        var page = _pages.Current;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await PostOperationAsync(() =>
+        {
+            var pairs = updates
+                .Select(u => (Obj: page.GetObject(u.Id), u.X, u.Y, u.W, u.H))
+                .Where(p => p.Obj is not null)
+                .ToList();
+
+            if (pairs.Count > 0)
+            {
+                var objs   = pairs.Select(p => p.Obj!).ToList();
+                var bounds = pairs.Select(p => (p.X, p.Y, p.W, p.H))
+                                  .ToList<(float, float, float, float)>();
+                _history.Execute(new ResizeBoundsCommand(objs, bounds, page));
+            }
+            done.TrySetResult();
+            return ValueTask.CompletedTask;
+        }, ct);
+        await done.Task.WaitAsync(ct);
+    }
+
     private async Task RunExecutorAsync(CancellationToken ct)
     {
         await foreach (var op in _ops.Reader.ReadAllAsync(ct))

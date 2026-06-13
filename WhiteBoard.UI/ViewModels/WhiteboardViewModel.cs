@@ -21,16 +21,22 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     public ToolbarViewModel  Toolbar { get; }
     public PageListViewModel Pages   { get; }
 
-    public ICommand UndoCommand        { get; }
-    public ICommand RedoCommand        { get; }
-    public ICommand ClearPageCommand   { get; }
-    public ICommand SelectCommand      { get; }
-    public ICommand InsertShapeCommand { get; }
-    public ICommand InsertImageCommand { get; }
-    public ICommand AddPageCommand     { get; }
+    public ICommand UndoCommand          { get; }
+    public ICommand RedoCommand          { get; }
+    public ICommand ClearPageCommand     { get; }
+    public ICommand SelectCommand        { get; }
+    public ICommand InsertShapeCommand   { get; }
+    public ICommand InsertImageCommand   { get; }
+    public ICommand AddPageCommand       { get; }
+    public ICommand DeleteSelectedCommand { get; }
+    public ICommand CopySelectedCommand   { get; }
+    public ICommand BringToFrontCommand   { get; }
 
     /// <summary>已提交层需要重绘时在 UI 线程触发（由 Session 执行器线程通过 Dispatcher 转发）。</summary>
     public event Action? RedrawRequested;
+
+    /// <summary>选中集合发生变化时触发（供 InkSurface 更新选择覆盖层）。</summary>
+    public event Action? SelectionChanged;
 
     public WhiteboardViewModel(WhiteboardSession session, Dispatcher dispatcher)
     {
@@ -40,13 +46,16 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         Toolbar = new ToolbarViewModel();
         Pages   = new PageListViewModel(session.Pages);
 
-        UndoCommand        = new RelayCommand(Undo,    () => _session.History.CanUndo);
-        RedoCommand        = new RelayCommand(Redo,    () => _session.History.CanRedo);
-        ClearPageCommand   = new RelayCommand(ClearPage);
-        SelectCommand      = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
-        InsertShapeCommand = new RelayCommand<string>(InsertShape);
-        InsertImageCommand = new RelayCommand(InsertImage);
-        AddPageCommand     = new RelayCommand(AddPage);
+        UndoCommand            = new RelayCommand(Undo,    () => _session.History.CanUndo);
+        RedoCommand            = new RelayCommand(Redo,    () => _session.History.CanRedo);
+        ClearPageCommand       = new RelayCommand(ClearPage);
+        SelectCommand          = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
+        InsertShapeCommand     = new RelayCommand<string>(InsertShape);
+        InsertImageCommand     = new RelayCommand(InsertImage);
+        AddPageCommand         = new RelayCommand(AddPage);
+        DeleteSelectedCommand  = new RelayCommand(() => _ = DeleteSelectedAsync());
+        CopySelectedCommand    = new RelayCommand(() => _ = CopySelectedAsync());
+        BringToFrontCommand    = new RelayCommand(() => _ = BringToFrontSelectedAsync());
 
         SubscribeToCurrentPage();
         Pages.PropertyChanged += (_, e) =>
@@ -58,6 +67,10 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
 
     public PageModel         CurrentPage => _session.Current;
     public IStrokePredictor? Predictor   => _session.Predictor;
+    public SelectionModel    Selection   => _session.Selection;
+
+    public void NotifySelectionChanged()
+        => _dispatcher.BeginInvoke(() => SelectionChanged?.Invoke(), DispatcherPriority.Render);
 
     // ── Stroke commit ─────────────────────────────────────────────────────────
 
@@ -75,6 +88,62 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     public async Task EraseAtAsync(float docX, float docY)
     {
         await _session.EraseAtAsync(docX, docY);
+        RequestRedraw();
+    }
+
+    // ── Selection operations ──────────────────────────────────────────────────
+
+    public async Task SelectRegionAsync(float x, float y, float w, float h)
+    {
+        await _session.SelectObjectsInRegionAsync(x, y, w, h);
+        NotifySelectionChanged();
+    }
+
+    public async Task MoveSelectedAsync(float dx, float dy)
+    {
+        var ids = _session.Selection.ToList();
+        if (ids.Count == 0) return;
+        await _session.MoveObjectsAsync(ids, dx, dy);
+        RequestRedraw();
+    }
+
+    public void ClearSelection()
+    {
+        _session.Selection.Clear();
+        NotifySelectionChanged();
+    }
+
+    public async Task DeleteSelectedAsync()
+    {
+        var ids = _session.Selection.ToList();
+        _session.Selection.Clear();
+        if (ids.Count > 0)
+            await _session.DeleteObjectsAsync(ids);
+        RequestRedraw();
+        NotifySelectionChanged();
+    }
+
+    public async Task CopySelectedAsync()
+    {
+        var ids = _session.Selection.ToList();
+        if (ids.Count == 0) return;
+        var newIds = await _session.CopyObjectsAsync(ids);
+        _session.Selection.SelectAll(newIds);
+        RequestRedraw();
+        NotifySelectionChanged();
+    }
+
+    public async Task BringToFrontSelectedAsync()
+    {
+        var ids = _session.Selection.ToList();
+        if (ids.Count == 0) return;
+        await _session.BringToFrontAsync(ids);
+        RequestRedraw();
+    }
+
+    public async Task ResizeBoundsAsync(IReadOnlyList<(Guid Id, float X, float Y, float W, float H)> updates)
+    {
+        await _session.ResizeBoundsAsync(updates);
         RequestRedraw();
     }
 

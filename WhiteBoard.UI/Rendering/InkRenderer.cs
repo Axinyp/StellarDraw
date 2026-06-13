@@ -20,7 +20,7 @@ public static class InkRenderer
     /// <summary>重绘页面所有已提交对象到 dc（应提交层 DrawingVisual 专用）。</summary>
     public static void RenderPage(DrawingContext dc, PageModel page, Size canvasSize)
     {
-        foreach (var obj in page.GetAllObjects())
+        foreach (var obj in page.GetAllObjects().OrderBy(o => o.ZIndex))
             RenderObject(dc, obj);
     }
 
@@ -55,6 +55,11 @@ public static class InkRenderer
     {
         if (s.Points.Count < 2) return;
 
+        var tx        = s.Transform[4];
+        var ty        = s.Transform[5];
+        bool hasOffset = tx != 0f || ty != 0f;
+        if (hasOffset) dc.PushTransform(new TranslateTransform(tx, ty));
+
         var smoothed = BezierSmoothing.Smooth(s.Points, iterations: 2);
         var geometry = BuildStrokeGeometry(smoothed);
 
@@ -72,7 +77,9 @@ public static class InkRenderer
         var guideline = new GuidelineSet();
         dc.PushGuidelineSet(guideline);
         dc.DrawGeometry(s.Style.IsFilled ? new SolidColorBrush(color) : null, pen, geometry);
-        dc.Pop();
+        dc.Pop(); // guideline
+
+        if (hasOffset) dc.Pop(); // transform
     }
 
     /// <summary>渲染湿墨迹（正在绘制的笔画，仅连折线，无平滑）。</summary>
@@ -115,6 +122,11 @@ public static class InkRenderer
 
         geo.Freeze();
 
+        var tx        = path.Transform[4];
+        var ty        = path.Transform[5];
+        bool hasOffset = tx != 0f || ty != 0f;
+        if (hasOffset) dc.PushTransform(new TranslateTransform(tx, ty));
+
         var fillColor   = ArgbToColor(path.FillArgb);
         var strokeColor = ArgbToColor(path.StrokeArgb);
         var fill   = path.IsFilled ? new SolidColorBrush(fillColor) : null;
@@ -126,6 +138,8 @@ public static class InkRenderer
         };
 
         dc.DrawGeometry(fill, stroke, geo);
+
+        if (hasOffset) dc.Pop();
     }
 
     // ── Text ──────────────────────────────────────────────────────────────────

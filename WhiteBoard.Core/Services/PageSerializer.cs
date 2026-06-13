@@ -22,6 +22,46 @@ public static class PageSerializer
     private const int HeaderSize   = 22;   // Magic(4)+Version(2)+Flags(4)+Count(4)+CRC(4)+Reserved(4)
     private const int ChunkFixedHdr = 4+2+2+16+4+16+24+1+3; // = 72 bytes before payload
 
+    /// <summary>
+    /// 克隆 <see cref="SerializeObject"/> 产生的字节块，赋予新 Guid 并对 Bounds/Transform 施加平移偏移。
+    /// 可直接传给 <see cref="DeserializeObject"/> 得到独立的副本对象。
+    /// </summary>
+    public static byte[] CloneObjectWithOffset(byte[] data, float dx, float dy)
+    {
+        // 最短校验（72 字节固定头 + 4 ChunkLen + 4 CRC）
+        if (data.Length < 80) return data;
+
+        var buf      = (byte[])data.Clone();
+        var chunkLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(buf);
+        if (chunkLen != buf.Length || chunkLen < 12) return data;
+
+        // Buffer layout (offset from buf[0]):
+        //  0-3   : ChunkLength
+        //  4-5   : kind, 6-7: schemaVer, 8-23: ObjectId
+        //  24-27 : ZIndex, 28-31: BoundsX, 32-35: BoundsY
+        //  36-39 : BoundsW, 40-43: BoundsH
+        //  44-67 : Transform[0..5]  (T[4]=OffX at 60, T[5]=OffY at 64)
+        //  68    : IsLocked, 69-71: Reserved, 72+: payload
+        //  last 4: CRC32
+
+        // 新 Guid
+        Guid.NewGuid().ToByteArray().CopyTo(buf, 8);
+
+        // BoundsX / BoundsY
+        BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(28), BitConverter.ToSingle(buf, 28) + dx);
+        BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(32), BitConverter.ToSingle(buf, 32) + dy);
+
+        // Transform[4] = OffsetX, Transform[5] = OffsetY
+        BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(60), BitConverter.ToSingle(buf, 60) + dx);
+        BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(64), BitConverter.ToSingle(buf, 64) + dy);
+
+        // 重新计算 CRC：chunkBody = buf[4..(chunkLen-4)]
+        var crc = Crc32.HashToUInt32(buf.AsSpan(4, chunkLen - 8));
+        BinaryPrimitives.WriteUInt32LittleEndian(buf.AsSpan(chunkLen - 4), crc);
+
+        return buf;
+    }
+
     // ── Write ─────────────────────────────────────────────────────────────────
 
     public static byte[] Serialize(PageModel page)

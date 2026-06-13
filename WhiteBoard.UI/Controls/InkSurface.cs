@@ -27,6 +27,7 @@ public sealed class InkSurface : FrameworkElement
     private readonly DrawingVisual    _committedVisual = new();
     private readonly DrawingVisual    _wetInkVisual    = new();
     private readonly DrawingVisual    _predictedVisual = new();
+    private readonly DrawingVisual    _selectionVisual = new();   // 选择覆盖层（屏幕空间，无视图变换）
     private readonly DrawingVisual    _latencyVisual   = new();   // 延迟 Overlay（仅 ShowLatency=true 时使用）
     private readonly VisualCollection _visuals;
     private readonly MatrixTransform  _viewMatrixTransform = new();
@@ -54,13 +55,17 @@ public sealed class InkSurface : FrameworkElement
     // Manipulation 状态
     private bool _isManipulating;
 
+    // 选择控制器
+    private SelectionController? _controller;
+
     public InkSurface()
     {
         _visuals = new VisualCollection(this)
-            { _committedVisual, _wetInkVisual, _predictedVisual, _latencyVisual };
+            { _committedVisual, _wetInkVisual, _predictedVisual, _selectionVisual, _latencyVisual };
         _committedVisual.Transform = _viewMatrixTransform;
         _wetInkVisual.Transform    = _viewMatrixTransform;
         _predictedVisual.Transform = _viewMatrixTransform;
+        // _selectionVisual 和 _latencyVisual 均为屏幕空间，不附加视图变换
 
         Focusable             = true;
         ClipToBounds          = true;
@@ -149,13 +154,21 @@ public sealed class InkSurface : FrameworkElement
     private static void OnViewModelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var s = (InkSurface)d;
-        if (e.OldValue is WhiteboardViewModel old) old.RedrawRequested -= s.RenderCommitted;
+        if (e.OldValue is WhiteboardViewModel old)
+        {
+            old.RedrawRequested   -= s.RenderCommitted;
+            old.SelectionChanged  -= s.OnSelectionChanged;
+        }
         if (e.NewValue is WhiteboardViewModel vm)
         {
-            vm.RedrawRequested += s.RenderCommitted;
+            s._controller = new SelectionController(s._selectionVisual, vm, () => s._viewMatrix);
+            vm.RedrawRequested   += s.RenderCommitted;
+            vm.SelectionChanged  += s.OnSelectionChanged;
             s.RenderCommitted();
         }
     }
+
+    private void OnSelectionChanged() => _controller?.RenderOverlay();
 
     // ── Visual tree ──────────────────────────────────────────────────────────
 
@@ -170,6 +183,8 @@ public sealed class InkSurface : FrameworkElement
         var vm = ViewModel;
         if (vm is null) return;
         InkRenderer.RenderPage(dc, vm.CurrentPage, RenderSize);
+        // 页面重绘后同步更新选择覆盖层（对象移动/删除后 bounds 已更新）
+        _controller?.RenderOverlay();
     }
 
     private void RenderWetInk()
@@ -257,14 +272,18 @@ public sealed class InkSurface : FrameworkElement
         Focus();
         _primaryTouchId = e.TouchDevice.Id;
 
-        var pos = e.GetTouchPoint(this).Position;
-        var doc = ToDoc(pos);
+        var screen = e.GetTouchPoint(this).Position;
+        var doc    = ToDoc(screen);
 
         if (vm.Toolbar.CurrentTool == ToolType.Hand)
         {
             _isPanning      = true;
-            _panStartScreen = pos;
+            _panStartScreen = screen;
             _panStartMatrix = _viewMatrix;
+        }
+        else if (vm.Toolbar.CurrentTool == ToolType.Select)
+        {
+            _controller?.OnDown(screen);
         }
         else if (vm.Toolbar.CurrentTool is ToolType.Pen or ToolType.Highlighter or ToolType.Marker)
         {
@@ -278,18 +297,25 @@ public sealed class InkSurface : FrameworkElement
         if (_isManipulating || e.TouchDevice.Id != _primaryTouchId) return;
         e.Handled = true;
 
-        var vm  = ViewModel;
+        var vm     = ViewModel;
         if (vm is null) return;
-        var pos = e.GetTouchPoint(this).Position;
-        var doc = ToDoc(pos);
+        var screen = e.GetTouchPoint(this).Position;
+        var doc    = ToDoc(screen);
 
         if (_isPanning)
         {
-            var dx = pos.X - _panStartScreen.X;
-            var dy = pos.Y - _panStartScreen.Y;
+            var dx = screen.X - _panStartScreen.X;
+            var dy = screen.Y - _panStartScreen.Y;
             _viewMatrix = _panStartMatrix;
             _viewMatrix.Translate(dx, dy);
             _viewMatrixTransform.Matrix = _viewMatrix;
+            _controller?.RenderOverlay();
+            return;
+        }
+
+        if (vm.Toolbar.CurrentTool == ToolType.Select)
+        {
+            _controller?.OnMove(screen);
             return;
         }
 
@@ -318,6 +344,7 @@ public sealed class InkSurface : FrameworkElement
             return;
         }
 
+        var screen = e.GetTouchPoint(this).Position;
         e.TouchDevice.Capture(null);
         e.Handled = true;
         _primaryTouchId = -1;
@@ -325,6 +352,14 @@ public sealed class InkSurface : FrameworkElement
 
         var vm = ViewModel;
         if (vm is null) return;
+
+        if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+        {
+            await _controller.OnUpAsync(screen);
+            vm.NotifySelectionChanged();
+            return;
+        }
+
         await CommitOrClearAsync(vm);
     }
 
@@ -366,6 +401,7 @@ public sealed class InkSurface : FrameworkElement
             _viewMatrix.ScaleAtPrepend(s, s, origin.X, origin.Y);
 
         _viewMatrixTransform.Matrix = _viewMatrix;
+        _controller?.RenderOverlay();
         e.Handled = true;
     }
 
@@ -392,12 +428,19 @@ public sealed class InkSurface : FrameworkElement
         Focus();
         CaptureMouse();
 
-        var doc = ToDoc(e.GetPosition(this));
+        var screen = e.GetPosition(this);
+        var doc    = ToDoc(screen);
+
         if (vm.Toolbar.CurrentTool == ToolType.Hand)
         {
             _isPanning      = true;
-            _panStartScreen = e.GetPosition(this);
+            _panStartScreen = screen;
             _panStartMatrix = _viewMatrix;
+            return;
+        }
+        if (vm.Toolbar.CurrentTool == ToolType.Select)
+        {
+            _controller?.OnDown(screen);
             return;
         }
         if (vm.Toolbar.CurrentTool is ToolType.Pen or ToolType.Highlighter or ToolType.Marker)
@@ -411,16 +454,25 @@ public sealed class InkSurface : FrameworkElement
         var vm = ViewModel;
         if (vm is null || e.LeftButton != MouseButtonState.Pressed) return;
 
+        var screen = e.GetPosition(this);
+        var doc    = ToDoc(screen);
+
         if (_isPanning)
         {
-            var cur = e.GetPosition(this);
+            var cur = screen;
             _viewMatrix = _panStartMatrix;
             _viewMatrix.Translate(cur.X - _panStartScreen.X, cur.Y - _panStartScreen.Y);
             _viewMatrixTransform.Matrix = _viewMatrix;
+            _controller?.RenderOverlay();
             return;
         }
 
-        var doc = ToDoc(e.GetPosition(this));
+        if (vm.Toolbar.CurrentTool == ToolType.Select)
+        {
+            _controller?.OnMove(screen);
+            return;
+        }
+
         if (_currentPoints is not null &&
             vm.Toolbar.CurrentTool is ToolType.Pen or ToolType.Highlighter or ToolType.Marker)
         {
@@ -443,6 +495,15 @@ public sealed class InkSurface : FrameworkElement
         _isPanning = false;
         var vm = ViewModel;
         if (vm is null) return;
+
+        if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+        {
+            var screen = e.GetPosition(this);
+            await _controller.OnUpAsync(screen);
+            vm.NotifySelectionChanged();
+            return;
+        }
+
         await CommitOrClearAsync(vm);
     }
 
@@ -456,6 +517,7 @@ public sealed class InkSurface : FrameworkElement
         var factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
         _viewMatrix.ScaleAtPrepend(factor, factor, pivot.X, pivot.Y);
         _viewMatrixTransform.Matrix = _viewMatrix;
+        _controller?.RenderOverlay();
         e.Handled = true;
     }
 
@@ -472,6 +534,13 @@ public sealed class InkSurface : FrameworkElement
         { ResetView(); e.Handled = true; }
         else if (e.Key == Key.F12 && Keyboard.Modifiers == ModifierKeys.None)
         { ShowLatency = !ShowLatency; e.Handled = true; }
+        else if (e.Key == Key.Delete && ViewModel is { } vm && vm.Selection.Count > 0)
+        { _ = vm.DeleteSelectedAsync(); e.Handled = true; }
+        else if (e.Key == Key.Escape && ViewModel is { } vmEsc && vmEsc.Selection.Count > 0)
+        { _controller?.ClearSelection(); vmEsc.NotifySelectionChanged(); e.Handled = true; }
+        else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control
+                 && ViewModel is { } vmCopy && vmCopy.Selection.Count > 0)
+        { _ = vmCopy.CopySelectedAsync(); e.Handled = true; }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -517,6 +586,7 @@ public sealed class InkSurface : FrameworkElement
     {
         _viewMatrix = Matrix.Identity;
         _viewMatrixTransform.Matrix = _viewMatrix;
+        _controller?.RenderOverlay();
     }
 
     protected override void OnRender(DrawingContext drawingContext)
