@@ -187,7 +187,7 @@ public partial class MainWindow : Window
             var secrets = new EnvSecretStore();
             var provider = new SettingsBackedLlmProvider(settings, secrets);
             using var client = provider.CreateClient();
-            var response = await client.CompleteAsync(
+            await client.GetResponseAsync(
                 [new Microsoft.Extensions.AI.ChatMessage(
                     Microsoft.Extensions.AI.ChatRole.User, "ping")],
                 cancellationToken: CancellationToken.None);
