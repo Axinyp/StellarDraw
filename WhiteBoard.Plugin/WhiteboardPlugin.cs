@@ -119,7 +119,7 @@ public sealed class WhiteboardPlugin : IWhiteboardWpfPlugin
 
     private static FrameworkElement BuildView(WhiteboardViewModel vm)
     {
-        var toolbar    = new InkToolbar { ViewModel = vm.Toolbar };
+        var toolbar    = new InkToolbar { ViewModel = vm.Toolbar, Board = vm };
         var inkSurface = new InkSurface  { ViewModel = vm };
         var pageStrip  = new PageStrip   { ViewModel = vm };
 

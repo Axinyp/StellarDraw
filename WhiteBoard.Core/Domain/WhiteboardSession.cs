@@ -201,6 +201,25 @@ public sealed class WhiteboardSession : IAsyncDisposable
         await done.Task.WaitAsync(ct);
     }
 
+    public async Task AddImageAsync(ImageObject image, string? operationId = null,
+        string? groupId = null, CancellationToken ct = default)
+    {
+        var cmd  = new AddImageCommand(image, _pages.Current);
+        var data = PageSerializer.SerializeObject(image);
+        var evt  = new ObjectAddedEvent(
+            Guid.NewGuid().ToString("N"), _pages.Current.Id, image.Id.ToString(), "local",
+            DateTimeOffset.UtcNow, data,
+            operationId ?? Guid.NewGuid().ToString("N"), groupId);
+
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await PostOperationAsync(async () =>
+        {
+            try   { _history.Execute(cmd); await _collab.OnLocalEventAsync(evt); }
+            finally { done.TrySetResult(); }
+        }, ct);
+        await done.Task.WaitAsync(ct);
+    }
+
     public async Task AddPathAsync(PathObject path, string? operationId = null,
         string? groupId = null, CancellationToken ct = default)
     {

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -9,8 +10,8 @@ using WhiteBoard.UI.ViewModels;
 namespace WhiteBoard.UI.Controls;
 
 /// <summary>
-/// 水平工具栏：工具选择、颜色色块、笔粗调节。
-/// DataContext 不使用；通过 ViewModel DependencyProperty 绑定 ToolbarViewModel。
+/// 水平工具栏：绘图工具选择 + 颜色/粗细 + 撤销/重做/清空/形状/图片操作按钮。
+/// 通过 ViewModel（ToolbarViewModel）和 Board（WhiteboardViewModel）两个 DP 绑定。
 /// </summary>
 public sealed class InkToolbar : UserControl
 {
@@ -24,6 +25,18 @@ public sealed class InkToolbar : UserControl
     {
         get => (ToolbarViewModel?)GetValue(ViewModelProperty);
         set => SetValue(ViewModelProperty, value);
+    }
+
+    // ── DependencyProperty: Board ─────────────────────────────────────────────
+
+    public static readonly DependencyProperty BoardProperty =
+        DependencyProperty.Register(nameof(Board), typeof(WhiteboardViewModel),
+            typeof(InkToolbar), new PropertyMetadata(null));
+
+    public WhiteboardViewModel? Board
+    {
+        get => (WhiteboardViewModel?)GetValue(BoardProperty);
+        set => SetValue(BoardProperty, value);
     }
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -42,6 +55,7 @@ public sealed class InkToolbar : UserControl
         (ToolType.Highlighter, "荧光", "荧光笔"),
         (ToolType.Marker,      "记号", "记号笔"),
         (ToolType.Eraser,      "橡皮", "橡皮擦"),
+        (ToolType.Select,      "选择", "框选对象"),
         (ToolType.Hand,        "平移", "平移 (空格)"),
     ];
 
@@ -53,6 +67,15 @@ public sealed class InkToolbar : UserControl
         0xFF43A047u,  // 绿
         0xFFFF8F00u,  // 橙
         0xFF8E24AAu,  // 紫
+    ];
+
+    private static readonly (string Type, string Label)[] ShapeDefs =
+    [
+        ("rectangle", "矩形"),
+        ("circle",    "圆形"),
+        ("triangle",  "三角形"),
+        ("arrow",     "箭头"),
+        ("line",      "直线"),
     ];
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -72,7 +95,7 @@ public sealed class InkToolbar : UserControl
             Margin            = new Thickness(8, 0, 8, 0),
         };
 
-        // Tool buttons
+        // ── 绘图工具按钮 ──────────────────────────────────────────────────────
         foreach (var (tool, label, tip) in ToolDefs)
         {
             var btn = new Button
@@ -93,7 +116,7 @@ public sealed class InkToolbar : UserControl
 
         panel.Children.Add(MakeSep());
 
-        // Color swatches
+        // ── 颜色色块 ──────────────────────────────────────────────────────────
         foreach (var argb in PresetColors)
         {
             var captured = argb;
@@ -112,7 +135,7 @@ public sealed class InkToolbar : UserControl
             panel.Children.Add(colorBtn);
         }
 
-        // Current-color swatch
+        // 当前色块
         var swatch = new Border
         {
             Width             = 24,
@@ -128,7 +151,7 @@ public sealed class InkToolbar : UserControl
 
         panel.Children.Add(MakeSep());
 
-        // Thickness label + slider + text
+        // ── 笔粗 ─────────────────────────────────────────────────────────────
         panel.Children.Add(new TextBlock
         {
             Text              = "粗细:",
@@ -168,6 +191,56 @@ public sealed class InkToolbar : UserControl
                 vm.Thickness = (float)e.NewValue;
         };
 
+        panel.Children.Add(MakeSep());
+
+        // ── 操作按钮区 ────────────────────────────────────────────────────────
+        panel.Children.Add(MakeActionBtn("↩", "撤销 (Ctrl+Z)",
+            () => Board?.UndoCommand.Execute(null)));
+
+        panel.Children.Add(MakeActionBtn("↪", "重做 (Ctrl+Y)",
+            () => Board?.RedoCommand.Execute(null)));
+
+        panel.Children.Add(MakeSep());
+
+        panel.Children.Add(MakeActionBtn("🗑", "清空白板",
+            () => Board?.ClearPageCommand.Execute(null)));
+
+        panel.Children.Add(MakeSep());
+
+        // 插入形状（下拉菜单）
+        var shapeMenu = new ContextMenu();
+        foreach (var (type, label) in ShapeDefs)
+        {
+            var captured = type;
+            var item     = new MenuItem { Header = label };
+            item.Click  += (_, _) => Board?.InsertShapeCommand.Execute(captured);
+            shapeMenu.Items.Add(item);
+        }
+
+        var shapeBtn = new Button
+        {
+            Content         = new TextBlock { Text = "形状▼", FontSize = 11 },
+            Width           = 48,
+            Height          = 34,
+            Margin          = new Thickness(2, 0, 2, 0),
+            ToolTip         = "插入基本形状",
+            Cursor          = Cursors.Hand,
+            BorderThickness = new Thickness(1),
+            Background      = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
+            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+        };
+        shapeBtn.Click += (_, _) =>
+        {
+            shapeMenu.PlacementTarget = shapeBtn;
+            shapeMenu.Placement       = PlacementMode.Bottom;
+            shapeMenu.IsOpen          = true;
+        };
+        panel.Children.Add(shapeBtn);
+
+        // 插入图片
+        panel.Children.Add(MakeActionBtn("🖼", "插入图片",
+            () => Board?.InsertImageCommand.Execute(null)));
+
         Content = new Border
         {
             Background      = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
@@ -190,6 +263,7 @@ public sealed class InkToolbar : UserControl
             ToolType.Highlighter => ViewModel.SelectHighlighterCommand,
             ToolType.Marker      => ViewModel.SelectMarkerCommand,
             ToolType.Eraser      => ViewModel.SelectEraserCommand,
+            ToolType.Select      => ViewModel.SelectSelectCommand,
             ToolType.Hand        => ViewModel.SelectHandCommand,
             _                    => null,
         };
@@ -253,6 +327,24 @@ public sealed class InkToolbar : UserControl
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static Button MakeActionBtn(string icon, string tip, Action onClick)
+    {
+        var btn = new Button
+        {
+            Content         = new TextBlock { Text = icon, FontSize = 14 },
+            Width           = 38,
+            Height          = 34,
+            Margin          = new Thickness(2, 0, 2, 0),
+            ToolTip         = tip,
+            Cursor          = Cursors.Hand,
+            BorderThickness = new Thickness(1),
+            Background      = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
+            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+        };
+        btn.Click += (_, _) => onClick();
+        return btn;
+    }
 
     private static UIElement MakeSep() => new Rectangle
     {

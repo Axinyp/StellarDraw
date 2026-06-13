@@ -223,10 +223,29 @@ public static class InkRenderer
     private static void RenderImagePlaceholder(DrawingContext dc, ImageObject img)
     {
         var rect = new Rect(img.BoundsX, img.BoundsY, img.BoundsWidth, img.BoundsHeight);
+
+        var bitmap = ImageAssetStore.Retrieve(img.AssetId);
+        if (bitmap is not null)
+        {
+            dc.DrawImage(bitmap, rect);
+            return;
+        }
+
+        // 资产不在缓存时显示占位符
         dc.DrawRectangle(
             new SolidColorBrush(Color.FromArgb(40, 100, 149, 237)),
             new Pen(Brushes.CornflowerBlue, 1),
             rect);
+        var ft = new FormattedText("📷",
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Emoji"),
+            Math.Min(img.BoundsWidth, img.BoundsHeight) * 0.4,
+            Brushes.CornflowerBlue,
+            pixelsPerDip: 1.0);
+        dc.DrawText(ft, new Point(
+            img.BoundsX + img.BoundsWidth  / 2 - ft.Width  / 2,
+            img.BoundsY + img.BoundsHeight / 2 - ft.Height / 2));
     }
 
     private static void RenderGenericBounds(DrawingContext dc, WhiteboardObject obj)

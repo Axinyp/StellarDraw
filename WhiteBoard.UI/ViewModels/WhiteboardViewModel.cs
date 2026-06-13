@@ -1,9 +1,11 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
+using WhiteBoard.UI.Rendering;
 
 namespace WhiteBoard.UI.ViewModels;
 
@@ -19,9 +21,13 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     public ToolbarViewModel  Toolbar { get; }
     public PageListViewModel Pages   { get; }
 
-    public ICommand UndoCommand { get; }
-    public ICommand RedoCommand { get; }
-    public ICommand AddPageCommand { get; }
+    public ICommand UndoCommand        { get; }
+    public ICommand RedoCommand        { get; }
+    public ICommand ClearPageCommand   { get; }
+    public ICommand SelectCommand      { get; }
+    public ICommand InsertShapeCommand { get; }
+    public ICommand InsertImageCommand { get; }
+    public ICommand AddPageCommand     { get; }
 
     /// <summary>已提交层需要重绘时在 UI 线程触发（由 Session 执行器线程通过 Dispatcher 转发）。</summary>
     public event Action? RedrawRequested;
@@ -34,9 +40,13 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         Toolbar = new ToolbarViewModel();
         Pages   = new PageListViewModel(session.Pages);
 
-        UndoCommand    = new RelayCommand(Undo,    () => _session.History.CanUndo);
-        RedoCommand    = new RelayCommand(Redo,    () => _session.History.CanRedo);
-        AddPageCommand = new RelayCommand(AddPage);
+        UndoCommand        = new RelayCommand(Undo,    () => _session.History.CanUndo);
+        RedoCommand        = new RelayCommand(Redo,    () => _session.History.CanRedo);
+        ClearPageCommand   = new RelayCommand(ClearPage);
+        SelectCommand      = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
+        InsertShapeCommand = new RelayCommand<string>(InsertShape);
+        InsertImageCommand = new RelayCommand(InsertImage);
+        AddPageCommand     = new RelayCommand(AddPage);
 
         SubscribeToCurrentPage();
         Pages.PropertyChanged += (_, e) =>
@@ -141,6 +151,72 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
             Toolbar.Thickness,
             IsFilled:    false,
             IsAntiAlias: Toolbar.IsAntiAlias);
+    }
+
+    private void ClearPage()
+    {
+        _session.ClearCurrentPageAsync().ContinueWith(_ =>
+            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
+    }
+
+    private void InsertShape(string? shapeType)
+    {
+        var type = shapeType?.ToLowerInvariant() switch
+        {
+            "circle"   => ShapeType.Circle,
+            "triangle" => ShapeType.Triangle,
+            "line"     => ShapeType.Line,
+            "arrow"    => ShapeType.Arrow,
+            _          => ShapeType.Rectangle,
+        };
+        var w = _session.CanvasWidth;
+        var h = _session.CanvasHeight;
+        var shape = new ShapeObject(type, 0xFFFFFFFF, 0xFF333333, 2f, true,
+            w / 2 - 80, h / 2 - 60, 160, 120);
+        _session.AddShapeAsync(shape).ContinueWith(_ =>
+            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
+    }
+
+    private void InsertImage()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title  = "选择图片",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*",
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource        = new Uri(dlg.FileName);
+            bitmap.CacheOption      = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions    = BitmapCreateOptions.None;
+            bitmap.EndInit();
+            bitmap.Freeze();
+
+            var raw     = System.IO.File.ReadAllBytes(dlg.FileName);
+            var hash    = System.Security.Cryptography.SHA256.HashData(raw);
+            var assetId = BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant();
+
+            ImageAssetStore.Store(assetId, bitmap);
+
+            var maxW  = Math.Min(bitmap.PixelWidth, 600f);
+            var scale = maxW / bitmap.PixelWidth;
+            var imgW  = (float)(bitmap.PixelWidth  * scale);
+            var imgH  = (float)(bitmap.PixelHeight * scale);
+            var x     = (_session.CanvasWidth  - imgW) / 2;
+            var y     = (_session.CanvasHeight - imgH) / 2;
+
+            var image = new ImageObject(assetId, x, y, imgW, imgH);
+            _session.AddImageAsync(image).ContinueWith(_ =>
+                _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.Message}");
+        }
     }
 
     public void Dispose()

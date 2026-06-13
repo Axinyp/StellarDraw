@@ -50,11 +50,12 @@ public sealed class ToolbarViewModel : ViewModelBase
     public bool IsHandActive      => _currentTool == ToolType.Hand;
 
     // Tool commands
-    public ICommand SelectPenCommand        => new RelayCommand(() => SetTool(ToolType.Pen));
+    public ICommand SelectPenCommand         => new RelayCommand(() => SetTool(ToolType.Pen));
     public ICommand SelectHighlighterCommand => new RelayCommand(() => SetTool(ToolType.Highlighter));
-    public ICommand SelectMarkerCommand     => new RelayCommand(() => SetTool(ToolType.Marker));
-    public ICommand SelectEraserCommand     => new RelayCommand(() => SetTool(ToolType.Eraser));
-    public ICommand SelectHandCommand       => new RelayCommand(() => SetTool(ToolType.Hand));
+    public ICommand SelectMarkerCommand      => new RelayCommand(() => SetTool(ToolType.Marker));
+    public ICommand SelectEraserCommand      => new RelayCommand(() => SetTool(ToolType.Eraser));
+    public ICommand SelectSelectCommand      => new RelayCommand(() => SetTool(ToolType.Select));
+    public ICommand SelectHandCommand        => new RelayCommand(() => SetTool(ToolType.Hand));
 
     private void SetTool(ToolType t)
     {
