@@ -51,10 +51,12 @@ public sealed class PathObject : WhiteboardObject
 
     private static (float x, float y, float w, float h) ComputeBounds(string pathData)
     {
-        // 快速扫描 path string 中的数值对，估算包围盒。
-        // 精确计算贝塞尔包围盒复杂度高且非必要（运行时 WPF Geometry.Bounds 已精确）。
-        var nums   = new List<float>();
-        var tokens = pathData.Split([' ', ',', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
+        var nums = new List<float>();
+
+        // 将所有 SVG 命令字母替换为空格，兼容 "M100,100" 和 "M 100 100" 两种写法
+        var normalized = System.Text.RegularExpressions.Regex.Replace(pathData, @"[A-Za-z]", " ");
+        var tokens = normalized.Split([' ', ',', '\t', '\n', '\r'],
+            StringSplitOptions.RemoveEmptyEntries);
         foreach (var t in tokens)
             if (float.TryParse(t, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var v))

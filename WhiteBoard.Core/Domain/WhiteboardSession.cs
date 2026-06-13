@@ -115,25 +115,25 @@ public sealed class WhiteboardSession : IAsyncDisposable
 
     /// <summary>
     /// 在文档坐标 (x, y) 附近执行橡皮擦：命中的所有对象删除并广播 <see cref="ObjectDeletedEvent"/>。
-    /// 命中检测在调用线程完成（命中列表快照），实际删除与广播在执行器线程串行执行。
+    /// HitTest 在执行器线程内执行，保证与 SpatialIndex 的写操作串行，消除竞态条件。
     /// </summary>
     public async Task EraseAtAsync(float x, float y, CancellationToken ct = default)
     {
         var page = _pages.Current;
-        var hits = page.HitTest(x, y, tolerance: 8f);
-        if (hits.Count == 0) return;
-
-        // 提前生成命令与事件，避免执行器线程重新 HitTest
-        var cmds = hits.Select(obj => new DeleteObjectCommand(obj, page)).ToList();
-        var evts = hits.Select(obj => new ObjectDeletedEvent(
-            Guid.NewGuid().ToString("N"),
-            page.Id,
-            obj.Id.ToString(),
-            "local",
-            DateTimeOffset.UtcNow)).ToList();
 
         await PostOperationAsync(async () =>
         {
+            var hits = page.HitTest(x, y, tolerance: 8f);
+            if (hits.Count == 0) return;
+
+            var cmds = hits.Select(obj => new DeleteObjectCommand(obj, page)).ToList();
+            var evts = hits.Select(obj => new ObjectDeletedEvent(
+                Guid.NewGuid().ToString("N"),
+                page.Id,
+                obj.Id.ToString(),
+                "local",
+                DateTimeOffset.UtcNow)).ToList();
+
             foreach (var cmd in cmds)
                 _history.Execute(cmd);
             foreach (var evt in evts)

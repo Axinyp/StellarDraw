@@ -35,6 +35,13 @@ public sealed class ProgressiveContextBuilder
             - 画布宽 {_session.CanvasWidth}px，高 {_session.CanvasHeight}px，左上角为原点 (0, 0)
             - 所有坐标单位为像素
 
+            ## 工具选择规则（重要）
+            - 几何图形（星形、多边形、箭头、流程图元素、图标轮廓）→ draw_path（SVG path string）
+            - 标准几何形状（圆、矩形、三角形、直线）→ insert_shape
+            - 复杂图像、角色、动物、场景、写实图片、卡通人物 → generate_and_insert_image（若不可用，告知用户需配置图像生成服务，不要用形状拼凑）
+            - 文字内容 → insert_text
+            - 若所需工具不在"可用工具"列表中，明确告知用户该功能当前不可用，不要用其他工具代替
+
             ## 操作规则
             - 批量操作时，先调用 get_canvas_size 确认画布范围
             - 引用已创建对象时，使用 alias（别名）而非 GUID
