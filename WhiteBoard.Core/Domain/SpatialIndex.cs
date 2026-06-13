@@ -41,15 +41,8 @@ public sealed class SpatialIndex
 
     public IReadOnlyList<WhiteboardObject> LassoSelect(float left, float top, float right, float bottom)
     {
-        // 先用 R*Tree 快速缩小候选范围，再用包含检测过滤：
-        // 只选中 Bounds 完全在框内的对象，避免框选"空白区"时意外选中边缘对象。
         var results = _tree.Search(new Envelope(left, top, right, bottom));
-        return results
-            .Where(e => e.Object.BoundsX >= left  && e.Object.BoundsY >= top &&
-                        e.Object.BoundsX + e.Object.BoundsWidth  <= right &&
-                        e.Object.BoundsY + e.Object.BoundsHeight <= bottom)
-            .Select(e => e.Object)
-            .ToList();
+        return results.Select(e => e.Object).ToList();
     }
 
     public void Clear() => _tree.Clear();

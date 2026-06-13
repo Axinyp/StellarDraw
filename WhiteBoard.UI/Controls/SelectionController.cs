@@ -18,10 +18,10 @@ public sealed class SelectionController
     private const double HandleSize      = 8.0;
     private const double HandleHalf      = HandleSize / 2;
     private const double HandleHitR      = 10.0;
-    private const double RotateLineLen   = 48.0;   // 旋转虚线长度（从选中框底边向下）
+    private const double RotateLineLen   = 48.0;   // 旋转虚线长度（从选中框顶边向上）
     private const double RotateRadius    = 10.0;   // 旋转圆形手柄半径
     private const double RotateHitR      = 14.0;   // 旋转手柄命中半径
-    private const double ToolbarGap      = 8.0;    // 工具栏与旋转圆形手柄的间距
+    private const double ToolbarGap      = 8.0;    // 工具栏与选中框底边的间距
 
     private readonly DrawingVisual       _visual;
     private readonly WhiteboardViewModel _vm;
@@ -97,7 +97,7 @@ public sealed class SelectionController
                     return;
                 }
 
-                // 检测旋转手柄
+                // 检测旋转手柄（顶边中心上方）
                 if (HitTestRotateHandle(screen, screenBounds))
                 {
                     _mode                    = DragMode.RotateHandle;
@@ -305,7 +305,7 @@ public sealed class SelectionController
 
     // ── 绘制选中框 + 手柄 + 旋转线 ──────────────────────────────────────────
 
-    /// <summary>绘制选中框、8 个缩放手柄、旋转虚线+圆形手柄。</summary>
+    /// <summary>绘制选中框、8 个缩放手柄、旋转虚线+圆形手柄（顶边中心上方）。</summary>
     private static void DrawSelectionContent(DrawingContext dc, Rect r)
     {
         // 选中框
@@ -321,20 +321,18 @@ public sealed class SelectionController
             dc.DrawRectangle(fill, stroke,
                 new Rect(pt.X - HandleHalf, pt.Y - HandleHalf, HandleSize, HandleSize));
 
-        // 旋转手柄：底边中心向下延伸虚线 + 圆形
+        // 旋转手柄：顶边中心向上延伸虚线 + 圆形（与 ConferenceAIO 一致）
         double cx = r.Left + r.Width / 2;
         var dashPen = new Pen(new SolidColorBrush(Color.FromRgb(0, 120, 212)), 1.5)
         {
             DashStyle = new DashStyle(new double[] { 4, 3 }, 0)
         };
         dc.DrawLine(dashPen,
-            new Point(cx, r.Bottom),
-            new Point(cx, r.Bottom + RotateLineLen));
+            new Point(cx, r.Top),
+            new Point(cx, r.Top - RotateLineLen));
 
-        var rotatePt = new Point(cx, r.Bottom + RotateLineLen);
+        var rotatePt = new Point(cx, r.Top - RotateLineLen);
         dc.DrawEllipse(Brushes.White, stroke, rotatePt, RotateRadius, RotateRadius);
-
-        // 旋转图标：在圆内绘制两段弧（简化为两条弯线表示旋转感）
         DrawRotateIcon(dc, rotatePt, RotateRadius * 0.55);
     }
 
@@ -365,8 +363,9 @@ public sealed class SelectionController
 
     private static void PositionToolbarHelper(SelectionToolbar toolbar, Rect screenBounds)
     {
-        double cx = screenBounds.Left + screenBounds.Width / 2;
-        double top = screenBounds.Bottom + RotateLineLen + RotateRadius * 2 + ToolbarGap;
+        double cx  = screenBounds.Left + screenBounds.Width / 2;
+        // 工具栏在选中框正下方，与旋转手柄（上方）完全分离
+        double top = screenBounds.Bottom + ToolbarGap;
         toolbar.ShowAt(cx - toolbar.Width / 2, top);
     }
 
@@ -404,7 +403,8 @@ public sealed class SelectionController
     private static bool HitTestRotateHandle(Point screen, Rect selScreen)
     {
         double cx = selScreen.Left + selScreen.Width / 2;
-        var handleCenter = new Point(cx, selScreen.Bottom + RotateLineLen);
+        // 旋转手柄在顶边上方 RotateLineLen 处
+        var handleCenter = new Point(cx, selScreen.Top - RotateLineLen);
         var d = screen - handleCenter;
         return d.LengthSquared <= RotateHitR * RotateHitR;
     }
