@@ -120,14 +120,15 @@ public static class PageSerializer
 
     private static byte[] SerializePayload(WhiteboardObject obj) => obj switch
     {
-        StrokeObject s   => SerializeStroke(s),
-        ImageObject  img => SerializeImage(img),
-        TextObject   t   => SerializeText(t),
-        ShapeObject  sh  => SerializeShape(sh),
-        MindMapObject mm => SerializeJson(mm.Data.ToJson()),
-        TableObject  tb  => SerializeJson(tb.Data.ToJson()),
-        DocumentObject d => SerializeDocument(d),
-        _                => [],
+        StrokeObject  s   => SerializeStroke(s),
+        ImageObject   img => SerializeImage(img),
+        TextObject    t   => SerializeText(t),
+        ShapeObject   sh  => SerializeShape(sh),
+        PathObject    p   => SerializePath(p),
+        MindMapObject mm  => SerializeJson(mm.Data.ToJson()),
+        TableObject   tb  => SerializeJson(tb.Data.ToJson()),
+        DocumentObject d  => SerializeDocument(d),
+        _                 => [],
     };
 
     private static byte[] SerializeStroke(StrokeObject s)
@@ -202,12 +203,27 @@ public static class PageSerializer
         return ms.ToArray();
     }
 
+    private static byte[] SerializePath(PathObject p)
+    {
+        var pathBytes = Encoding.UTF8.GetBytes(p.PathData);
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+        bw.Write((uint)pathBytes.Length);
+        bw.Write(pathBytes);
+        bw.Write(p.FillArgb);
+        bw.Write(p.StrokeArgb);
+        bw.Write(p.StrokeWidth);
+        bw.Write(p.IsFilled ? (byte)1 : (byte)0);
+        return ms.ToArray();
+    }
+
     private static ObjectKind GetKind(WhiteboardObject obj) => obj switch
     {
         StrokeObject   => ObjectKind.Stroke,
         ImageObject    => ObjectKind.Image,
         TextObject     => ObjectKind.Text,
         ShapeObject    => ObjectKind.Shape,
+        PathObject     => ObjectKind.Path,
         MindMapObject  => ObjectKind.MindMap,
         TableObject    => ObjectKind.Table,
         DocumentObject => ObjectKind.Document,
@@ -299,6 +315,7 @@ public static class PageSerializer
             ObjectKind.Image    => DeserializeImage(id, bx, by, bw, bh, transform, payload),
             ObjectKind.Text     => DeserializeText(id, bx, by, bw, bh, transform, payload),
             ObjectKind.Shape    => DeserializeShape(id, bx, by, bw, bh, transform, payload),
+            ObjectKind.Path     => DeserializePath(id, bx, by, bw, bh, transform, payload),
             ObjectKind.MindMap  => DeserializeMindMap(id, bx, by, bw, bh, transform, payload),
             ObjectKind.Table    => DeserializeTable(id, bx, by, bw, bh, transform, payload),
             ObjectKind.Document => DeserializeDocument(id, bx, by, bw, bh, transform, payload),
@@ -388,5 +405,26 @@ public static class PageSerializer
         var strokeWidth = BitConverter.ToSingle(payload[9..]);
         var isFilled    = payload[13] != 0;
         return new ShapeObject(id, type, fillArgb, strokeArgb, strokeWidth, isFilled, bx, by, bw, bh, transform);
+    }
+
+    private static PathObject DeserializePath(Guid id, float bx, float by, float bw, float bh,
+        float[] transform, ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 4)
+            return new PathObject(id, "", 0xFF000000, 0xFF000000, 1f, false, bx, by, bw, bh, transform);
+
+        var pathLen  = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
+        var minRequired = 4 + pathLen + 9;
+        if (payload.Length < minRequired)
+            return new PathObject(id, "", 0xFF000000, 0xFF000000, 1f, false, bx, by, bw, bh, transform);
+
+        var pathData    = Encoding.UTF8.GetString(payload[4..(4 + pathLen)]);
+        int tail        = 4 + pathLen;
+        var fillArgb    = BinaryPrimitives.ReadUInt32LittleEndian(payload[tail..]);
+        var strokeArgb  = BinaryPrimitives.ReadUInt32LittleEndian(payload[(tail + 4)..]);
+        var strokeWidth = BitConverter.ToSingle(payload[(tail + 8)..]);
+        var isFilled    = payload[tail + 12] != 0;
+
+        return new PathObject(id, pathData, fillArgb, strokeArgb, strokeWidth, isFilled, bx, by, bw, bh, transform);
     }
 }

@@ -13,6 +13,9 @@ public interface IWhiteboardAiActions
     Task<ToolResult> InsertShapeAsync(ShapeSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default);
 
+    Task<ToolResult> InsertPathAsync(PathSpec spec, string? alias = null,
+        string? groupId = null, CancellationToken ct = default);
+
     Task<ToolResult> InsertTextAsync(TextSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default);
 
@@ -71,6 +74,14 @@ public sealed record ShapeSpec(
     float  Width,
     float  Height,
     string FillColor   = "#FFFFFF",
+    string StrokeColor = "#000000",
+    float  StrokeWidth = 2f,
+    bool   IsFilled    = true);
+
+/// <summary>通用矢量路径规格：SVG path string + 颜色/宽度。</summary>
+public sealed record PathSpec(
+    string PathData,
+    string FillColor   = "#FFD700",
     string StrokeColor = "#000000",
     float  StrokeWidth = 2f,
     bool   IsFilled    = true);

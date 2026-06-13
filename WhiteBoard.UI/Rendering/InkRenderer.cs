@@ -31,6 +31,12 @@ public static class InkRenderer
             case StrokeObject s:
                 RenderStroke(dc, s);
                 break;
+            case ShapeObject sh:
+                RenderShape(dc, sh);
+                break;
+            case PathObject path:
+                RenderPath(dc, path);
+                break;
             case TextObject t:
                 RenderText(dc, t);
                 break;
@@ -97,6 +103,31 @@ public static class InkRenderer
         dc.DrawGeometry(null, pen, geo);
     }
 
+    // ── Path (SVG path string → WPF Geometry) ────────────────────────────────
+
+    private static void RenderPath(DrawingContext dc, PathObject path)
+    {
+        if (string.IsNullOrWhiteSpace(path.PathData)) return;
+
+        Geometry? geo;
+        try   { geo = Geometry.Parse(path.PathData); }
+        catch { return; }
+
+        geo.Freeze();
+
+        var fillColor   = ArgbToColor(path.FillArgb);
+        var strokeColor = ArgbToColor(path.StrokeArgb);
+        var fill   = path.IsFilled ? new SolidColorBrush(fillColor) : null;
+        var stroke = new Pen(new SolidColorBrush(strokeColor), path.StrokeWidth)
+        {
+            LineJoin     = PenLineJoin.Round,
+            StartLineCap = PenLineCap.Round,
+            EndLineCap   = PenLineCap.Round,
+        };
+
+        dc.DrawGeometry(fill, stroke, geo);
+    }
+
     // ── Text ──────────────────────────────────────────────────────────────────
 
     private static void RenderText(DrawingContext dc, TextObject t)
@@ -114,6 +145,77 @@ public static class InkRenderer
         if (t.Style.Italic) ft.SetFontStyle(FontStyles.Italic, 0, t.Content.Length);
 
         dc.DrawText(ft, new Point(t.BoundsX, t.BoundsY));
+    }
+
+    // ── Shape ─────────────────────────────────────────────────────────────────
+
+    private static void RenderShape(DrawingContext dc, ShapeObject sh)
+    {
+        var fill   = sh.IsFilled ? new SolidColorBrush(ArgbToColor(sh.FillArgb)) : null;
+        var stroke = new Pen(new SolidColorBrush(ArgbToColor(sh.StrokeArgb)), sh.StrokeWidth)
+        {
+            LineJoin = PenLineJoin.Round,
+        };
+
+        double x = sh.BoundsX, y = sh.BoundsY, w = sh.BoundsWidth, h = sh.BoundsHeight;
+
+        switch (sh.Type)
+        {
+            case ShapeType.Rectangle:
+                dc.DrawRectangle(fill, stroke, new Rect(x, y, w, h));
+                break;
+
+            case ShapeType.Circle:
+                dc.DrawEllipse(fill, stroke,
+                    new Point(x + w / 2, y + h / 2),
+                    radiusX: w / 2,
+                    radiusY: h / 2);
+                break;
+
+            case ShapeType.Line:
+                dc.DrawLine(stroke, new Point(x, y + h / 2), new Point(x + w, y + h / 2));
+                break;
+
+            case ShapeType.Arrow:
+                RenderArrow(dc, stroke, new Point(x, y + h / 2), new Point(x + w, y + h / 2));
+                break;
+
+            case ShapeType.Triangle:
+                var triGeo = new StreamGeometry();
+                using (var ctx = triGeo.Open())
+                {
+                    ctx.BeginFigure(new Point(x + w / 2, y), true, true);
+                    ctx.LineTo(new Point(x + w, y + h), true, false);
+                    ctx.LineTo(new Point(x, y + h), true, false);
+                }
+                triGeo.Freeze();
+                dc.DrawGeometry(fill, stroke, triGeo);
+                break;
+
+            default:
+                dc.DrawRectangle(fill, stroke, new Rect(x, y, w, h));
+                break;
+        }
+    }
+
+    private static void RenderArrow(DrawingContext dc, Pen pen, Point from, Point to)
+    {
+        dc.DrawLine(pen, from, to);
+
+        // 箭头头部：以终点为顶，两侧各展开 20° 绘制两条短线
+        var dir   = to - from;
+        var len   = Math.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
+        if (len < 1) return;
+        var unit  = new Vector(dir.X / len, dir.Y / len);
+        double hs = Math.Min(len * 0.25, 20); // 箭头长度
+        const double angle = Math.PI / 6;     // 30°
+
+        double cos = Math.Cos(angle), sin = Math.Sin(angle);
+        var left  = new Vector(-unit.X * cos - unit.Y * sin, -unit.X * sin + unit.Y * cos) * hs;
+        var right = new Vector(-unit.X * cos + unit.Y * sin,  unit.X * sin + unit.Y * cos) * hs;
+
+        dc.DrawLine(pen, to, to + left);
+        dc.DrawLine(pen, to, to + right);
     }
 
     // ── Placeholders for non-stroke types ────────────────────────────────────

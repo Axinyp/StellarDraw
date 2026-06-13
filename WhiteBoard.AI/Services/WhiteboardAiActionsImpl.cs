@@ -71,6 +71,35 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             version: _session.Current.Version);
     }
 
+    public async Task<ToolResult> InsertPathAsync(PathSpec spec, string? alias = null,
+        string? groupId = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(spec.PathData))
+            return ToolResult.Error("pathData 不能为空");
+
+        var path = new PathObject(
+            spec.PathData,
+            ParseColor(spec.FillColor),
+            ParseColor(spec.StrokeColor),
+            spec.StrokeWidth,
+            spec.IsFilled);
+
+        await _session.AddPathAsync(path, groupId: groupId, ct: ct);
+
+        if (alias is not null) RegisterAlias(alias, path.Id);
+
+        var aliasDict = alias is not null
+            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = path.Id.ToString() }
+            : new Dictionary<string, string>();
+
+        return ToolResult.Ok(
+            created: [path.Id.ToString()],
+            aliases: aliasDict,
+            groupId: groupId,
+            pageId:  _session.Current.Id,
+            version: _session.Current.Version);
+    }
+
     public async Task<ToolResult> InsertTextAsync(TextSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default)
     {

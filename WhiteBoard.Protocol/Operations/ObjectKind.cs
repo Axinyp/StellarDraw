@@ -9,4 +9,5 @@ public enum ObjectKind : ushort
     Table    = 5,
     Document = 6,
     Shape    = 7,
+    Path     = 8,
 }

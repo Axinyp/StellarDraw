@@ -105,16 +105,21 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         {
             _subscribedPage.ObjectAdded   -= OnObjectChanged;
             _subscribedPage.ObjectRemoved -= OnObjectChanged;
+            _subscribedPage.Cleared       -= OnPageCleared;
         }
         _subscribedPage = Pages.CurrentPage;
         if (_subscribedPage is not null)
         {
             _subscribedPage.ObjectAdded   += OnObjectChanged;
             _subscribedPage.ObjectRemoved += OnObjectChanged;
+            _subscribedPage.Cleared       += OnPageCleared;
         }
     }
 
     private void OnObjectChanged(WhiteboardObject _)
+        => _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render);
+
+    private void OnPageCleared()
         => _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render);
 
     private void RequestRedraw() => RedrawRequested?.Invoke();
@@ -144,6 +149,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         {
             _subscribedPage.ObjectAdded   -= OnObjectChanged;
             _subscribedPage.ObjectRemoved -= OnObjectChanged;
+            _subscribedPage.Cleared       -= OnPageCleared;
         }
         Pages.Dispose();
     }

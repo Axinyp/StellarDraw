@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows.Input;
 using WhiteBoard.AI.Session;
 using WhiteBoard.AI.Settings;
@@ -29,13 +30,29 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     // ── Message model ──────────────────────────────────────────────────────────
 
-    public sealed class ChatMessage
+    public sealed class ChatMessage : INotifyPropertyChanged
     {
+        private string _text = "";
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         public string  Author   { get; init; } = "";
-        public string  Text     { get; set;  } = "";
         public bool    IsUser   { get; init; }
         public bool    IsError  { get; init; }
         public DateTime Time   { get; init; } = DateTime.Now;
+
+        public string Text
+        {
+            get => _text;
+            set
+            {
+                if (_text != value)
+                {
+                    _text = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
+                }
+            }
+        }
     }
 
     // ── Observable collections ─────────────────────────────────────────────────
@@ -170,13 +187,16 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         var text = InputText.Trim();
         if (string.IsNullOrEmpty(text) || IsProcessing) return;
 
-        InputText   = "";
+        InputText    = "";
         IsProcessing = true;
+        StatusBarText = "AI 正在思考…";
+        ShowStatusBar = _showStatusBar;
 
         Messages.Add(new ChatMessage { Author = "你", Text = text, IsUser = true });
         var assistantMsg = new ChatMessage { Author = "AI", Text = "" };
         Messages.Add(assistantMsg);
 
+        bool firstChunk  = true;
         _currentCts = new CancellationTokenSource();
 
         try
@@ -186,8 +206,12 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                 switch (evt)
                 {
                     case TextChunkEvent chunk:
+                        if (firstChunk)
+                        {
+                            firstChunk    = false;
+                            StatusBarText = "";
+                        }
                         assistantMsg.Text += chunk.Chunk;
-                        OnPropertyChanged(nameof(Messages)); // refresh binding
                         break;
 
                     case ToolCallingEvent toolCall:
@@ -219,8 +243,8 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            IsProcessing  = false;
-            StatusBarText = "";
+            IsProcessing   = false;
+            StatusBarText  = "";
             ConfirmVisible = false;
             _currentCts?.Dispose();
             _currentCts = null;
