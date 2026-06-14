@@ -109,14 +109,14 @@ public sealed class AIWhiteboardSettings
 
 public sealed class McpServerSettings
 {
-    public bool   Enabled               { get; set; } = false;
-    public bool   StdioEnabled          { get; set; } = true;
-    public bool   HttpEnabled           { get; set; } = true;
-    public bool   EnableLegacySse       { get; set; } = false;
-    public string HttpUrl               { get; set; } = "http://127.0.0.1:31888";
-    public string RoutePrefix           { get; set; } = "/mcp";
-    public int    TokenLifetimeMinutes  { get; set; } = 60;
-    public bool   AllowDestructiveTools { get; set; } = false;
+    public bool Enabled { get; set; } = false;
+    public bool StdioEnabled { get; set; } = true;
+    public bool HttpEnabled { get; set; } = true;
+    public bool EnableLegacySse { get; set; } = false;
+    public string HttpUrl { get; set; } = "http://127.0.0.1:31888";
+    public string RoutePrefix { get; set; } = "/mcp";
+    public int TokenLifetimeMinutes { get; set; } = 60;
+    public bool AllowDestructiveTools { get; set; } = false;
     public List<string> AllowedTransports { get; set; } = ["stdio", "http"];
 }
 
@@ -128,16 +128,16 @@ public sealed class McpClientSettings
 
 public sealed class McpClientConnectionSettings
 {
-    public string       ConnectionId         { get; set; } = Guid.NewGuid().ToString("N");
-    public string       DisplayName          { get; set; } = "";
-    public bool         Enabled              { get; set; } = true;
-    public string       Transport            { get; set; } = "stdio";
-    public string       Command              { get; set; } = "";
-    public List<string> Arguments            { get; set; } = [];
-    public string       WorkingDirectory     { get; set; } = "";
-    public string       Endpoint             { get; set; } = "";
-    public string       ApiKeyRef            { get; set; } = "";
-    public string       ToolNamePrefix       { get; set; } = "ext";
-    public string       TrustLevel           { get; set; } = "restricted";
-    public bool         AllowDestructiveTools { get; set; } = false;
+    public string ConnectionId { get; set; } = Guid.NewGuid().ToString("N");
+    public string DisplayName { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public string Transport { get; set; } = "stdio";
+    public string Command { get; set; } = "";
+    public List<string> Arguments { get; set; } = [];
+    public string WorkingDirectory { get; set; } = "";
+    public string Endpoint { get; set; } = "";
+    public string ApiKeyRef { get; set; } = "";
+    public string ToolNamePrefix { get; set; } = "ext";
+    public string TrustLevel { get; set; } = "restricted";
+    public bool AllowDestructiveTools { get; set; } = false;
 }

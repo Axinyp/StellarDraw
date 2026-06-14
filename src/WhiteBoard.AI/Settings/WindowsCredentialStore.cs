@@ -16,16 +16,16 @@ public sealed class WindowsCredentialStore : ISecretStore
     public void Save(string key, string secret)
     {
         var target = Prefix + key;
-        var bytes  = Encoding.Unicode.GetBytes(secret);
+        var bytes = Encoding.Unicode.GetBytes(secret);
 
         var cred = new CREDENTIAL
         {
-            Type               = CRED_TYPE_GENERIC,
-            TargetName         = target,
+            Type = CRED_TYPE_GENERIC,
+            TargetName = target,
             CredentialBlobSize = (uint)bytes.Length,
-            CredentialBlob     = Marshal.AllocHGlobal(bytes.Length),
-            Persist            = CRED_PERSIST_LOCAL_MACHINE,
-            UserName           = Environment.UserName,
+            CredentialBlob = Marshal.AllocHGlobal(bytes.Length),
+            Persist = CRED_PERSIST_LOCAL_MACHINE,
+            UserName = Environment.UserName,
         };
 
         try
@@ -49,7 +49,7 @@ public sealed class WindowsCredentialStore : ISecretStore
 
         try
         {
-            var cred  = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
+            var cred = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
             var bytes = new byte[cred.CredentialBlobSize];
             Marshal.Copy(cred.CredentialBlob, bytes, 0, bytes.Length);
             return Encoding.Unicode.GetString(bytes);
@@ -74,22 +74,22 @@ public sealed class WindowsCredentialStore : ISecretStore
 
     // ── P/Invoke ──────────────────────────────────────────────────────────────
 
-    private const uint CRED_TYPE_GENERIC        = 1;
+    private const uint CRED_TYPE_GENERIC = 1;
     private const uint CRED_PERSIST_LOCAL_MACHINE = 2;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct CREDENTIAL
     {
-        public uint    Flags;
-        public uint    Type;
+        public uint Flags;
+        public uint Type;
         public string? TargetName;
         public string? Comment;
-        public long    LastWritten;
-        public uint    CredentialBlobSize;
-        public IntPtr  CredentialBlob;
-        public uint    Persist;
-        public uint    AttributeCount;
-        public IntPtr  Attributes;
+        public long LastWritten;
+        public uint CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public uint Persist;
+        public uint AttributeCount;
+        public IntPtr Attributes;
         public string? TargetAlias;
         public string? UserName;
     }

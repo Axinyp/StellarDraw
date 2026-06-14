@@ -13,15 +13,15 @@ namespace WhiteBoard.AI.Session;
 /// </summary>
 public sealed class WhiteboardAISession : IAsyncDisposable
 {
-    private readonly AgentLoop              _loop;
-    private readonly ConversationHistory    _history;
+    private readonly AgentLoop _loop;
+    private readonly ConversationHistory _history;
     private readonly WhiteboardToolRegistry _registry;
-    private readonly IWhiteboardAiActions   _actions;
-    private          VoicePipeline?         _voice;
-    private          CancellationTokenSource? _cts;
-    private          IMcpTokenFactory?      _mcpTokenFactory;
-    private          string?                _currentMcpToken;
-    private readonly SemaphoreSlim          _tokenGate = new(1, 1);
+    private readonly IWhiteboardAiActions _actions;
+    private VoicePipeline? _voice;
+    private CancellationTokenSource? _cts;
+    private IMcpTokenFactory? _mcpTokenFactory;
+    private string? _currentMcpToken;
+    private readonly SemaphoreSlim _tokenGate = new(1, 1);
 
     public ExecutionMode ExecutionMode { get; set; }
 
@@ -32,20 +32,20 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     public event EventHandler<string>? McpTokenIssued;
 
     public WhiteboardAISession(
-        ILlmProvider           llmProvider,
-        WhiteboardSession      whiteboardSession,
-        IWhiteboardAiActions?  actions       = null,
-        IImageGenProvider?     imageGen      = null,
-        IMathRenderer?         mathRenderer  = null,
-        ExecutionMode          mode          = ExecutionMode.ConfirmRequired)
+        ILlmProvider llmProvider,
+        WhiteboardSession whiteboardSession,
+        IWhiteboardAiActions? actions = null,
+        IImageGenProvider? imageGen = null,
+        IMathRenderer? mathRenderer = null,
+        ExecutionMode mode = ExecutionMode.ConfirmRequired)
     {
         ExecutionMode = mode;
-        _actions      = actions ?? new WhiteboardAiActionsImpl(whiteboardSession);
-        _history      = new ConversationHistory();
-        _registry     = new WhiteboardToolRegistry(_actions, imageGen, mathRenderer);
-        var context   = new ProgressiveContextBuilder(whiteboardSession);
-        var client    = llmProvider.CreateClient();
-        _loop         = new AgentLoop(client, _registry, _history, context, mode);
+        _actions = actions ?? new WhiteboardAiActionsImpl(whiteboardSession);
+        _history = new ConversationHistory();
+        _registry = new WhiteboardToolRegistry(_actions, imageGen, mathRenderer);
+        var context = new ProgressiveContextBuilder(whiteboardSession);
+        var client = llmProvider.CreateClient();
+        _loop = new AgentLoop(client, _registry, _history, context, mode);
     }
 
     // ── External Tool Registration (called by MCP integration layer) ──────────
@@ -78,9 +78,9 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     /// 使用 SemaphoreSlim 保证并发安全。
     /// </summary>
     public async Task<string?> IssueMcpTokenAsync(
-        TimeSpan?         lifetime         = null,
-        bool              allowDestructive = false,
-        CancellationToken ct               = default)
+        TimeSpan? lifetime = null,
+        bool allowDestructive = false,
+        CancellationToken ct = default)
     {
         if (_mcpTokenFactory is null) return null;
 
@@ -130,7 +130,7 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     /// </summary>
     public void AttachVoice(ISttProvider stt, string language = "zh",
         IWakeWordDetector? wakeWordDetector = null,
-        TimeSpan?          utteranceTimeout = null)
+        TimeSpan? utteranceTimeout = null)
     {
         DetachVoice();
         _voice = new VoicePipeline(stt, language);

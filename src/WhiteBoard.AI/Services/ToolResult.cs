@@ -5,31 +5,31 @@ namespace WhiteBoard.AI.Services;
 /// AgentLoop 将此结果序列化为 JSON 反馈给 LLM，LLM 据此进行多步推理（如引用 objectId 连线）。
 /// </summary>
 public sealed record ToolResult(
-    string                        Status,           // ok | error | confirm_required | partial
-    string?                       ErrorMessage,
-    IReadOnlyList<string>         CreatedObjectIds,
-    IReadOnlyList<string>         UpdatedObjectIds,
-    IReadOnlyList<string>         DeletedObjectIds,
+    string Status,           // ok | error | confirm_required | partial
+    string? ErrorMessage,
+    IReadOnlyList<string> CreatedObjectIds,
+    IReadOnlyList<string> UpdatedObjectIds,
+    IReadOnlyList<string> DeletedObjectIds,
     IReadOnlyDictionary<string, string> Aliases,   // { "alias_name": "guid" }
-    string?                       UndoGroupId,
-    string?                       PageId,
-    long                          PageVersion,
-    IReadOnlyList<string>         Warnings)
+    string? UndoGroupId,
+    string? PageId,
+    long PageVersion,
+    IReadOnlyList<string> Warnings)
 {
     public static ToolResult Ok(
-        IReadOnlyList<string>?              created  = null,
-        IReadOnlyList<string>?              updated  = null,
-        IReadOnlyList<string>?              deleted  = null,
+        IReadOnlyList<string>? created = null,
+        IReadOnlyList<string>? updated = null,
+        IReadOnlyList<string>? deleted = null,
         IReadOnlyDictionary<string, string>? aliases = null,
-        string?                             groupId  = null,
-        string?                             pageId   = null,
-        long                                version  = 0) =>
+        string? groupId = null,
+        string? pageId = null,
+        long version = 0) =>
         new(
             "ok", null,
-            created  ?? [],
-            updated  ?? [],
-            deleted  ?? [],
-            aliases  ?? new Dictionary<string, string>(),
+            created ?? [],
+            updated ?? [],
+            deleted ?? [],
+            aliases ?? new Dictionary<string, string>(),
             groupId, pageId, version, []);
 
     public static ToolResult Error(string message) =>

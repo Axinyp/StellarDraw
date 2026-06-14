@@ -4,7 +4,7 @@ namespace WhiteBoard.AI.Abstractions;
 public interface ITtsProvider
 {
     string ProviderName { get; }
-    bool   IsAvailable  { get; }
+    bool IsAvailable { get; }
 
     /// <summary>将文字合成为 PCM/WAV 音频字节流。</summary>
     Task<byte[]> SynthesizeAsync(string text, string voice = "default",

@@ -1,5 +1,4 @@
 using WhiteBoard.AI.Abstractions;
-using WhiteBoard.AI.Settings;
 
 namespace WhiteBoard.AI.Voice;
 
@@ -14,21 +13,22 @@ namespace WhiteBoard.AI.Voice;
 public sealed class VoicePipeline : IDisposable
 {
     private readonly VoiceRecorder _recorder;
-    private readonly ISttProvider  _stt;
-    private readonly string        _language;
+    private readonly ISttProvider _stt;
+    private readonly string _language;
 
-    private IWakeWordDetector?       _wakeWordDetector;
+    private IWakeWordDetector? _wakeWordDetector;
     private CancellationTokenSource? _utteranceCts;
-    private TimeSpan                 _utteranceTimeout = TimeSpan.FromSeconds(5);
+    private TimeSpan _utteranceTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>识别完成后的回调。</summary>
-    public event EventHandler<SttResult>?  TranscriptionReady;
+    public event EventHandler<SttResult>? TranscriptionReady;
+
     /// <summary>管道错误回调。</summary>
-    public event EventHandler<Exception>?  ErrorOccurred;
+    public event EventHandler<Exception>? ErrorOccurred;
 
     public VoicePipeline(ISttProvider stt, string language = "zh")
     {
-        _stt      = stt;
+        _stt = stt;
         _language = language;
         _recorder = new VoiceRecorder();
     }

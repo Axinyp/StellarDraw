@@ -15,9 +15,9 @@ public sealed class ProgressiveContextBuilder
     /// <summary>构建 Level 0 system prompt，始终注入到每次 LLM 调用的消息列表开头。</summary>
     public string BuildLevel0(ExecutionMode mode, IReadOnlyList<string> availableTools)
     {
-        var page    = _session.Current;
+        var page = _session.Current;
         var history = _session.History;
-        var tools   = string.Join(", ", availableTools);
+        var tools = string.Join(", ", availableTools);
 
         return $"""
             你是一个智能白板 AI 助手，可以操控白板上的所有功能。

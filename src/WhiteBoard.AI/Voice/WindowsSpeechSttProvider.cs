@@ -46,7 +46,7 @@ public sealed class WindowsSpeechSttProvider : ISttProvider, IDisposable
             try
             {
                 using var ms = new MemoryStream(audioData);
-                var format   = new SpeechAudioFormatInfo(
+                var format = new SpeechAudioFormatInfo(
                     16000, AudioBitsPerSample.Sixteen, AudioChannel.Mono);
 
                 _engine.SetInputToAudioStream(ms, format);

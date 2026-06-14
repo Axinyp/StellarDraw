@@ -11,7 +11,7 @@ public record ToolCallingEvent(
 /// <summary>工具调用已完成，携带结果。</summary>
 public record ToolResultEvent(
     string ToolName,
-    bool   Success,
+    bool Success,
     string ResultJson) : AgentLoopEvent;
 
 /// <summary>AI 文字回复的流式文本片段。</summary>
@@ -27,4 +27,4 @@ public record ConfirmRequiredEvent(
 /// <summary>AI 执行出错，携带是否可重试标志。</summary>
 public record AgentErrorEvent(
     string Message,
-    bool   IsRetryable) : AgentLoopEvent;
+    bool IsRetryable) : AgentLoopEvent;

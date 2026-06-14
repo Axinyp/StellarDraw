@@ -12,9 +12,9 @@ internal static class ToolResultEnvelope
 {
     internal static string Normalize(object? result) => result switch
     {
-        string s     => string.IsNullOrEmpty(s) ? """{"status":"ok"}""" : s,
+        string s => string.IsNullOrEmpty(s) ? """{"status":"ok"}""" : s,
         ToolResult r => r.ToJson(),
-        null         => """{"status":"ok"}""",
-        _            => JsonSerializer.Serialize(result)
+        null => """{"status":"ok"}""",
+        _ => JsonSerializer.Serialize(result)
     };
 }

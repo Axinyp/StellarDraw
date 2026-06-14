@@ -10,17 +10,17 @@ namespace WhiteBoard.AI.Voice;
 public sealed class WhisperSttProvider : ISttProvider, IDisposable
 {
     private readonly OpenAI.Audio.AudioClient _client;
-    private readonly string                   _model;
+    private readonly string _model;
 
     public string ProviderName => "whisper";
-    public bool   IsAvailable  => true;
+    public bool IsAvailable => true;
 
     /// <param name="apiKey">OpenAI / 兼容 API 密钥。</param>
     /// <param name="endpoint">端点 URL。null 表示使用 OpenAI 官方 API。</param>
     /// <param name="model">Whisper 模型名称，默认 whisper-1。</param>
     public WhisperSttProvider(string apiKey, Uri? endpoint = null, string model = "whisper-1")
     {
-        _model  = model;
+        _model = model;
         var options = endpoint is null
             ? null
             : new OpenAI.OpenAIClientOptions { Endpoint = endpoint };
@@ -43,7 +43,7 @@ public sealed class WhisperSttProvider : ISttProvider, IDisposable
                 stream, "audio.wav",
                 new OpenAI.Audio.AudioTranscriptionOptions
                 {
-                    Language       = language,
+                    Language = language,
                     ResponseFormat = OpenAI.Audio.AudioTranscriptionFormat.Simple,
                 },
                 ct).ConfigureAwait(false);
@@ -61,5 +61,6 @@ public sealed class WhisperSttProvider : ISttProvider, IDisposable
         }
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    { }
 }

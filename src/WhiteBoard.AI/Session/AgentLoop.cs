@@ -1,8 +1,7 @@
+using Microsoft.Extensions.AI;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using Microsoft.Extensions.AI;
-using WhiteBoard.AI.Services;
 using WhiteBoard.AI.Tools;
 
 namespace WhiteBoard.AI.Session;
@@ -13,24 +12,24 @@ namespace WhiteBoard.AI.Session;
 /// </summary>
 public sealed class AgentLoop
 {
-    private readonly IChatClient              _llm;
-    private readonly WhiteboardToolRegistry   _registry;
-    private readonly ConversationHistory      _history;
+    private readonly IChatClient _llm;
+    private readonly WhiteboardToolRegistry _registry;
+    private readonly ConversationHistory _history;
     private readonly ProgressiveContextBuilder _context;
-    private readonly ExecutionMode            _mode;
+    private readonly ExecutionMode _mode;
 
     public AgentLoop(
-        IChatClient               llm,
-        WhiteboardToolRegistry    registry,
-        ConversationHistory       history,
+        IChatClient llm,
+        WhiteboardToolRegistry registry,
+        ConversationHistory history,
         ProgressiveContextBuilder context,
-        ExecutionMode             mode = ExecutionMode.ConfirmRequired)
+        ExecutionMode mode = ExecutionMode.ConfirmRequired)
     {
-        _llm      = llm;
+        _llm = llm;
         _registry = registry;
-        _history  = history;
-        _context  = context;
-        _mode     = mode;
+        _history = history;
+        _context = context;
+        _mode = mode;
     }
 
     /// <summary>
@@ -41,20 +40,20 @@ public sealed class AgentLoop
         string userMessage,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var tools     = _registry.GetAvailableTools();
+        var tools = _registry.GetAvailableTools();
         var toolNames = tools.Select(t => t.Name).ToList();
 
         _history.AddSystem(_context.BuildLevel0(_mode, toolNames));
         _history.AddUser(userMessage);
         _history.TrimToTokenBudget();
 
-        var options  = new ChatOptions { Tools = [.. tools] };
+        var options = new ChatOptions { Tools = [.. tools] };
         int maxTurns = 20;
 
         for (int turn = 0; turn < maxTurns && !ct.IsCancellationRequested; turn++)
         {
             // ── 流式 LLM 调用（Channel 模式：生产者写，迭代器读，不受 try/catch 限制）─
-            var channel    = Channel.CreateUnbounded<AgentLoopEvent>(
+            var channel = Channel.CreateUnbounded<AgentLoopEvent>(
                 new UnboundedChannelOptions { SingleWriter = true });
             var allUpdates = new List<ChatResponseUpdate>();
 
@@ -121,17 +120,17 @@ public sealed class AgentLoop
                 }
 
                 string resultJson;
-                bool   success;
+                bool success;
                 try
                 {
                     var toolResult = await _registry.InvokeAsync(call.Name, call.Arguments, ct);
                     resultJson = ToolResultEnvelope.Normalize(toolResult);
-                    success    = true;
+                    success = true;
                 }
                 catch (Exception ex)
                 {
                     resultJson = JsonSerializer.Serialize(new { error = ex.Message });
-                    success    = false;
+                    success = false;
                 }
 
                 results.Add(new FunctionResultContent(call.CallId, resultJson));
@@ -151,10 +150,10 @@ public sealed class AgentLoop
     /// 所有异常在此捕获并转换为 AgentErrorEvent，确保 channel 始终被 Complete。
     /// </summary>
     private async Task ProduceStreamAsync(
-        ChannelWriter<AgentLoopEvent>  writer,
-        List<ChatResponseUpdate>       allUpdates,
-        ChatOptions                    options,
-        CancellationToken              ct)
+        ChannelWriter<AgentLoopEvent> writer,
+        List<ChatResponseUpdate> allUpdates,
+        ChatOptions options,
+        CancellationToken ct)
     {
         try
         {

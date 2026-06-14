@@ -22,8 +22,8 @@ public static class MathToolCatalog
 
     public static void Register(
         WhiteboardToolRegistry registry,
-        IWhiteboardAiActions   actions,
-        IMathRenderer          renderer)
+        IWhiteboardAiActions actions,
+        IMathRenderer renderer)
     {
         var stepWriter = new MathStepWriter(actions, renderer);
 
@@ -31,17 +31,17 @@ public static class MathToolCatalog
         registry.Register(
             AIFunctionFactory.Create(
                 async (
-                    string  expression,
-                    float   x,
-                    float   y,
-                    float   fontSize = 24f,
-                    float   maxWidth = 600f,
-                    string? alias    = null,
+                    string expression,
+                    float x,
+                    float y,
+                    float fontSize = 24f,
+                    float maxWidth = 600f,
+                    string? alias = null,
                     CancellationToken ct = default) =>
                 {
                     var pngBytes = renderer.Render(expression, fontSize);
-                    var height   = System.Math.Max(fontSize * 3f, 80f);
-                    var spec     = new ImageSpec(x, y, maxWidth, height, pngBytes);
+                    var height = System.Math.Max(fontSize * 3f, 80f);
+                    var spec = new ImageSpec(x, y, maxWidth, height, pngBytes);
                     return (await actions.InsertImageAsync(spec, alias, ct: ct)).ToJson();
                 },
                 "render_latex",
@@ -56,10 +56,10 @@ public static class MathToolCatalog
             AIFunctionFactory.Create(
                 async (
                     IReadOnlyList<string> steps,
-                    float   startX    = 100f,
-                    float   startY    = 100f,
-                    float   rowHeight = 60f,
-                    string? groupId   = null,
+                    float startX = 100f,
+                    float startY = 100f,
+                    float rowHeight = 60f,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     await stepWriter.WriteStepsAsync(
@@ -79,20 +79,20 @@ public static class MathToolCatalog
         registry.Register(
             AIFunctionFactory.Create(
                 async (
-                    string                   type,
+                    string type,
                     IReadOnlyList<ChartItem> data,
-                    float   x       = 100f,
-                    float   y       = 100f,
-                    float   width   = 600f,
-                    float   height  = 400f,
+                    float x = 100f,
+                    float y = 100f,
+                    float width = 600f,
+                    float height = 400f,
                     string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     var result = type.ToLowerInvariant() switch
                     {
-                        "bar"  => await DrawBarChartAsync(actions, data, x, y, width, height, groupId, ct),
+                        "bar" => await DrawBarChartAsync(actions, data, x, y, width, height, groupId, ct),
                         "line" => await DrawLineChartAsync(actions, data, x, y, width, height, groupId, ct),
-                        _      => ToolResult.Error($"不支持的图表类型 '{type}'，可选值：bar（柱状图）/ line（折线图）"),
+                        _ => ToolResult.Error($"不支持的图表类型 '{type}'，可选值：bar（柱状图）/ line（折线图）"),
                     };
                     return result.ToJson();
                 },
@@ -107,7 +107,7 @@ public static class MathToolCatalog
     // ── Bar Chart ─────────────────────────────────────────────────────────────
 
     private static async Task<ToolResult> DrawBarChartAsync(
-        IWhiteboardAiActions     actions,
+        IWhiteboardAiActions actions,
         IReadOnlyList<ChartItem> data,
         float x, float y, float width, float height,
         string? groupId, CancellationToken ct)
@@ -117,20 +117,20 @@ public static class MathToolCatalog
         double maxValue = data.Max(d => d.Value);
         if (maxValue <= 0) return ToolResult.Error("数据值必须大于零");
 
-        var slotWidth   = width  / data.Count;
-        var barWidth    = slotWidth * 0.65f;
+        var slotWidth = width / data.Count;
+        var barWidth = slotWidth * 0.65f;
         var chartHeight = height * 0.8f;
-        var baseY       = y + height - height * 0.15f;
-        var created     = new List<string>();
+        var baseY = y + height - height * 0.15f;
+        var created = new List<string>();
 
         for (int i = 0; i < data.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
 
             var barHeight = (float)(data[i].Value / maxValue * chartHeight);
-            var barX      = x + i * slotWidth + (slotWidth - barWidth) / 2f;
-            var barY      = baseY - barHeight;
-            var color     = BarColors[i % BarColors.Length];
+            var barX = x + i * slotWidth + (slotWidth - barWidth) / 2f;
+            var barY = baseY - barHeight;
+            var color = BarColors[i % BarColors.Length];
 
             var barResult = await actions.InsertShapeAsync(
                 new ShapeSpec("rectangle", barX, barY, barWidth, barHeight,
@@ -150,7 +150,7 @@ public static class MathToolCatalog
     // ── Line Chart ────────────────────────────────────────────────────────────
 
     private static async Task<ToolResult> DrawLineChartAsync(
-        IWhiteboardAiActions     actions,
+        IWhiteboardAiActions actions,
         IReadOnlyList<ChartItem> data,
         float x, float y, float width, float height,
         string? groupId, CancellationToken ct)
@@ -161,9 +161,9 @@ public static class MathToolCatalog
         if (maxValue <= 0) return ToolResult.Error("数据值必须大于零");
 
         var chartHeight = height * 0.8f;
-        var baseY       = y + height - height * 0.15f;
-        var stepX       = width / (data.Count - 1);
-        var created     = new List<string>();
+        var baseY = y + height - height * 0.15f;
+        var stepX = width / (data.Count - 1);
+        var created = new List<string>();
 
         // 预计算各点坐标
         var pts = new (float px, float py)[data.Count];

@@ -13,12 +13,12 @@ public static class DrawingToolCatalog
                 async (
                     string shapeType,
                     float x, float y, float width, float height,
-                    string fillColor   = "#FFFFFF",
+                    string fillColor = "#FFFFFF",
                     string strokeColor = "#000000",
-                    float  strokeWidth = 2f,
-                    bool   isFilled    = true,
-                    string? alias      = null,
-                    string? groupId    = null,
+                    float strokeWidth = 2f,
+                    bool isFilled = true,
+                    string? alias = null,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     var spec = new ShapeSpec(shapeType, x, y, width, height,
@@ -38,12 +38,12 @@ public static class DrawingToolCatalog
             AIFunctionFactory.Create(
                 async (
                     string pathData,
-                    string fillColor   = "#FFD700",
+                    string fillColor = "#FFD700",
                     string strokeColor = "#000000",
-                    float  strokeWidth = 2f,
-                    bool   isFilled    = true,
-                    string? alias      = null,
-                    string? groupId    = null,
+                    float strokeWidth = 2f,
+                    bool isFilled = true,
+                    string? alias = null,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     var spec = new PathSpec(pathData, fillColor, strokeColor, strokeWidth, isFilled);

@@ -11,7 +11,7 @@ namespace WhiteBoard.AI.Voice;
 public sealed class WindowsTtsProvider : ITtsProvider, IDisposable
 {
     private readonly SpeechSynthesizer? _synth;
-    private readonly string             _voice;
+    private readonly string _voice;
 
     public string ProviderName => "windows-tts";
 

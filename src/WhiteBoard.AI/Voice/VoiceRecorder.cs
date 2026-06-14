@@ -1,4 +1,3 @@
-using System.IO;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
@@ -12,11 +11,11 @@ namespace WhiteBoard.AI.Voice;
 /// </summary>
 public sealed class VoiceRecorder : IDisposable
 {
-    private WasapiCapture?       _capture;
-    private MemoryStream?        _buffer;
-    private WaveFileWriter?      _writer;
+    private WasapiCapture? _capture;
+    private MemoryStream? _buffer;
+    private WaveFileWriter? _writer;
     private TaskCompletionSource<byte[]>? _tcs;
-    private readonly object      _lock = new();
+    private readonly object _lock = new();
 
     public bool IsRecording { get; private set; }
 
@@ -28,12 +27,12 @@ public sealed class VoiceRecorder : IDisposable
             StopCapture();
 
             _capture = new WasapiCapture();
-            _buffer  = new MemoryStream();
-            _writer  = new WaveFileWriter(_buffer, _capture.WaveFormat);
-            _tcs     = new TaskCompletionSource<byte[]>(
+            _buffer = new MemoryStream();
+            _writer = new WaveFileWriter(_buffer, _capture.WaveFormat);
+            _tcs = new TaskCompletionSource<byte[]>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
 
-            _capture.DataAvailable    += OnDataAvailable;
+            _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
             IsRecording = true;
@@ -80,12 +79,12 @@ public sealed class VoiceRecorder : IDisposable
     {
         _capture?.StopRecording();
         _writer?.Dispose();
-        _writer  = null;
+        _writer = null;
         _buffer?.Dispose();
-        _buffer  = null;
+        _buffer = null;
         _capture?.Dispose();
         _capture = null;
-        _tcs     = null;
+        _tcs = null;
         IsRecording = false;
     }
 

@@ -11,18 +11,18 @@ public static class ContentToolCatalog
         registry.Register(
             AIFunctionFactory.Create(
                 async (
-                    float   x,
-                    float   y,
-                    float   width,
-                    float   height,
-                    string  content,
-                    string  fontFamily  = "Microsoft YaHei",
-                    float   fontSize    = 16f,
-                    string  color       = "#000000",
-                    bool    bold        = false,
-                    bool    italic      = false,
-                    string? alias       = null,
-                    string? groupId     = null,
+                    float x,
+                    float y,
+                    float width,
+                    float height,
+                    string content,
+                    string fontFamily = "Microsoft YaHei",
+                    float fontSize = 16f,
+                    string color = "#000000",
+                    bool bold = false,
+                    bool italic = false,
+                    string? alias = null,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     var spec = new TextSpec(x, y, width, height, content,

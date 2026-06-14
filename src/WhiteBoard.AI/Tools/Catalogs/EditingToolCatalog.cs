@@ -36,7 +36,7 @@ public static class EditingToolCatalog
             AIFunctionFactory.Create(
                 async (
                     string[] aliasesOrIds,
-                    string?  groupId = null,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                     (await actions.DeleteObjectsAsync(aliasesOrIds, groupId, ct)).ToJson(),
                 "delete_objects",
@@ -47,9 +47,9 @@ public static class EditingToolCatalog
             AIFunctionFactory.Create(
                 async (
                     string[] aliasesOrIds,
-                    float    dx,
-                    float    dy,
-                    string?  groupId = null,
+                    float dx,
+                    float dy,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                     (await actions.MoveObjectsAsync(aliasesOrIds, dx, dy, groupId, ct)).ToJson(),
                 "move_objects",

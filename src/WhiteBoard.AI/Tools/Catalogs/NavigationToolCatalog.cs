@@ -42,9 +42,9 @@ public static class NavigationToolCatalog
     /// </summary>
     public static void RegisterViewportControls(
         WhiteboardToolRegistry registry,
-        Action?                zoomIn    = null,
-        Action?                zoomOut   = null,
-        Action?                resetView = null)
+        Action? zoomIn = null,
+        Action? zoomOut = null,
+        Action? resetView = null)
     {
         if (zoomIn is not null)
             registry.Register(

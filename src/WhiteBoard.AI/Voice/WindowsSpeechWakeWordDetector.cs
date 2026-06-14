@@ -15,8 +15,9 @@ public sealed class WindowsSpeechWakeWordDetector : IWakeWordDetector
 {
     private readonly SpeechRecognitionEngine? _engine;
 
-    public string WakeWord    { get; }
-    public bool   IsListening { get; private set; }
+    public string WakeWord { get; }
+    public bool IsListening { get; private set; }
+
     /// <summary>初始化失败原因（语言包缺失、麦克风不可用等）；null 表示初始化成功。</summary>
     public string? InitializationError { get; private set; }
 

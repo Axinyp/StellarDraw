@@ -44,7 +44,7 @@ public static class VoiceProviderFactory
         {
             "windows" => new WindowsSpeechWakeWordDetector(
                 wakeWord: s.WakeWord,
-                locale:   s.SttLanguage == "zh" ? "zh-CN" : s.SttLanguage),
+                locale: s.SttLanguage == "zh" ? "zh-CN" : s.SttLanguage),
 
             _ => null // 未知 provider → 静默忽略，不抛出异常
         };

@@ -1,5 +1,5 @@
-using System.Text.Json;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 using WhiteBoard.AI.Services;
 
 namespace WhiteBoard.AI.Tools.Catalogs;
@@ -27,12 +27,12 @@ public static class QueryToolCatalog
                     var snap = await actions.GetSnapshotAsync(ct);
                     return JsonSerializer.Serialize(snap.Objects.Select(o => new
                     {
-                        id     = o.Id.ToString(),
-                        kind   = o.Kind,
-                        alias  = o.Alias,
-                        x      = o.X,
-                        y      = o.Y,
-                        width  = o.Width,
+                        id = o.Id.ToString(),
+                        kind = o.Kind,
+                        alias = o.Alias,
+                        x = o.X,
+                        y = o.Y,
+                        width = o.Width,
                         height = o.Height,
                         zIndex = o.ZIndex,
                         locked = o.IsLocked,
@@ -48,18 +48,18 @@ public static class QueryToolCatalog
                 async (string aliasOrId, CancellationToken ct = default) =>
                 {
                     var snap = await actions.GetSnapshotAsync(ct);
-                    var obj  = snap.Objects.FirstOrDefault(o =>
+                    var obj = snap.Objects.FirstOrDefault(o =>
                         o.Id.ToString() == aliasOrId || o.Alias == aliasOrId);
                     return obj is null
                         ? JsonSerializer.Serialize(new { error = $"Object not found: {aliasOrId}" })
                         : JsonSerializer.Serialize(new
                         {
-                            id     = obj.Id.ToString(),
-                            kind   = obj.Kind,
-                            alias  = obj.Alias,
-                            x      = obj.X,
-                            y      = obj.Y,
-                            width  = obj.Width,
+                            id = obj.Id.ToString(),
+                            kind = obj.Kind,
+                            alias = obj.Alias,
+                            x = obj.X,
+                            y = obj.Y,
+                            width = obj.Width,
                             height = obj.Height,
                             zIndex = obj.ZIndex,
                             locked = obj.IsLocked,
@@ -76,11 +76,11 @@ public static class QueryToolCatalog
                     var snap = await actions.GetSnapshotAsync(ct);
                     return JsonSerializer.Serialize(new
                     {
-                        pageId  = snap.PageId,
+                        pageId = snap.PageId,
                         version = snap.Version,
                         objects = snap.Objects.Count,
-                        width   = snap.Width,
-                        height  = snap.Height,
+                        width = snap.Width,
+                        height = snap.Height,
                     });
                 },
                 "get_page_info",

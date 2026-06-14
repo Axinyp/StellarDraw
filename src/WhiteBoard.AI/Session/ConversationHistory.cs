@@ -12,7 +12,7 @@ namespace WhiteBoard.AI.Session;
 public sealed class ConversationHistory
 {
     private readonly List<ChatMessage> _messages = [];
-    private readonly int               _maxTokenBudget;
+    private readonly int _maxTokenBudget;
 
     public ConversationHistory(int maxTokenBudget = 32_000) =>
         _maxTokenBudget = maxTokenBudget;

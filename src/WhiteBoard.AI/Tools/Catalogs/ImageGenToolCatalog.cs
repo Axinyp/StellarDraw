@@ -12,28 +12,28 @@ public static class ImageGenToolCatalog
 {
     public static void Register(
         WhiteboardToolRegistry registry,
-        IWhiteboardAiActions   actions,
-        IImageGenProvider      imageGen)
+        IWhiteboardAiActions actions,
+        IImageGenProvider imageGen)
     {
         registry.Register(
             AIFunctionFactory.Create(
                 async (
-                    string  prompt,
-                    float   x,
-                    float   y,
-                    float   width      = 400f,
-                    float   height     = 300f,
-                    string  style      = "realistic",
-                    string? alias      = null,
-                    string? groupId    = null,
+                    string prompt,
+                    float x,
+                    float y,
+                    float width = 400f,
+                    float height = 300f,
+                    string style = "realistic",
+                    string? alias = null,
+                    string? groupId = null,
                     CancellationToken ct = default) =>
                 {
                     var genStyle = style.ToLowerInvariant() switch
                     {
                         "diagram" => ImageGenStyle.Diagram,
                         "cartoon" => ImageGenStyle.Cartoon,
-                        "sketch"  => ImageGenStyle.Sketch,
-                        _         => ImageGenStyle.Realistic,
+                        "sketch" => ImageGenStyle.Sketch,
+                        _ => ImageGenStyle.Realistic,
                     };
 
                     var imageBytes = await imageGen.GenerateAsync(
