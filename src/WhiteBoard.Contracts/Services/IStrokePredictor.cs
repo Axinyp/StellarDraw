@@ -12,8 +12,8 @@ public interface IStrokePredictor
     /// <param name="isStrokeBegin">落笔第一帧，强制线性外推</param>
     IReadOnlyList<PredictedPoint> Predict(
         IReadOnlyList<PressurePoint> recent,
-        float lookaheadMs   = 16f,
-        bool  isStrokeBegin = false);
+        float lookaheadMs = 16f,
+        bool isStrokeBegin = false);
 }
 
 /// <summary>带时间戳的压感采样点（文档坐标系）。TimestampMs 用于速度估算。</summary>

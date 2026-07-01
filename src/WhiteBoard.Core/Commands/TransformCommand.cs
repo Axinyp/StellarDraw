@@ -10,9 +10,9 @@ namespace WhiteBoard.Core.Commands;
 public sealed class TransformCommand : IWhiteboardCommand
 {
     private readonly IReadOnlyList<WhiteboardObject> _objects;
-    private readonly PageModel                       _page;
-    private readonly float                           _dx;
-    private readonly float                           _dy;
+    private readonly PageModel _page;
+    private readonly float _dx;
+    private readonly float _dy;
 
     public TransformCommand(WhiteboardObject obj, PageModel page, float dx, float dy)
         : this([obj], page, dx, dy) { }
@@ -20,9 +20,9 @@ public sealed class TransformCommand : IWhiteboardCommand
     public TransformCommand(IReadOnlyList<WhiteboardObject> objects, PageModel page, float dx, float dy)
     {
         _objects = objects;
-        _page    = page;
-        _dx      = dx;
-        _dy      = dy;
+        _page = page;
+        _dx = dx;
+        _dy = dy;
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds => _objects.Select(o => o.Id).ToList();

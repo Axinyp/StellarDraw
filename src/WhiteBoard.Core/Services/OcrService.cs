@@ -9,7 +9,7 @@ namespace WhiteBoard.Core.Services;
 public sealed class OcrService
 {
     private readonly Dictionary<string, IOcrStrategy> _strategies = new(StringComparer.OrdinalIgnoreCase);
-    private IOcrStrategy?                             _active;
+    private IOcrStrategy? _active;
 
     public void Register(IOcrStrategy strategy)
     {
@@ -30,8 +30,8 @@ public sealed class OcrService
 
     public Task<OcrResult> RecognizeAsync(
         IReadOnlyList<StrokePoints> strokes,
-        string?           languageHint = null,
-        CancellationToken ct           = default)
+        string? languageHint = null,
+        CancellationToken ct = default)
     {
         var strategy = Volatile.Read(ref _active);
         if (strategy is null)

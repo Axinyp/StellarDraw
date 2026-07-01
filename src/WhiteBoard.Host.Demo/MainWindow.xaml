@@ -8,43 +8,43 @@
     <DockPanel>
         <!-- 顶部工具栏 -->
         <ToolBar DockPanel.Dock="Top">
-            <Button x:Name="BtnReload" Content="↺ 重新加载插件" Click="BtnReload_Click" Margin="4,0"/>
-            <Separator/>
+            <Button x:Name="BtnReload" Content="↺ 重新加载插件" Click="BtnReload_Click" Margin="4,0" />
+            <Separator />
             <ToggleButton x:Name="BtnToggleAi"
                           Content="🤖 AI"
                           Margin="4,0"
                           ToolTip="显示/隐藏 AI 对话面板"
                           Checked="OnAiToggleChecked"
-                          Unchecked="OnAiToggleUnchecked"/>
-            <Separator/>
-            <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="8,0" Foreground="#555"/>
+                          Unchecked="OnAiToggleUnchecked" />
+            <Separator />
+            <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="8,0" Foreground="#555" />
         </ToolBar>
 
         <!-- 状态栏 -->
         <StatusBar DockPanel.Dock="Bottom" Height="22">
             <StatusBarItem>
-                <TextBlock x:Name="TxtInfo" Text="正在加载…" Foreground="#666"/>
+                <TextBlock x:Name="TxtInfo" Text="正在加载…" Foreground="#666" />
             </StatusBarItem>
         </StatusBar>
 
         <!-- 主内容区：白板插件 + AI 侧边栏 -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="ColAi" Width="0"/>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="ColAi" Width="0" />
             </Grid.ColumnDefinitions>
 
             <!-- 插件视图区域 -->
             <Border x:Name="PluginHost" Grid.Column="0"
                     Background="White"
                     BorderBrush="#DDD" BorderThickness="1"
-                    Margin="4,4,2,4"/>
+                    Margin="4,4,2,4" />
 
             <!-- AI 对话侧边栏 -->
             <Border Grid.Column="1"
                     Background="#F8F9FA"
                     BorderBrush="#E0E0E0" BorderThickness="1,0,0,0">
-                <aiViews:AiChatView x:Name="AiPanel"/>
+                <aiViews:AiChatView x:Name="AiPanel" />
             </Border>
         </Grid>
     </DockPanel>

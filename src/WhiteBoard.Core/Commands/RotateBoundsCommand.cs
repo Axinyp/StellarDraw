@@ -23,7 +23,7 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
         IReadOnlyList<(float x, float y, float w, float h, float[] transform)> newStates,
         PageModel page)
     {
-        _page      = page;
+        _page = page;
         _snapshots = objects
             .Select(o => new Snapshot(o, o.BoundsX, o.BoundsY, o.BoundsWidth, o.BoundsHeight,
                                       (float[])o.Transform.Clone()))
@@ -32,7 +32,9 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds => _snapshots.Select(s => s.Obj.Id).ToList();
-    public bool SupportsObjectUndo(Guid id)           => false;
+
+    public bool SupportsObjectUndo(Guid id) => false;
+
     public IWhiteboardCommand? CreateObjectUndo(Guid id) => null;
 
     public void Execute()

@@ -15,7 +15,9 @@ public interface IMcpSessionRegistry
     Task RevokeAsync(string token, CancellationToken ct = default);
 
     IReadOnlyList<McpSessionBinding> ActiveBindings { get; }
+
     event EventHandler<McpSessionBinding> ConnectionOpened;
+
     event EventHandler<McpSessionBinding> ConnectionClosed;
 }
 

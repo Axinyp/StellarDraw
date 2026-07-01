@@ -12,12 +12,12 @@ namespace WhiteBoard.AI.Providers;
 public sealed class SettingsBackedLlmProvider : ILlmProvider
 {
     private readonly AIWhiteboardSettings _settings;
-    private readonly ISecretStore         _secrets;
+    private readonly ISecretStore _secrets;
 
     public SettingsBackedLlmProvider(AIWhiteboardSettings settings, ISecretStore secrets)
     {
         _settings = settings;
-        _secrets  = secrets;
+        _secrets = secrets;
     }
 
     public string ProviderName => _settings.LlmProviderType;

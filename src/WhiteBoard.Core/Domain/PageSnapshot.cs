@@ -6,22 +6,22 @@ namespace WhiteBoard.Core.Domain;
 /// </summary>
 public sealed class PageSnapshot
 {
-    public string   PageId  { get; init; } = "";
-    public long     Version { get; init; }
-    public float    Width   { get; init; }
-    public float    Height  { get; init; }
+    public string PageId { get; init; } = "";
+    public long Version { get; init; }
+    public float Width { get; init; }
+    public float Height { get; init; }
     public IReadOnlyList<ObjectSummary> Objects { get; init; } = [];
 }
 
 /// <summary>对象摘要：仅含位置/尺寸/类型等轻量字段，不含笔迹点或富内容。</summary>
 public sealed record ObjectSummary(
-    Guid    Id,
-    string  Kind,
+    Guid Id,
+    string Kind,
     string? Alias,
-    float   X,
-    float   Y,
-    float   Width,
-    float   Height,
-    int     ZIndex,
-    bool    IsLocked,
+    float X,
+    float Y,
+    float Width,
+    float Height,
+    int ZIndex,
+    bool IsLocked,
     string? OwnerId);

@@ -95,3 +95,15 @@ dotnet test
 - 几何变更必须通过 `SpatialIndex.Update(obj, mutate)` 原子更新，保持索引同步
 - Transform 矩阵采用行向量约定，旋转角顺时针为正
 - 新增命令类实现 `IWhiteboardCommand`，通过 `_history.Execute(cmd)` 注册到撤销栈
+
+---
+
+## .context 项目上下文
+
+> 项目使用 `.context/` 管理开发决策上下文。
+
+- 编码规范：`.context/prefs/coding-style.md`
+- 工作流规则：`.context/prefs/workflow.md`
+- 决策历史：`.context/history/commits.md`
+
+**规则**：修改代码前必读 prefs/，做决策时按 workflow.md 规则记录日志。

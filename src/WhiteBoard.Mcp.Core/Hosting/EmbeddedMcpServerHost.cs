@@ -1,9 +1,6 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.AspNetCore;
-using ModelContextProtocol.Server;
 using WhiteBoard.Mcp.Core.Registry;
 using WhiteBoard.Mcp.Core.Server;
 

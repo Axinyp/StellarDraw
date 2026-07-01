@@ -1,5 +1,4 @@
 using WhiteBoard.Core.Domain;
-using WhiteBoard.Core.Domain.Objects;
 
 namespace WhiteBoard.AI.Services;
 
@@ -69,39 +68,39 @@ public interface IWhiteboardAiActions
 
 public sealed record ShapeSpec(
     string ShapeType,      // rectangle | circle | line | arrow | triangle
-    float  X,
-    float  Y,
-    float  Width,
-    float  Height,
-    string FillColor   = "#FFFFFF",
+    float X,
+    float Y,
+    float Width,
+    float Height,
+    string FillColor = "#FFFFFF",
     string StrokeColor = "#000000",
-    float  StrokeWidth = 2f,
-    bool   IsFilled    = true);
+    float StrokeWidth = 2f,
+    bool IsFilled = true);
 
 /// <summary>通用矢量路径规格：SVG path string + 颜色/宽度。</summary>
 public sealed record PathSpec(
     string PathData,
-    string FillColor   = "#FFD700",
+    string FillColor = "#FFD700",
     string StrokeColor = "#000000",
-    float  StrokeWidth = 2f,
-    bool   IsFilled    = true);
+    float StrokeWidth = 2f,
+    bool IsFilled = true);
 
 public sealed record TextSpec(
-    float  X,
-    float  Y,
-    float  Width,
-    float  Height,
+    float X,
+    float Y,
+    float Width,
+    float Height,
     string Content,
-    string FontFamily  = "Microsoft YaHei",
-    float  FontSize    = 16f,
-    string Color       = "#000000",
-    bool   Bold        = false,
-    bool   Italic      = false);
+    string FontFamily = "Microsoft YaHei",
+    float FontSize = 16f,
+    string Color = "#000000",
+    bool Bold = false,
+    bool Italic = false);
 
 public sealed record ImageSpec(
-    float   X,
-    float   Y,
-    float   Width,
-    float   Height,
+    float X,
+    float Y,
+    float Width,
+    float Height,
     byte[]? ImageData,
-    string? Url        = null);
+    string? Url = null);

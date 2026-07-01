@@ -1,13 +1,11 @@
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WhiteBoard.Mcp.Core.IPC;
 using WhiteBoard.Mcp.Core.Server;
 using WhiteBoard.McpHost;
 
-var token    = Environment.GetEnvironmentVariable("WHITEBOARD_MCP_TOKEN") ?? "";
+var token = Environment.GetEnvironmentVariable("WHITEBOARD_MCP_TOKEN") ?? "";
 var pipeName = Environment.GetEnvironmentVariable("WHITEBOARD_MCP_PIPE_NAME") ?? "whiteboard-mcp";
 
 if (string.IsNullOrEmpty(token))

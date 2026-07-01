@@ -19,8 +19,8 @@ public static class BezierSmoothing
     /// </summary>
     public static IReadOnlyList<PressurePoint> Smooth(
         IReadOnlyList<PressurePoint> points,
-        int   iterations = 2,
-        float ratio      = 0.25f)
+        int iterations = 2,
+        float ratio = 0.25f)
     {
         if (points.Count < 3) return points;
 
@@ -88,7 +88,7 @@ public static class BezierSmoothing
         if (last - first < 2) return;
 
         float maxDistSq = 0f;
-        int   splitIdx  = first;
+        int splitIdx = first;
 
         var p0 = pts[first];
         var p1 = pts[last];
@@ -107,8 +107,8 @@ public static class BezierSmoothing
 
         if (maxDistSq <= epsilonSq) return;
 
-        RdpReduce(pts, first,    splitIdx, epsilonSq, result);
-        RdpReduce(pts, splitIdx, last,     epsilonSq, result);
+        RdpReduce(pts, first, splitIdx, epsilonSq, result);
+        RdpReduce(pts, splitIdx, last, epsilonSq, result);
     }
 
     private static float DistSq(PressurePoint p, PressurePoint q)

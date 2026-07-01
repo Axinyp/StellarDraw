@@ -1,7 +1,7 @@
-using System.Text.Json;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using System.Text.Json;
 
 namespace WhiteBoard.Mcp.Core.Server;
 
@@ -12,14 +12,14 @@ namespace WhiteBoard.Mcp.Core.Server;
 public sealed class WhiteboardMcpServerTool : McpServerTool
 {
     private readonly AIFunction _fn;
-    private readonly Tool       _protocolTool;
+    private readonly Tool _protocolTool;
 
     public WhiteboardMcpServerTool(AIFunction fn, string toolName)
     {
         _fn = fn;
         _protocolTool = new Tool
         {
-            Name        = toolName,
+            Name = toolName,
             Description = fn.Description,
             InputSchema = BuildSchema(fn),
         };

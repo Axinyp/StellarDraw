@@ -12,9 +12,10 @@ namespace WhiteBoard.UI.ViewModels;
 public sealed class PageListViewModel : ViewModelBase, IDisposable
 {
     private readonly PageManager _manager;
-    private PageModel?           _current;
+    private PageModel? _current;
 
-    public ObservableCollection<PageModel> Pages   { get; } = [];
+    public ObservableCollection<PageModel> Pages { get; } = [];
+
     public PageModel? CurrentPage
     {
         get => _current;
@@ -61,5 +62,6 @@ public sealed class PageListViewModel : ViewModelBase, IDisposable
         return true;
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    { }
 }

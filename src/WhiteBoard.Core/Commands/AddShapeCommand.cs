@@ -7,12 +7,12 @@ namespace WhiteBoard.Core.Commands;
 public sealed class AddShapeCommand : IWhiteboardCommand
 {
     private readonly ShapeObject _shape;
-    private readonly PageModel   _page;
+    private readonly PageModel _page;
 
     public AddShapeCommand(ShapeObject shape, PageModel page)
     {
         _shape = shape;
-        _page  = page;
+        _page = page;
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds => [_shape.Id];
@@ -23,5 +23,6 @@ public sealed class AddShapeCommand : IWhiteboardCommand
         objectId == _shape.Id ? new DeleteObjectCommand(_shape, _page) : null;
 
     public void Execute() => _page.AddObject(_shape);
-    public void Undo()    => _page.RemoveObject(_shape);
+
+    public void Undo() => _page.RemoveObject(_shape);
 }

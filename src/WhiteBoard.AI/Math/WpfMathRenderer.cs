@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.IO;
-using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,7 +14,7 @@ namespace WhiteBoard.AI.Math;
 /// </summary>
 public sealed class WpfMathRenderer : IMathRenderer
 {
-    private const double DpiValue     = 96.0;
+    private const double DpiValue = 96.0;
     private const double PixelsPerDip = 1.0;   // 96 DPI → 1.0
 
     public bool IsAvailable => true;
@@ -24,12 +22,12 @@ public sealed class WpfMathRenderer : IMathRenderer
     public byte[] Render(string latex, double fontSize = 24.0)
     {
         // RenderTargetBitmap requires STA thread
-        byte[]?    result = null;
-        Exception? error  = null;
+        byte[]? result = null;
+        Exception? error = null;
 
         var thread = new Thread(() =>
         {
-            try   { result = RenderCore(latex, fontSize); }
+            try { result = RenderCore(latex, fontSize); }
             catch (Exception ex) { error = ex; }
         });
         thread.SetApartmentState(ApartmentState.STA);
@@ -62,7 +60,7 @@ public sealed class WpfMathRenderer : IMathRenderer
             PixelsPerDip);
 
         const int padding = 16;
-        var bmpWidth  = System.Math.Max((int)(formatted.Width  + padding * 2), 80);
+        var bmpWidth = System.Math.Max((int)(formatted.Width + padding * 2), 80);
         var bmpHeight = System.Math.Max((int)(formatted.Height + padding * 2), 40);
 
         var visual = new DrawingVisual();
@@ -89,22 +87,22 @@ public sealed class WpfMathRenderer : IMathRenderer
         => latex
             .Replace(@"\frac{", "(")
             .Replace(@"\sqrt{", "√(")
-            .Replace(@"\pi",    "π")
+            .Replace(@"\pi", "π")
             .Replace(@"\alpha", "α")
-            .Replace(@"\beta",  "β")
+            .Replace(@"\beta", "β")
             .Replace(@"\gamma", "γ")
             .Replace(@"\delta", "δ")
             .Replace(@"\theta", "θ")
             .Replace(@"\infty", "∞")
             .Replace(@"\times", "×")
-            .Replace(@"\div",   "÷")
-            .Replace(@"\pm",    "±")
-            .Replace(@"\neq",   "≠")
-            .Replace(@"\leq",   "≤")
-            .Replace(@"\geq",   "≥")
-            .Replace(@"\sum",   "Σ")
-            .Replace(@"\int",   "∫")
-            .Replace(@"\cdot",  "·")
+            .Replace(@"\div", "÷")
+            .Replace(@"\pm", "±")
+            .Replace(@"\neq", "≠")
+            .Replace(@"\leq", "≤")
+            .Replace(@"\geq", "≥")
+            .Replace(@"\sum", "Σ")
+            .Replace(@"\int", "∫")
+            .Replace(@"\cdot", "·")
             .Replace(@"\left(", "(").Replace(@"\right)", ")")
             .Replace(@"\left[", "[").Replace(@"\right]", "]")
             .Replace("}{", "/").Replace("{", "").Replace("}", "")

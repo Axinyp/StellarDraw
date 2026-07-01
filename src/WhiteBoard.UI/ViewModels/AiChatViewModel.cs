@@ -13,20 +13,20 @@ namespace WhiteBoard.UI.ViewModels;
 public sealed class AiChatViewModel : ViewModelBase, IDisposable
 {
     private readonly WhiteboardAISession _aiSession;
-    private CancellationTokenSource?     _currentCts;
+    private CancellationTokenSource? _currentCts;
 
-    private string  _inputText      = "";
-    private bool    _isProcessing;
-    private bool    _isRecording;
-    private string  _statusBarText  = "";
-    private bool    _showStatusBar;
-    private bool    _showSettings;
-    private bool    _confirmVisible;
-    private string  _confirmMessage = "";
+    private string _inputText = "";
+    private bool _isProcessing;
+    private bool _isRecording;
+    private string _statusBarText = "";
+    private bool _showStatusBar;
+    private bool _showSettings;
+    private bool _confirmVisible;
+    private string _confirmMessage = "";
     private Action? _confirmOk;
     private Action? _confirmCancel;
-    private int     _mcpActiveConnections;
-    private bool    _hasMcpActivity;
+    private int _mcpActiveConnections;
+    private bool _hasMcpActivity;
 
     // ── Message model ──────────────────────────────────────────────────────────
 
@@ -36,10 +36,10 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public string  Author   { get; init; } = "";
-        public bool    IsUser   { get; init; }
-        public bool    IsError  { get; init; }
-        public DateTime Time   { get; init; } = DateTime.Now;
+        public string Author { get; init; } = "";
+        public bool IsUser { get; init; }
+        public bool IsError { get; init; }
+        public DateTime Time { get; init; } = DateTime.Now;
 
         public string Text
         {
@@ -133,13 +133,13 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     // ── Commands ───────────────────────────────────────────────────────────────
 
-    public ICommand SendCommand          { get; }
-    public ICommand InterruptCommand     { get; }
-    public ICommand ClearCommand         { get; }
-    public ICommand ConfirmOkCommand     { get; }
+    public ICommand SendCommand { get; }
+    public ICommand InterruptCommand { get; }
+    public ICommand ClearCommand { get; }
+    public ICommand ConfirmOkCommand { get; }
     public ICommand ConfirmCancelCommand { get; }
-    public ICommand PttStartCommand      { get; }
-    public ICommand PttStopCommand       { get; }
+    public ICommand PttStartCommand { get; }
+    public ICommand PttStopCommand { get; }
     public ICommand ToggleSettingsCommand { get; }
 
     // ── Settings ──────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                            AiSettingsViewModel? settingsVm = null,
                            bool showStatusBar = true)
     {
-        _aiSession    = aiSession;
+        _aiSession = aiSession;
         _showStatusBar = showStatusBar;
 
         SettingsVm = settingsVm ?? new AiSettingsViewModel();
@@ -165,15 +165,15 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
             SettingsChanged?.Invoke(this, settings);
         };
 
-        SendCommand          = new RelayCommand(() => _ = SendAsync(),
+        SendCommand = new RelayCommand(() => _ = SendAsync(),
                                    () => CanSend);
-        InterruptCommand     = new RelayCommand(Interrupt, () => IsProcessing);
-        ClearCommand         = new RelayCommand(Clear,     () => !IsProcessing);
-        ConfirmOkCommand     = new RelayCommand(OnConfirmOk);
+        InterruptCommand = new RelayCommand(Interrupt, () => IsProcessing);
+        ClearCommand = new RelayCommand(Clear, () => !IsProcessing);
+        ConfirmOkCommand = new RelayCommand(OnConfirmOk);
         ConfirmCancelCommand = new RelayCommand(OnConfirmCancel);
-        PttStartCommand      = new RelayCommand(StartPtt,
+        PttStartCommand = new RelayCommand(StartPtt,
                                    () => _aiSession.IsRecording == false);
-        PttStopCommand       = new RelayCommand(() => _ = StopPttAsync(),
+        PttStopCommand = new RelayCommand(() => _ = StopPttAsync(),
                                    () => _aiSession.IsRecording);
         ToggleSettingsCommand = new RelayCommand(() => ShowSettings = !ShowSettings);
 
@@ -187,7 +187,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         var text = InputText.Trim();
         if (string.IsNullOrEmpty(text) || IsProcessing) return;
 
-        InputText    = "";
+        InputText = "";
         IsProcessing = true;
         StatusBarText = "AI 正在思考…";
         ShowStatusBar = _showStatusBar;
@@ -196,7 +196,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         var assistantMsg = new ChatMessage { Author = "AI", Text = "" };
         Messages.Add(assistantMsg);
 
-        bool firstChunk  = true;
+        bool firstChunk = true;
         _currentCts = new CancellationTokenSource();
 
         try
@@ -208,7 +208,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                     case TextChunkEvent chunk:
                         if (firstChunk)
                         {
-                            firstChunk    = false;
+                            firstChunk = false;
                             StatusBarText = "";
                         }
                         assistantMsg.Text += chunk.Chunk;
@@ -243,8 +243,8 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            IsProcessing   = false;
-            StatusBarText  = "";
+            IsProcessing = false;
+            StatusBarText = "";
             ConfirmVisible = false;
             _currentCts?.Dispose();
             _currentCts = null;
@@ -267,13 +267,13 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     private void StartPtt()
     {
         _aiSession.StartPtt();
-        IsRecording   = true;
+        IsRecording = true;
         StatusBarText = "正在录音…";
     }
 
     private async Task StopPttAsync()
     {
-        IsRecording   = false;
+        IsRecording = false;
         StatusBarText = "正在识别…";
         await _aiSession.StopPttAsync().ConfigureAwait(false);
         StatusBarText = "";
@@ -281,15 +281,23 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     private void OnVoiceTextReady(object? sender, string text)
     {
-        // Show the voice-recognized text as a user message bubble
-        Messages.Add(new ChatMessage { Author = "你（语音）", Text = text, IsUser = true });
+        // VoiceTextReady 由 STT 回调线程触发，而 Messages 已绑定到 ItemsControl，
+        // 非 UI 线程修改绑定集合会抛异常，必须 marshal 回 UI 线程。
+        void AddBubble() =>
+            Messages.Add(new ChatMessage { Author = "你（语音）", Text = text, IsUser = true });
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            AddBubble();
+        else
+            dispatcher.BeginInvoke(AddBubble);
     }
 
     // ── Confirm dialog ────────────────────────────────────────────────────────
 
     private void ShowConfirmDialog(ConfirmRequiredEvent e)
     {
-        _confirmOk     = e.Confirm;
+        _confirmOk = e.Confirm;
         _confirmCancel = e.Cancel;
         ConfirmMessage = e.Description;
         ConfirmVisible = true;

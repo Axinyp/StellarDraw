@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using ModelContextProtocol.Client;
+using System.Diagnostics;
 
 namespace WhiteBoard.Mcp.Core.Client;
 
@@ -20,15 +20,15 @@ public sealed class McpClientProvider : IMcpClientProvider
                     "stdio" => new StdioClientTransport(
                         new StdioClientTransportOptions
                         {
-                            Command   = conn.Command,
+                            Command = conn.Command,
                             Arguments = conn.Arguments,
-                            Name      = conn.DisplayName,
+                            Name = conn.DisplayName,
                         }),
                     "http" => new HttpClientTransport(
                         new HttpClientTransportOptions
                         {
                             Endpoint = new Uri(conn.Endpoint),
-                            Name     = conn.DisplayName,
+                            Name = conn.DisplayName,
                         }),
                     _ => throw new NotSupportedException($"Transport '{conn.Transport}' not supported"),
                 };
@@ -56,9 +56,9 @@ public sealed class McpClientProvider : IMcpClientProvider
                 foreach (var tool in tools)
                 {
                     var prefixed = tool.WithName($"{spec.ToolNamePrefix}__{tool.Name}");
-                    var policy   = new ExternalMcpToolPolicy(
+                    var policy = new ExternalMcpToolPolicy(
                         RequiresConfirmation: spec.TrustLevel == "restricted",
-                        IsDestructive:        false,
+                        IsDestructive: false,
                         AllowInAutoApproveMode: spec.TrustLevel == "trusted");
                     result.Add(new(spec.ConnectionId, tool.Name, prefixed.Name, prefixed, policy));
                 }

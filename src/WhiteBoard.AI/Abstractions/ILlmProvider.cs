@@ -6,6 +6,7 @@ namespace WhiteBoard.AI.Abstractions;
 public interface ILlmProvider
 {
     string ProviderName { get; }
-    bool   IsAvailable  { get; }
+    bool IsAvailable { get; }
+
     IChatClient CreateClient();
 }

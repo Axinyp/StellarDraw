@@ -1,6 +1,4 @@
-using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using WhiteBoard.Contracts.Models;
 using WhiteBoard.Contracts.Plugin;
 
 namespace WhiteBoard.Host.Demo;
@@ -37,9 +35,9 @@ public sealed class InMemoryMessageBus : IPluginMessageBus
     {
         var channel = Channel.CreateBounded<PluginMessage>(new BoundedChannelOptions(512)
         {
-            FullMode       = BoundedChannelFullMode.DropOldest,
-            SingleReader   = true,
-            SingleWriter   = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false,
         });
 
         var sub = new Subscription(pluginId, filter, channel.Writer, channel.Reader, this);
@@ -67,7 +65,7 @@ public sealed class InMemoryMessageBus : IPluginMessageBus
         private long _dropped;
 
         internal readonly ChannelWriter<PluginMessage> Writer;
-        private  readonly ChannelReader<PluginMessage> _reader;
+        private readonly ChannelReader<PluginMessage> _reader;
 
         internal Func<PluginMessage, bool>? Filter { get; }
 
@@ -83,10 +81,10 @@ public sealed class InMemoryMessageBus : IPluginMessageBus
             InMemoryMessageBus bus)
         {
             PluginId = pluginId;
-            Filter   = filter;
-            Writer   = writer;
-            _reader  = reader;
-            _bus     = bus;
+            Filter = filter;
+            Writer = writer;
+            _reader = reader;
+            _bus = bus;
         }
 
         internal void IncrementDropped() => Interlocked.Increment(ref _dropped);

@@ -11,7 +11,7 @@ public sealed class SelectionModel
 
     public IReadOnlySet<Guid> Selected => _selected;
     public bool IsEmpty => _selected.Count == 0;
-    public int  Count   => _selected.Count;
+    public int Count => _selected.Count;
 
     public void Select(Guid id) => _selected.Add(id);
 

@@ -6,46 +6,46 @@
              MinWidth="320" Background="#F8F9FA">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
 
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#424242"/>
-            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#424242" />
+            <Setter Property="Margin" Value="0,0,0,6" />
         </Style>
 
         <Style x:Key="GroupBox" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#E0E0E0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
 
         <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="#616161"/>
-            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#616161" />
+            <Setter Property="Margin" Value="0,0,0,2" />
         </Style>
 
         <Style x:Key="FieldBox" TargetType="TextBox">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-            <Setter Property="BorderBrush" Value="#BDBDBD"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="BorderBrush" Value="#BDBDBD" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <Style x:Key="PrimaryBtn" TargetType="Button">
-            <Setter Property="Background" Value="#1A73E8"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Background" Value="#1A73E8" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -53,11 +53,11 @@
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1558B0"/>
+                                <Setter Property="Background" Value="#1558B0" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -66,13 +66,13 @@
         </Style>
 
         <Style x:Key="SecondaryBtn" TargetType="Button">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Foreground" Value="#424242"/>
-            <Setter Property="BorderBrush" Value="#BDBDBD"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="#424242" />
+            <Setter Property="BorderBrush" Value="#BDBDBD" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -82,11 +82,11 @@
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#F5F5F5"/>
+                                <Setter Property="Background" Value="#F5F5F5" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -107,10 +107,10 @@
                 <Button Content="重置"
                         Command="{Binding ResetCommand}"
                         Style="{StaticResource SecondaryBtn}"
-                        Margin="0,0,8,0"/>
+                        Margin="0,0,8,0" />
                 <Button Content="保存设置"
                         Command="{Binding SaveCommand}"
-                        Style="{StaticResource PrimaryBtn}"/>
+                        Style="{StaticResource PrimaryBtn}" />
             </StackPanel>
         </Border>
 
@@ -121,38 +121,38 @@
             <StackPanel>
 
                 <!-- ① LLM 设置 -->
-                <TextBlock Text="语言模型 (LLM)" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="语言模型 (LLM)" Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource GroupBox}">
                     <StackPanel>
-                        <TextBlock Text="提供商" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="提供商" Style="{StaticResource FieldLabel}" />
                         <ComboBox ItemsSource="{Binding LlmProviders}"
                                   SelectedItem="{Binding LlmProvider}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
                         <TextBlock Text="接入点 URL（Ollama/Azure/自定义）"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsEndpointVisible, Converter={StaticResource BoolToVis}}"/>
+                                   Visibility="{Binding IsEndpointVisible, Converter={StaticResource BoolToVis}}" />
                         <TextBox Text="{Binding LlmEndpoint, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsEndpointVisible, Converter={StaticResource BoolToVis}}"/>
+                                 Visibility="{Binding IsEndpointVisible, Converter={StaticResource BoolToVis}}" />
 
-                        <TextBlock Text="模型名称" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="模型名称" Style="{StaticResource FieldLabel}" />
                         <TextBox Text="{Binding LlmModel, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource FieldBox}"/>
+                                 Style="{StaticResource FieldBox}" />
 
                         <TextBlock Text="API Key"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
+                                   Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}" />
                         <TextBox Text="{Binding LlmApiKeyRef, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}"/>
+                                 Visibility="{Binding IsApiKeyVisible, Converter={StaticResource BoolToVis}}" />
 
-                        <TextBlock Text="执行模式" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="执行模式" Style="{StaticResource FieldLabel}" />
                         <ComboBox ItemsSource="{Binding ExecutionModes}"
                                   SelectedItem="{Binding ExecutionMode}"
                                   FontSize="12"
-                                  Margin="0,0,0,10"/>
+                                  Margin="0,0,0,10" />
 
                         <!-- 连接测试 -->
                         <StackPanel Margin="0,8,0,0">
@@ -161,7 +161,7 @@
                                     Style="{StaticResource SecondaryBtn}"
                                     HorizontalAlignment="Right"
                                     Padding="10,5"
-                                    FontSize="11"/>
+                                    FontSize="11" />
                             <TextBlock Text="{Binding ConnectionTestStatus}"
                                        Foreground="{Binding ConnectionTestStatusBrush}"
                                        FontSize="11"
@@ -170,10 +170,10 @@
                                        Margin="0,4,0,0">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Setter Property="Visibility" Value="Visible" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ConnectionTestStatus}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -184,124 +184,157 @@
                 </Border>
 
                 <!-- ② 语音设置 -->
-                <TextBlock Text="语音交互" Style="{StaticResource SectionHeader}"/>
+                <TextBlock Text="语音交互" Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource GroupBox}">
                     <StackPanel>
                         <!-- STT -->
                         <CheckBox Content="启用语音识别（STT）"
                                   IsChecked="{Binding SttEnabled}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
-                        <TextBlock Text="STT 提供商" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="STT 提供商" Style="{StaticResource FieldLabel}" />
                         <ComboBox ItemsSource="{Binding SttProviders}"
                                   SelectedItem="{Binding SttProviderType}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
                         <!-- Whisper 模型路径 -->
                         <TextBlock Text="Whisper 模型文件路径（ggml-*.bin）"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}"/>
+                                   Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}" />
                         <TextBox Text="{Binding SttModelPath, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}"/>
+                                 Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}" />
 
                         <!-- Azure / 自定义 STT 接入点 -->
                         <TextBlock Text="STT 接入点 URL（Azure/自定义）"
                                    Style="{StaticResource FieldLabel}"
-                                   Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}"/>
+                                   Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}" />
                         <TextBox Text="{Binding SttEndpoint, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource FieldBox}"
-                                 Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}"/>
+                                 Visibility="{Binding IsSttEndpointVisible, Converter={StaticResource BoolToVis}}" />
 
-                        <TextBlock Text="识别语言" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="识别语言" Style="{StaticResource FieldLabel}" />
                         <TextBox Text="{Binding SttLanguage, UpdateSourceTrigger=PropertyChanged}"
-                                 Style="{StaticResource FieldBox}"/>
+                                 Style="{StaticResource FieldBox}" />
 
-                        <TextBlock Text="触发方式" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="触发方式" Style="{StaticResource FieldLabel}" />
                         <ComboBox ItemsSource="{Binding VoiceModes}"
                                   SelectedItem="{Binding VoiceMode}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
                         <!-- 唤醒词选项（仅 wake-word 模式可见） -->
                         <StackPanel Visibility="{Binding IsWakeWordMode, Converter={StaticResource BoolToVis}}">
                             <CheckBox Content="启用唤醒词检测"
                                       IsChecked="{Binding WakeWordEnabled}"
                                       FontSize="12"
-                                      Margin="0,0,0,6"/>
-                            <TextBlock Text="唤醒词（中文短语）" Style="{StaticResource FieldLabel}"/>
+                                      Margin="0,0,0,6" />
+                            <TextBlock Text="唤醒词（中文短语）" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding WakeWord, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource FieldBox}"/>
-                            <TextBlock Text="唤醒词引擎" Style="{StaticResource FieldLabel}"/>
+                                     Style="{StaticResource FieldBox}" />
+                            <TextBlock Text="唤醒词引擎" Style="{StaticResource FieldLabel}" />
                             <ComboBox SelectedItem="{Binding WakeWordProviderType}"
                                       FontSize="12"
                                       Margin="0,0,0,8">
-                                <ComboBoxItem Content="windows"/>
-                                <ComboBoxItem Content="custom"/>
+                                <ComboBoxItem Content="windows" />
+                                <ComboBoxItem Content="custom" />
                             </ComboBox>
-                            <TextBlock Text="话语捕获时长（秒）" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Text="话语捕获时长（秒）" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding WakeWordUtteranceSeconds, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource FieldBox}"/>
+                                     Style="{StaticResource FieldBox}" />
                         </StackPanel>
 
                         <!-- TTS -->
                         <CheckBox Content="启用语音播报（TTS）"
                                   IsChecked="{Binding TtsEnabled}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
                         <StackPanel Visibility="{Binding TtsEnabled, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="TTS 提供商" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Text="TTS 提供商" Style="{StaticResource FieldLabel}" />
                             <ComboBox ItemsSource="{Binding TtsProviders}"
                                       SelectedItem="{Binding TtsProviderType}"
                                       FontSize="12"
-                                      Margin="0,0,0,0"/>
+                                      Margin="0,0,0,0" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <!-- ③ 显示设置 -->
-                <TextBlock Text="界面显示" Style="{StaticResource SectionHeader}"/>
+                <!-- ③ 图像生成 -->
+                <TextBlock Text="图像生成" Style="{StaticResource SectionHeader}" />
+                <Border Style="{StaticResource GroupBox}">
+                    <StackPanel>
+                        <CheckBox Content="启用 AI 图像生成（generate_and_insert_image）"
+                                  IsChecked="{Binding ImageGenEnabled}"
+                                  FontSize="12"
+                                  Margin="0,0,0,8" />
+
+                        <StackPanel Visibility="{Binding ImageGenEnabled, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="提供商" Style="{StaticResource FieldLabel}" />
+                            <ComboBox ItemsSource="{Binding ImageGenProviders}"
+                                      SelectedItem="{Binding ImageGenProviderType}"
+                                      FontSize="12"
+                                      Margin="0,0,0,8" />
+
+                            <TextBlock Text="API Key（DALL-E）"
+                                       Style="{StaticResource FieldLabel}"
+                                       Visibility="{Binding IsImageGenApiKeyVisible, Converter={StaticResource BoolToVis}}" />
+                            <TextBox Text="{Binding ImageGenApiKeyRef, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource FieldBox}"
+                                     Visibility="{Binding IsImageGenApiKeyVisible, Converter={StaticResource BoolToVis}}" />
+
+                            <TextBlock Text="接入点 URL（Stable Diffusion 本地端点 / DALL-E 自定义端点，可留空）"
+                                       Style="{StaticResource FieldLabel}"
+                                       Visibility="{Binding IsImageGenEndpointVisible, Converter={StaticResource BoolToVis}}" />
+                            <TextBox Text="{Binding ImageGenEndpoint, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource FieldBox}"
+                                     Visibility="{Binding IsImageGenEndpointVisible, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ④ 显示设置 -->
+                <TextBlock Text="界面显示" Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource GroupBox}">
                     <CheckBox Content="显示工具调用状态条"
                               IsChecked="{Binding ShowStatusBar}"
-                              FontSize="12"/>
+                              FontSize="12" />
                 </Border>
 
                 <!-- ④ MCP 服务端 -->
                 <TextBlock Text="MCP 服务端（暴露白板工具给外部 AI）"
-                           Style="{StaticResource SectionHeader}"/>
+                           Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource GroupBox}">
                     <StackPanel>
                         <CheckBox Content="启用 MCP 服务端"
                                   IsChecked="{Binding McpServerEnabled}"
                                   FontSize="12"
-                                  Margin="0,0,0,8"/>
+                                  Margin="0,0,0,8" />
 
                         <StackPanel IsEnabled="{Binding McpServerEnabled}">
                             <CheckBox Content="启用 stdio 传输（Claude Desktop）"
                                       IsChecked="{Binding McpServerStdioEnabled}"
                                       FontSize="12"
-                                      Margin="0,0,0,4"/>
+                                      Margin="0,0,0,4" />
                             <CheckBox Content="启用 HTTP/SSE 传输（Web/远程）"
                                       IsChecked="{Binding McpServerHttpEnabled}"
                                       FontSize="12"
-                                      Margin="0,0,0,8"/>
+                                      Margin="0,0,0,8" />
 
-                            <TextBlock Text="HTTP 监听地址" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Text="HTTP 监听地址" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding McpServerHttpUrl, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource FieldBox}"/>
+                                     Style="{StaticResource FieldBox}" />
 
-                            <TextBlock Text="Token 有效期（分钟）" Style="{StaticResource FieldLabel}"/>
+                            <TextBlock Text="Token 有效期（分钟）" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding McpTokenLifetimeMinutes, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource FieldBox}"/>
+                                     Style="{StaticResource FieldBox}" />
 
                             <CheckBox Content="允许破坏性工具（如清空白板）"
                                       IsChecked="{Binding McpAllowDestructiveTools}"
                                       FontSize="12"
-                                      Margin="0,0,0,8"/>
+                                      Margin="0,0,0,8" />
 
                             <!-- Token 操作 -->
                             <Border Background="#F5F5F5"
@@ -315,16 +348,16 @@
                                                 Command="{Binding CopyMcpTokenCommand}"
                                                 Style="{StaticResource SecondaryBtn}"
                                                 Padding="8,3"
-                                                FontSize="11"/>
+                                                FontSize="11" />
                                         <Button DockPanel.Dock="Right"
                                                 Content="重新生成"
                                                 Command="{Binding RegenerateMcpTokenCommand}"
                                                 Style="{StaticResource SecondaryBtn}"
                                                 Padding="8,3"
                                                 FontSize="11"
-                                                Margin="0,0,4,0"/>
+                                                Margin="0,0,4,0" />
                                         <TextBlock Text="当前 Token" Style="{StaticResource FieldLabel}"
-                                                   VerticalAlignment="Center"/>
+                                                   VerticalAlignment="Center" />
                                     </DockPanel>
                                     <TextBox Text="{Binding CurrentMcpToken, Mode=OneWay}"
                                              IsReadOnly="True"
@@ -332,13 +365,13 @@
                                              FontFamily="Consolas"
                                              BorderThickness="0"
                                              Background="Transparent"
-                                             TextWrapping="Wrap"/>
+                                             TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
 
                             <!-- Claude Desktop 配置片段 -->
                             <TextBlock Text="Claude Desktop 配置片段"
-                                       Style="{StaticResource FieldLabel}"/>
+                                       Style="{StaticResource FieldLabel}" />
                             <Border Background="#263238" CornerRadius="4" Padding="8">
                                 <DockPanel>
                                     <Button DockPanel.Dock="Top"
@@ -350,7 +383,7 @@
                                             BorderThickness="0"
                                             FontSize="11"
                                             Cursor="Hand"
-                                            Margin="0,0,0,4"/>
+                                            Margin="0,0,0,4" />
                                     <TextBox Text="{Binding ClaudeDesktopConfigSnippet, Mode=OneWay}"
                                              IsReadOnly="True"
                                              FontSize="10"
@@ -358,7 +391,7 @@
                                              Foreground="#80CBC4"
                                              Background="Transparent"
                                              BorderThickness="0"
-                                             TextWrapping="Wrap"/>
+                                             TextWrapping="Wrap" />
                                 </DockPanel>
                             </Border>
                         </StackPanel>
@@ -367,7 +400,7 @@
 
                 <!-- ⑤ MCP 客户端连接 -->
                 <TextBlock Text="MCP 客户端（导入外部 MCP 服务工具）"
-                           Style="{StaticResource SectionHeader}"/>
+                           Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource GroupBox}">
                     <StackPanel>
                         <ItemsControl ItemsSource="{Binding McpConnections}">
@@ -379,8 +412,8 @@
                                             Margin="0,0,0,6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
                                                 <TextBox Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
@@ -388,12 +421,12 @@
                                                          FontSize="12"
                                                          BorderThickness="0"
                                                          Background="Transparent"
-                                                         Margin="0,0,0,4"/>
+                                                         Margin="0,0,0,4" />
                                                 <ComboBox SelectedItem="{Binding Transport}"
                                                           FontSize="11"
                                                           Margin="0,0,0,4">
-                                                    <ComboBoxItem Content="stdio"/>
-                                                    <ComboBoxItem Content="http"/>
+                                                    <ComboBoxItem Content="stdio" />
+                                                    <ComboBoxItem Content="http" />
                                                 </ComboBox>
                                                 <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
                                                          FontSize="11"
@@ -402,7 +435,7 @@
                                                          Visibility="{Binding IsStdio, Converter={StaticResource BoolToVis}}">
                                                     <TextBox.Style>
                                                         <Style TargetType="TextBox">
-                                                            <Setter Property="ToolTip" Value="命令（stdio 模式）"/>
+                                                            <Setter Property="ToolTip" Value="命令（stdio 模式）" />
                                                         </Style>
                                                     </TextBox.Style>
                                                 </TextBox>
@@ -410,14 +443,14 @@
                                                          FontSize="11"
                                                          Padding="4,2"
                                                          ToolTip="HTTP 端点 URL"
-                                                         Visibility="{Binding IsStdio, Converter={StaticResource InvBoolToVis}}"/>
+                                                         Visibility="{Binding IsStdio, Converter={StaticResource InvBoolToVis}}" />
                                                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                     <TextBlock Text="{Binding ConnectionStatus}"
                                                                FontSize="10"
-                                                               Foreground="#757575"/>
+                                                               Foreground="#757575" />
                                                     <TextBlock Text="{Binding ToolCount, StringFormat=' · {0} 个工具'}"
                                                                FontSize="10"
-                                                               Foreground="#9E9E9E"/>
+                                                               Foreground="#9E9E9E" />
                                                 </StackPanel>
                                             </StackPanel>
                                             <!-- 删除按钮 -->
@@ -434,7 +467,7 @@
                                                     ToolTip="删除此连接"
                                                     Command="{Binding DataContext.RemoveMcpConnectionCommand,
                                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    CommandParameter="{Binding}"/>
+                                                    CommandParameter="{Binding}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -445,10 +478,9 @@
                                 Command="{Binding AddMcpConnectionCommand}"
                                 Style="{StaticResource SecondaryBtn}"
                                 HorizontalAlignment="Left"
-                                Margin="0,4,0,0"/>
+                                Margin="0,4,0,0" />
                     </StackPanel>
                 </Border>
-
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

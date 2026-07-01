@@ -16,20 +16,38 @@ public sealed class SpatialIndex
 {
     private readonly RBush<SpatialEntry> _tree = new();
 
+    // 缓存每个对象当前在树中的 entry 实例。
+    // 关键：SpatialEntry 是引用类型且未重写 Equals，RBush.Delete 用引用相等匹配；
+    // 若 Remove/Update 时重新 new 一个 entry，引用不同则永远删不掉旧条目。
+    // 因此必须存下 Insert 时的同一实例，删除时取回它传给 _tree.Delete。
+    private readonly Dictionary<WhiteboardObject, SpatialEntry> _entries = new();
+
     public void Insert(WhiteboardObject obj)
-        => _tree.Insert(MakeEntry(obj));
+    {
+        var entry = MakeEntry(obj);
+        _entries[obj] = entry;
+        _tree.Insert(entry);
+    }
 
     public void Remove(WhiteboardObject obj)
-        => _tree.Delete(MakeEntry(obj));
+    {
+        // 取回 Insert 时存下的同一 entry 实例，否则引用相等匹配失败、删除无效。
+        if (_entries.Remove(obj, out var entry))
+            _tree.Delete(entry);
+    }
 
     /// <summary>
     /// 原子 Remove + mutate + Insert。几何变更必须通过此方法，确保索引与对象状态同步。
     /// </summary>
     public void Update(WhiteboardObject obj, Action mutate)
     {
-        _tree.Delete(MakeEntry(obj));
+        // 用 mutate 前的旧 entry（其 Envelope 仍是旧位置）删除，RBush 才能正确导航并按引用移除。
+        if (_entries.Remove(obj, out var old))
+            _tree.Delete(old);
         mutate();
-        _tree.Insert(MakeEntry(obj));
+        var entry = MakeEntry(obj);
+        _entries[obj] = entry;
+        _tree.Insert(entry);
     }
 
     public IReadOnlyList<WhiteboardObject> HitTest(float x, float y, float tolerance = 4f)
@@ -45,7 +63,11 @@ public sealed class SpatialIndex
         return results.Select(e => e.Object).ToList();
     }
 
-    public void Clear() => _tree.Clear();
+    public void Clear()
+    {
+        _tree.Clear();
+        _entries.Clear();
+    }
 
     private static SpatialEntry MakeEntry(WhiteboardObject obj) => new(obj);
 
@@ -57,7 +79,7 @@ public sealed class SpatialIndex
 
         public SpatialEntry(WhiteboardObject obj)
         {
-            Object    = obj;
+            Object = obj;
             _envelope = new Envelope(
                 obj.BoundsX,
                 obj.BoundsY,

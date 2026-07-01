@@ -39,12 +39,12 @@ public sealed class MockCollaborationAdapter : ICollaborationAdapter, IDisposabl
 
             var seq = Interlocked.Increment(ref _seqCounter);
             yield return new ObjectTransformedEvent(
-                EventId:       Guid.NewGuid().ToString("N"),
-                PageId:        "demo-page",
-                ObjectId:      Guid.NewGuid().ToString("N"),
-                ClientId:      "remote-peer-1",
+                EventId: Guid.NewGuid().ToString("N"),
+                PageId: "demo-page",
+                ObjectId: Guid.NewGuid().ToString("N"),
+                ClientId: "remote-peer-1",
                 OccurredAtUtc: DateTimeOffset.UtcNow,
-                Matrix6:       [1f, 0f, 0f, 1f, seq * 5f, 0f]);
+                Matrix6: [1f, 0f, 0f, 1f, seq * 5f, 0f]);
         }
     }
 

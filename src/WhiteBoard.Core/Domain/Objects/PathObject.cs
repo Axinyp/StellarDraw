@@ -8,48 +8,49 @@ namespace WhiteBoard.Core.Domain.Objects;
 public sealed class PathObject : WhiteboardObject
 {
     /// <summary>SVG path string，例如 "M 0 0 L 100 0 L 50 86.6 Z"（正三角形）。</summary>
-    public string PathData    { get; init; }
-    public uint   FillArgb    { get; init; }
-    public uint   StrokeArgb  { get; init; }
-    public float  StrokeWidth { get; init; }
-    public bool   IsFilled    { get; init; }
+    public string PathData { get; init; }
+
+    public uint FillArgb { get; init; }
+    public uint StrokeArgb { get; init; }
+    public float StrokeWidth { get; init; }
+    public bool IsFilled { get; init; }
 
     public PathObject(
         string pathData,
-        uint   fillArgb,
-        uint   strokeArgb,
-        float  strokeWidth,
-        bool   isFilled)
+        uint fillArgb,
+        uint strokeArgb,
+        float strokeWidth,
+        bool isFilled)
     {
-        PathData    = pathData;
-        FillArgb    = fillArgb;
-        StrokeArgb  = strokeArgb;
+        PathData = pathData;
+        FillArgb = fillArgb;
+        StrokeArgb = strokeArgb;
         StrokeWidth = strokeWidth;
-        IsFilled    = isFilled;
+        IsFilled = isFilled;
 
-        var bounds = ComputeBounds(pathData, strokeWidth);
+        var bounds = ComputeBounds(pathData);
         SetBounds(bounds.x, bounds.y, bounds.w, bounds.h);
     }
 
     public PathObject(
-        Guid   id,
+        Guid id,
         string pathData,
-        uint   fillArgb,
-        uint   strokeArgb,
-        float  strokeWidth,
-        bool   isFilled,
+        uint fillArgb,
+        uint strokeArgb,
+        float strokeWidth,
+        bool isFilled,
         float bx, float by, float bw, float bh,
         float[] transform)
         : base(id, bx, by, bw, bh, transform)
     {
-        PathData    = pathData;
-        FillArgb    = fillArgb;
-        StrokeArgb  = strokeArgb;
+        PathData = pathData;
+        FillArgb = fillArgb;
+        StrokeArgb = strokeArgb;
         StrokeWidth = strokeWidth;
-        IsFilled    = isFilled;
+        IsFilled = isFilled;
     }
 
-    private static (float x, float y, float w, float h) ComputeBounds(string pathData, float strokeWidth = 0f)
+    private static (float x, float y, float w, float h) ComputeBounds(string pathData)
     {
         var nums = new List<float>();
 
@@ -74,7 +75,8 @@ public sealed class PathObject : WhiteboardObject
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
         }
-        float pad = strokeWidth * 0.5f;
-        return (minX - pad, minY - pad, maxX - minX + strokeWidth, maxY - minY + strokeWidth);
+        // path 包围盒采用纯几何坐标，不含描边外扩（与 SVG 坐标一致；
+        // 描边的可见外扩由渲染层按 StrokeWidth 处理）。与 ShapeObject 的 bounds 语义一致。
+        return (minX, minY, maxX - minX, maxY - minY);
     }
 }

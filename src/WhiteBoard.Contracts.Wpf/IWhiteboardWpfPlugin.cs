@@ -13,8 +13,8 @@ public interface IWhiteboardWpfPlugin : IPlugin
 
 public interface IPluginViewHandle : IAsyncDisposable
 {
-    string           PluginId { get; }
-    FrameworkElement View     { get; }
+    string PluginId { get; }
+    FrameworkElement View { get; }
 
     /// <summary>
     /// 必须在 DisposeAsync 之前调用；UI 线程执行。

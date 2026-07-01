@@ -38,19 +38,20 @@ public sealed record ToolResult(
 
     public string ToJson()
     {
-        var aliasStr = string.Join(", ", Aliases.Select(kv => $"\"{kv.Key}\":\"{kv.Value}\""));
-        return $$"""
-            {
-              "status": "{{Status}}",
-              "error": {{(ErrorMessage is null ? "null" : $"\"{ErrorMessage}\"")}},
-              "created": [{{string.Join(",", CreatedObjectIds.Select(id => $"\"{id}\""))}}],
-              "updated": [{{string.Join(",", UpdatedObjectIds.Select(id => $"\"{id}\""))}}],
-              "deleted": [{{string.Join(",", DeletedObjectIds.Select(id => $"\"{id}\""))}}],
-              "aliases": { {{aliasStr}} },
-              "undoGroupId": {{(UndoGroupId is null ? "null" : $"\"{UndoGroupId}\"")}},
-              "pageId": {{(PageId is null ? "null" : $"\"{PageId}\"")}},
-              "pageVersion": {{PageVersion}}
-            }
-            """;
+        // 用 JsonSerializer 而非手写拼接，确保 ErrorMessage / alias / id 中的特殊字符
+        // （引号、反斜杠、换行）被正确转义，避免向 LLM 返回非法 JSON。
+        var payload = new
+        {
+            status = Status,
+            error = ErrorMessage,
+            created = CreatedObjectIds,
+            updated = UpdatedObjectIds,
+            deleted = DeletedObjectIds,
+            aliases = Aliases,
+            undoGroupId = UndoGroupId,
+            pageId = PageId,
+            pageVersion = PageVersion,
+        };
+        return System.Text.Json.JsonSerializer.Serialize(payload);
     }
 }

@@ -12,13 +12,13 @@ public sealed class WhiteboardPluginViewHandle : IPluginViewHandle
 {
     private FrameworkElement? _view;
 
-    public string           PluginId { get; }
-    public FrameworkElement View     => _view ?? throw new ObjectDisposedException(nameof(WhiteboardPluginViewHandle));
+    public string PluginId { get; }
+    public FrameworkElement View => _view ?? throw new ObjectDisposedException(nameof(WhiteboardPluginViewHandle));
 
     public WhiteboardPluginViewHandle(string pluginId, FrameworkElement view)
     {
         PluginId = pluginId;
-        _view    = view;
+        _view = view;
     }
 
     public Task DetachAsync(CancellationToken ct)

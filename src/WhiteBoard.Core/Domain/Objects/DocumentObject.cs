@@ -6,12 +6,12 @@ namespace WhiteBoard.Core.Domain.Objects;
 /// </summary>
 public sealed class DocumentObject : WhiteboardObject
 {
-    public string FileRef   { get; }
-    public int    PageCount { get; set; }
+    public string FileRef { get; }
+    public int PageCount { get; set; }
 
     public DocumentObject(string fileRef, int pageCount, float x, float y, float width, float height)
     {
-        FileRef   = fileRef;
+        FileRef = fileRef;
         PageCount = pageCount;
         SetBounds(x, y, width, height);
     }
@@ -20,7 +20,7 @@ public sealed class DocumentObject : WhiteboardObject
         float bx, float by, float bw, float bh, float[] transform)
         : base(id, bx, by, bw, bh, transform)
     {
-        FileRef   = fileRef;
+        FileRef = fileRef;
         PageCount = pageCount;
     }
 }

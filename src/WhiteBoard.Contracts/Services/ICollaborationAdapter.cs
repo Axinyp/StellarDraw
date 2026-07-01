@@ -31,7 +31,8 @@ public sealed class NullCollaborationAdapter : ICollaborationAdapter
 {
     public static readonly NullCollaborationAdapter Instance = new();
 
-    private NullCollaborationAdapter() { }
+    private NullCollaborationAdapter()
+    { }
 
     public bool IsActive => false;
 

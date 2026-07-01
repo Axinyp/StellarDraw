@@ -18,8 +18,9 @@ public sealed class ClearPageCommand : IWhiteboardCommand
         _snapshot.Select(o => o.Id).ToList();
 
     // 清空命令影响全部对象，不支持单对象粒度撤销
-    public bool                SupportsObjectUndo(Guid _) => false;
-    public IWhiteboardCommand? CreateObjectUndo(Guid _)   => null;
+    public bool SupportsObjectUndo(Guid _) => false;
+
+    public IWhiteboardCommand? CreateObjectUndo(Guid _) => null;
 
     public void Execute()
     {

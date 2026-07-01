@@ -42,10 +42,10 @@ public sealed class InkToolbar : UserControl
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly Dictionary<ToolType, Button> _toolButtons = new();
-    private readonly Border    _colorSwatch;
-    private readonly Slider    _thicknessSlider;
+    private readonly Border _colorSwatch;
+    private readonly Slider _thicknessSlider;
     private readonly TextBlock _thicknessText;
-    private          bool      _suppressSlider;
+    private bool _suppressSlider;
 
     // ── Definitions ───────────────────────────────────────────────────────────
 
@@ -90,9 +90,9 @@ public sealed class InkToolbar : UserControl
     {
         var panel = new StackPanel
         {
-            Orientation       = Orientation.Horizontal,
+            Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin            = new Thickness(8, 0, 8, 0),
+            Margin = new Thickness(8, 0, 8, 0),
         };
 
         // ── 绘图工具按钮 ──────────────────────────────────────────────────────
@@ -100,13 +100,13 @@ public sealed class InkToolbar : UserControl
         {
             var btn = new Button
             {
-                Content         = new TextBlock { Text = label, FontSize = 11 },
-                Width           = 42,
-                Height          = 34,
-                Margin          = new Thickness(2, 0, 2, 0),
-                ToolTip         = tip,
-                Cursor          = Cursors.Hand,
-                Tag             = tool,
+                Content = new TextBlock { Text = label, FontSize = 11 },
+                Width = 42,
+                Height = 34,
+                Margin = new Thickness(2, 0, 2, 0),
+                ToolTip = tip,
+                Cursor = Cursors.Hand,
+                Tag = tool,
                 BorderThickness = new Thickness(1),
             };
             btn.Click += OnToolClicked;
@@ -122,14 +122,14 @@ public sealed class InkToolbar : UserControl
             var captured = argb;
             var colorBtn = new Button
             {
-                Width           = 22,
-                Height          = 22,
-                Margin          = new Thickness(2, 0, 2, 0),
-                Background      = new SolidColorBrush(ArgbToColor(captured)),
-                BorderBrush     = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB)),
+                Width = 22,
+                Height = 22,
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(ArgbToColor(captured)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB)),
                 BorderThickness = new Thickness(1),
-                Cursor          = Cursors.Hand,
-                ToolTip         = $"#{captured & 0xFFFFFF:X6}",
+                Cursor = Cursors.Hand,
+                ToolTip = $"#{captured & 0xFFFFFF:X6}",
             };
             colorBtn.Click += (_, _) => { if (ViewModel is { } vm) vm.PenColor = captured; };
             panel.Children.Add(colorBtn);
@@ -138,14 +138,14 @@ public sealed class InkToolbar : UserControl
         // 当前色块
         var swatch = new Border
         {
-            Width             = 24,
-            Height            = 24,
-            Margin            = new Thickness(6, 0, 2, 0),
-            BorderBrush       = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
-            BorderThickness   = new Thickness(1),
+            Width = 24,
+            Height = 24,
+            Margin = new Thickness(6, 0, 2, 0),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+            BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Background        = Brushes.Black,
-            ToolTip           = "当前颜色",
+            Background = Brushes.Black,
+            ToolTip = "当前颜色",
         };
         panel.Children.Add(swatch);
 
@@ -154,33 +154,33 @@ public sealed class InkToolbar : UserControl
         // ── 笔粗 ─────────────────────────────────────────────────────────────
         panel.Children.Add(new TextBlock
         {
-            Text              = "粗细:",
+            Text = "粗细:",
             VerticalAlignment = VerticalAlignment.Center,
-            FontSize          = 12,
-            Foreground        = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin            = new Thickness(0, 0, 4, 0),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(0, 0, 4, 0),
         });
 
         var slider = new Slider
         {
-            Minimum           = 1,
-            Maximum           = 20,
-            Value             = 3,
-            LargeChange       = 2,
-            SmallChange       = 0.5,
-            Width             = 80,
+            Minimum = 1,
+            Maximum = 20,
+            Value = 3,
+            LargeChange = 2,
+            SmallChange = 0.5,
+            Width = 80,
             VerticalAlignment = VerticalAlignment.Center,
         };
         panel.Children.Add(slider);
 
         var thickText = new TextBlock
         {
-            Text              = "3px",
+            Text = "3px",
             VerticalAlignment = VerticalAlignment.Center,
-            FontSize          = 11,
-            Foreground        = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
-            Margin            = new Thickness(4, 0, 0, 0),
-            Width             = 28,
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            Margin = new Thickness(4, 0, 0, 0),
+            Width = 28,
         };
         panel.Children.Add(thickText);
 
@@ -212,28 +212,28 @@ public sealed class InkToolbar : UserControl
         foreach (var (type, label) in ShapeDefs)
         {
             var captured = type;
-            var item     = new MenuItem { Header = label };
-            item.Click  += (_, _) => Board?.InsertShapeCommand.Execute(captured);
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => Board?.InsertShapeCommand.Execute(captured);
             shapeMenu.Items.Add(item);
         }
 
         var shapeBtn = new Button
         {
-            Content         = new TextBlock { Text = "形状▼", FontSize = 11 },
-            Width           = 48,
-            Height          = 34,
-            Margin          = new Thickness(2, 0, 2, 0),
-            ToolTip         = "插入基本形状",
-            Cursor          = Cursors.Hand,
+            Content = new TextBlock { Text = "形状▼", FontSize = 11 },
+            Width = 48,
+            Height = 34,
+            Margin = new Thickness(2, 0, 2, 0),
+            ToolTip = "插入基本形状",
+            Cursor = Cursors.Hand,
             BorderThickness = new Thickness(1),
-            Background      = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
-            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            Background = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
         };
         shapeBtn.Click += (_, _) =>
         {
             shapeMenu.PlacementTarget = shapeBtn;
-            shapeMenu.Placement       = PlacementMode.Bottom;
-            shapeMenu.IsOpen          = true;
+            shapeMenu.Placement = PlacementMode.Bottom;
+            shapeMenu.IsOpen = true;
         };
         panel.Children.Add(shapeBtn);
 
@@ -243,10 +243,10 @@ public sealed class InkToolbar : UserControl
 
         Content = new Border
         {
-            Background      = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
-            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
             BorderThickness = new Thickness(0, 0, 0, 1),
-            Child           = panel,
+            Child = panel,
         };
         return (swatch, slider, thickText);
     }
@@ -259,13 +259,13 @@ public sealed class InkToolbar : UserControl
 
         ICommand? cmd = tool switch
         {
-            ToolType.Pen         => ViewModel.SelectPenCommand,
+            ToolType.Pen => ViewModel.SelectPenCommand,
             ToolType.Highlighter => ViewModel.SelectHighlighterCommand,
-            ToolType.Marker      => ViewModel.SelectMarkerCommand,
-            ToolType.Eraser      => ViewModel.SelectEraserCommand,
-            ToolType.Select      => ViewModel.SelectSelectCommand,
-            ToolType.Hand        => ViewModel.SelectHandCommand,
-            _                    => null,
+            ToolType.Marker => ViewModel.SelectMarkerCommand,
+            ToolType.Eraser => ViewModel.SelectEraserCommand,
+            ToolType.Select => ViewModel.SelectSelectCommand,
+            ToolType.Hand => ViewModel.SelectHandCommand,
+            _ => null,
         };
         cmd?.Execute(null);
     }
@@ -290,9 +290,11 @@ public sealed class InkToolbar : UserControl
             case nameof(ToolbarViewModel.CurrentTool):
                 SyncToolButtons(vm.CurrentTool);
                 break;
+
             case nameof(ToolbarViewModel.PenColor):
                 _colorSwatch.Background = new SolidColorBrush(ArgbToColor(vm.PenColor));
                 break;
+
             case nameof(ToolbarViewModel.Thickness):
                 _suppressSlider = true;
                 _thicknessSlider.Value = vm.Thickness;
@@ -314,14 +316,14 @@ public sealed class InkToolbar : UserControl
 
     private void SyncToolButtons(ToolType active)
     {
-        var activeBg     = new SolidColorBrush(Color.FromRgb(0xCC, 0xE4, 0xFF));
+        var activeBg = new SolidColorBrush(Color.FromRgb(0xCC, 0xE4, 0xFF));
         var activeBorder = new SolidColorBrush(Color.FromRgb(0x00, 0x78, 0xD4));
-        var normalBg     = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB));
+        var normalBg = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB));
         var normalBorder = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
 
         foreach (var (tool, btn) in _toolButtons)
         {
-            btn.Background  = tool == active ? activeBg     : normalBg;
+            btn.Background = tool == active ? activeBg : normalBg;
             btn.BorderBrush = tool == active ? activeBorder : normalBorder;
         }
     }
@@ -332,15 +334,15 @@ public sealed class InkToolbar : UserControl
     {
         var btn = new Button
         {
-            Content         = new TextBlock { Text = icon, FontSize = 14 },
-            Width           = 38,
-            Height          = 34,
-            Margin          = new Thickness(2, 0, 2, 0),
-            ToolTip         = tip,
-            Cursor          = Cursors.Hand,
+            Content = new TextBlock { Text = icon, FontSize = 14 },
+            Width = 38,
+            Height = 34,
+            Margin = new Thickness(2, 0, 2, 0),
+            ToolTip = tip,
+            Cursor = Cursors.Hand,
             BorderThickness = new Thickness(1),
-            Background      = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
-            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            Background = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
         };
         btn.Click += (_, _) => onClick();
         return btn;
@@ -348,11 +350,11 @@ public sealed class InkToolbar : UserControl
 
     private static UIElement MakeSep() => new Rectangle
     {
-        Width             = 1,
-        Height            = 28,
-        Fill              = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+        Width = 1,
+        Height = 28,
+        Fill = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
         VerticalAlignment = VerticalAlignment.Center,
-        Margin            = new Thickness(8, 0, 8, 0),
+        Margin = new Thickness(8, 0, 8, 0),
     };
 
     private static Color ArgbToColor(uint argb)
@@ -360,5 +362,5 @@ public sealed class InkToolbar : UserControl
             (byte)(argb >> 24),
             (byte)(argb >> 16),
             (byte)(argb >> 8),
-            (byte) argb);
+            (byte)argb);
 }

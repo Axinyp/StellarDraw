@@ -1,6 +1,6 @@
+using Microsoft.AspNetCore.SignalR.Client;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Microsoft.AspNetCore.SignalR.Client;
 using WhiteBoard.Contracts.Hub;
 using WhiteBoard.Contracts.Models;
 using WhiteBoard.Contracts.Services;
@@ -26,12 +26,12 @@ namespace WhiteBoard.Plugin.Collaboration;
 /// </summary>
 public sealed class SignalRCollaborationAdapter : ICollaborationAdapter, IAsyncDisposable
 {
-    private readonly HubConnection              _hub;
-    private readonly Channel<WhiteboardEvent>   _incoming;
-    private readonly HashSet<string>            _seenIds  = new(StringComparer.Ordinal);
-    private readonly object                     _seenLock = new();
-    private          int                        _seenCount;
-    private const    int                        SeenCap   = 1_000;
+    private readonly HubConnection _hub;
+    private readonly Channel<WhiteboardEvent> _incoming;
+    private readonly HashSet<string> _seenIds = new(StringComparer.Ordinal);
+    private readonly object _seenLock = new();
+    private int _seenCount;
+    private const int SeenCap = 1_000;
 
     public SignalRCollaborationAdapter(SignalRAdapterOptions opts)
     {

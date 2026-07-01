@@ -22,6 +22,7 @@ public interface IHostCapabilities
 public interface IHostDialogService
 {
     Task<bool> ConfirmAsync(string title, string message, CancellationToken ct = default);
+
     Task ShowErrorAsync(string title, string message, CancellationToken ct = default);
 }
 
@@ -29,6 +30,7 @@ public interface IHostDialogService
 public interface IHostFilePicker
 {
     Task<string?> PickOpenFileAsync(string filter, CancellationToken ct = default);
+
     Task<string?> PickSaveFileAsync(string defaultName, string filter, CancellationToken ct = default);
 }
 
@@ -36,7 +38,9 @@ public interface IHostFilePicker
 public interface IHostTelemetry
 {
     void TrackEvent(string name, IReadOnlyDictionary<string, string>? properties = null);
+
     void TrackMetric(string name, double value);
+
     void TrackException(Exception ex, string? context = null);
 }
 
@@ -52,8 +56,11 @@ public interface IHostAuthContext
 public interface IHostLogger
 {
     void LogDebug(string message);
+
     void LogInfo(string message);
+
     void LogWarning(string message);
+
     void LogError(string message, Exception? ex = null);
 }
 
@@ -63,9 +70,12 @@ public interface IHostLogger
 public interface IHostSettings
 {
     string? GetString(string key);
+
     T? Get<T>(string key);
+
     /// <summary>主题强调色，#RRGGBB 格式（例如 "#0078D4"）。</summary>
     string AccentColorHex { get; }
+
     /// <summary>显示器物理 DPI（通常 96 或 192）。</summary>
     double DisplayDpi { get; }
 }
@@ -74,5 +84,6 @@ public interface IHostSettings
 public interface IHostShortcuts
 {
     void Register(string shortcutId, string gesture, Action handler);
+
     void Unregister(string shortcutId);
 }

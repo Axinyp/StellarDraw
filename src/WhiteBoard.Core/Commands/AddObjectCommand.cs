@@ -10,12 +10,12 @@ namespace WhiteBoard.Core.Commands;
 public sealed class AddObjectCommand : IWhiteboardCommand
 {
     private readonly WhiteboardObject _object;
-    private readonly PageModel        _page;
+    private readonly PageModel _page;
 
     public AddObjectCommand(WhiteboardObject obj, PageModel page)
     {
         _object = obj;
-        _page   = page;
+        _page = page;
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds => [_object.Id];
@@ -26,5 +26,6 @@ public sealed class AddObjectCommand : IWhiteboardCommand
         objectId == _object.Id ? new DeleteObjectCommand(_object, _page) : null;
 
     public void Execute() => _page.AddObject(_object);
-    public void Undo()    => _page.RemoveObject(_object);
+
+    public void Undo() => _page.RemoveObject(_object);
 }

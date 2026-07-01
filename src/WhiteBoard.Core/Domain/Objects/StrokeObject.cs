@@ -12,12 +12,12 @@ namespace WhiteBoard.Core.Domain.Objects;
 public sealed class StrokeObject : WhiteboardObject
 {
     public IReadOnlyList<PressurePoint> Points { get; }
-    public StrokeStyle                  Style  { get; }
+    public StrokeStyle Style { get; }
 
     public StrokeObject(IReadOnlyList<PressurePoint> points, StrokeStyle style)
     {
         Points = points;
-        Style  = style;
+        Style = style;
         RecalculateBounds();
     }
 
@@ -26,14 +26,14 @@ public sealed class StrokeObject : WhiteboardObject
         : base(id, bx, by, bw, bh, transform)
     {
         Points = points;
-        Style  = style;
+        Style = style;
     }
 
     private void RecalculateBounds()
     {
         if (Points.Count == 0) return;
         float minX = Points[0].X, minY = Points[0].Y;
-        float maxX = minX,        maxY = minY;
+        float maxX = minX, maxY = minY;
         foreach (var p in Points)
         {
             if (p.X < minX) minX = p.X; if (p.X > maxX) maxX = p.X;
@@ -48,10 +48,13 @@ public sealed class StrokeObject : WhiteboardObject
 public sealed record StrokeStyle(
     PenType PenType,
     InkType InkType,
-    uint    ColorArgb,
-    float   Thickness,
-    bool    IsFilled    = false,
-    bool    IsAntiAlias = true);
+    uint ColorArgb,
+    float Thickness,
+    bool IsFilled = false,
+    bool IsAntiAlias = true);
 
-public enum PenType  : byte { Pen = 0, Highlighter = 1, Marker = 2, Eraser = 3 }
-public enum InkType  : byte { Normal = 0, Calligraphy = 1, Airbrush = 2 }
+public enum PenType : byte
+{ Pen = 0, Highlighter = 1, Marker = 2, Eraser = 3 }
+
+public enum InkType : byte
+{ Normal = 0, Calligraphy = 1, Airbrush = 2 }

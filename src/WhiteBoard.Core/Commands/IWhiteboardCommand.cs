@@ -16,5 +16,6 @@ public interface IWhiteboardCommand
     IWhiteboardCommand? CreateObjectUndo(Guid objectId);
 
     void Execute();
+
     void Undo();
 }

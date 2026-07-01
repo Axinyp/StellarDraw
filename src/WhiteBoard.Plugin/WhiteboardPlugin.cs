@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using WhiteBoard.Contracts.Plugin;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.Contracts.Wpf;
@@ -19,25 +18,25 @@ namespace WhiteBoard.Plugin;
 /// </summary>
 public sealed class WhiteboardPlugin : IWhiteboardWpfPlugin
 {
-    private IPluginMessageBus?         _bus;
-    private IHostCapabilities?         _host;
-    private WhiteboardSession?         _session;
-    private WhiteboardViewModel?       _viewModel;
-    private CancellationTokenSource?   _cts;
-    private IPluginSubscription?       _subscription;
-    private IAsyncDisposable?          _collabDisposable;
+    private IPluginMessageBus? _bus;
+    private IHostCapabilities? _host;
+    private WhiteboardSession? _session;
+    private WhiteboardViewModel? _viewModel;
+    private CancellationTokenSource? _cts;
+    private IPluginSubscription? _subscription;
+    private IAsyncDisposable? _collabDisposable;
 
     public string PluginId => "com.whiteboard.plugin";
-    public string Version  => "0.5.0-phase5";
+    public string Version => "0.5.0-phase5";
 
     public async Task InitializeAsync(
         IPluginMessageBus bus,
         IHostCapabilities host,
         CancellationToken ct)
     {
-        _bus  = bus;
+        _bus = bus;
         _host = host;
-        _cts  = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         _subscription = bus.Subscribe(PluginId);
         _ = ProcessMessagesAsync(_subscription, _cts.Token);
@@ -60,7 +59,7 @@ public sealed class WhiteboardPlugin : IWhiteboardWpfPlugin
         if (string.IsNullOrWhiteSpace(hubUrl))
             return NullCollaborationAdapter.Instance;
 
-        var token   = host.Settings.GetString("whiteboard.hub.token");
+        var token = host.Settings.GetString("whiteboard.hub.token");
         var adapter = new SignalRCollaborationAdapter(new SignalRAdapterOptions(hubUrl, token));
 
         try
@@ -81,11 +80,11 @@ public sealed class WhiteboardPlugin : IWhiteboardWpfPlugin
     public IPluginViewHandle CreateView()
     {
         // CreateView is called on the UI thread by PluginManager
-        var session    = _session ?? throw new InvalidOperationException("InitializeAsync must complete first");
+        var session = _session ?? throw new InvalidOperationException("InitializeAsync must complete first");
         var dispatcher = Application.Current.Dispatcher;
 
         _viewModel = new WhiteboardViewModel(session, dispatcher);
-        var view   = BuildView(_viewModel);
+        var view = BuildView(_viewModel);
         return new WhiteboardPluginViewHandle(PluginId, view);
     }
 
@@ -119,18 +118,18 @@ public sealed class WhiteboardPlugin : IWhiteboardWpfPlugin
 
     private static FrameworkElement BuildView(WhiteboardViewModel vm)
     {
-        var toolbar    = new InkToolbar { ViewModel = vm.Toolbar, Board = vm };
-        var inkSurface = new InkSurface  { ViewModel = vm };
-        var pageStrip  = new PageStrip   { ViewModel = vm };
+        var toolbar = new InkToolbar { ViewModel = vm.Toolbar, Board = vm };
+        var inkSurface = new InkSurface { ViewModel = vm };
+        var pageStrip = new PageStrip { ViewModel = vm };
 
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        Grid.SetRow(toolbar,    0);
+        Grid.SetRow(toolbar, 0);
         Grid.SetRow(inkSurface, 1);
-        Grid.SetRow(pageStrip,  2);
+        Grid.SetRow(pageStrip, 2);
 
         grid.Children.Add(toolbar);
         grid.Children.Add(inkSurface);

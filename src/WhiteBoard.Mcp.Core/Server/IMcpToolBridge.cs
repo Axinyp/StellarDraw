@@ -7,5 +7,5 @@ public interface IMcpToolBridge
 {
     IReadOnlyList<McpServerTool> ExportTools(
         WhiteboardToolRegistry registry,
-        McpExportOptions       options);
+        McpExportOptions options);
 }

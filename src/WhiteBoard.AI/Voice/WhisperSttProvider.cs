@@ -57,7 +57,10 @@ public sealed class WhisperSttProvider : ISttProvider, IDisposable
         }
         catch (Exception ex)
         {
-            return new SttResult($"[Whisper error: {ex.Message}]", 0f, language, false);
+            // 转录失败必须作为异常向上抛出，由 VoicePipeline 经 ErrorOccurred 通道处理；
+            // 不能返回伪文本（如 "[Whisper error:...]"），否则会被 VoicePipeline 当作
+            // 有效识别结果通过 TranscriptionReady 发给 LLM，污染对话。
+            throw new InvalidOperationException($"Whisper 转录失败: {ex.Message}", ex);
         }
     }
 

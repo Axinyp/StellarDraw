@@ -25,7 +25,7 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
         IReadOnlyList<(float x, float y, float w, float h)> newBounds,
         PageModel page)
     {
-        _page      = page;
+        _page = page;
         _snapshots = objects
             .Select(o => new Snapshot(o, o.BoundsX, o.BoundsY, o.BoundsWidth, o.BoundsHeight,
                                       (float[])o.Transform.Clone()))
@@ -34,7 +34,9 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds => _snapshots.Select(s => s.Obj.Id).ToList();
-    public bool SupportsObjectUndo(Guid id)           => false;
+
+    public bool SupportsObjectUndo(Guid id) => false;
+
     public IWhiteboardCommand? CreateObjectUndo(Guid id) => null;
 
     public void Execute()
@@ -61,27 +63,47 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
     {
         var obj = snap.Obj;
 
+        // 旧 Transform 无旋转/斜切（M12==M21==0）时，对笔画用「原始点自然范围」精确拟合，
+        // 含旋转时回退线性映射（避免破坏旋转，旋转+缩放本就是边缘场景）。
+        bool axisAligned = snap.OldTransform[1] == 0f && snap.OldTransform[2] == 0f;
+
+        if (obj is StrokeObject st && axisAligned)
+        {
+            // 关键修复：基于不变的原始点范围拟合新框，而非含 pad 的旧 Bounds 递推。
+            // 旧实现把含笔宽 pad 的 Bounds 当自然范围缩放，pad 随每次缩放被 sx 放大并累积，
+            // 导致选中框越来越大于对象（重新选中时尤为明显）。
+            float pad = st.Style.Thickness * 0.5f;
+            ComputePointsExtent(st, out float mnX, out float mnY, out float mxX, out float mxY);
+            float natW = mxX - mnX, natH = mxY - mnY;
+            // 新框内缩笔宽，使「渲染点 + 笔宽」恰好填满新 Bounds
+            float targetW = MathF.Max(0f, nw - st.Style.Thickness);
+            float targetH = MathF.Max(0f, nh - st.Style.Thickness);
+            float sx = natW > 1e-4f ? targetW / natW : (snap.OldTransform[0] != 0f ? snap.OldTransform[0] : 1f);
+            float sy = natH > 1e-4f ? targetH / natH : (snap.OldTransform[3] != 0f ? snap.OldTransform[3] : 1f);
+            float tx = nx + pad - sx * mnX;
+            float ty = ny + pad - sy * mnY;
+            obj.SetBoundsAndTransform(nx, ny, nw, nh, [sx, 0f, 0f, sy, tx, ty]);
+            return;
+        }
+
         if (obj is StrokeObject or PathObject)
         {
-            // 渲染器使用完整 Matrix3x2：docX = M11 * naturalX + OffsetX
-            // 计算新矩阵，使自然坐标系（Points / PathData）映射到新 Bounds
+            // 线性映射回退（含旋转的笔画 / PathObject）：把旧 Bounds 矩形映射到新 Bounds。
+            // PathObject 的 Bounds 为纯几何（无 pad），不存在 pad 累积问题。
             float oldM11 = snap.OldTransform[0];
             float oldM22 = snap.OldTransform[3];
-            float oldTx  = snap.OldTransform[4];
-            float oldTy  = snap.OldTransform[5];
+            float oldTx = snap.OldTransform[4];
+            float oldTy = snap.OldTransform[5];
 
-            // 缩放比例（基于旧 Bounds）
             float sx = snap.OldW > 0 ? nw / snap.OldW : 1f;
             float sy = snap.OldH > 0 ? nh / snap.OldH : 1f;
 
             float newM11 = oldM11 * sx;
             float newM22 = oldM22 * sy;
 
-            // 自然坐标原点（去掉旧平移后的最小坐标）
             float natX = oldM11 != 0f ? (snap.OldX - oldTx) / oldM11 : snap.OldX;
             float natY = oldM22 != 0f ? (snap.OldY - oldTy) / oldM22 : snap.OldY;
 
-            // 新偏移：使 natX / natY 映射到 nx / ny
             float newTx = nx - newM11 * natX;
             float newTy = ny - newM22 * natY;
 
@@ -92,6 +114,20 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
         {
             // ShapeObject / ImageObject：渲染直接使用 Bounds，Transform 不变
             obj.SetBounds(nx, ny, nw, nh);
+        }
+    }
+
+    private static void ComputePointsExtent(StrokeObject st,
+        out float minX, out float minY, out float maxX, out float maxY)
+    {
+        if (st.Points.Count == 0) { minX = minY = maxX = maxY = 0f; return; }
+        minX = minY = float.MaxValue; maxX = maxY = float.MinValue;
+        foreach (var p in st.Points)
+        {
+            if (p.X < minX) minX = p.X;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.Y > maxY) maxY = p.Y;
         }
     }
 }

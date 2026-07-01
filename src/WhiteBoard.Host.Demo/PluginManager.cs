@@ -14,8 +14,8 @@ public sealed class PluginManager : IAsyncDisposable
 {
     private WhiteboardPluginContext? _context;
     private WeakReference<AssemblyLoadContext>? _weakContext;
-    private IWhiteboardWpfPlugin?  _plugin;
-    private IPluginViewHandle?     _viewHandle;
+    private IWhiteboardWpfPlugin? _plugin;
+    private IPluginViewHandle? _viewHandle;
     private CancellationTokenSource? _cts;
 
     public IPluginViewHandle? ViewHandle => _viewHandle;
@@ -37,18 +37,18 @@ public sealed class PluginManager : IAsyncDisposable
     /// 调用方负责在 UI 线程调用此方法（CreateView 需要）。
     /// </summary>
     public async Task LoadAsync(
-        string              pluginDllPath,
-        IPluginMessageBus   bus,
-        IHostCapabilities   host,
-        CancellationToken   ct = default)
+        string pluginDllPath,
+        IPluginMessageBus bus,
+        IHostCapabilities host,
+        CancellationToken ct = default)
     {
         if (_plugin is not null)
             throw new InvalidOperationException("A plugin is already loaded. Call UnloadAsync first.");
 
-        _context     = new WhiteboardPluginContext(pluginDllPath);
+        _context = new WhiteboardPluginContext(pluginDllPath);
         _weakContext = new WeakReference<AssemblyLoadContext>(_context);
 
-        var asm    = _context.LoadFromAssemblyPath(pluginDllPath);
+        var asm = _context.LoadFromAssemblyPath(pluginDllPath);
         var plugin = FindPlugin(asm);
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);

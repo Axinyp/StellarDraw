@@ -13,8 +13,8 @@ namespace WhiteBoard.Core.Algorithms;
 /// </summary>
 public static class PressureCalculator
 {
-    private const float MinPressure    = 0.05f;
-    private const float MaxPressure    = 1.00f;
+    private const float MinPressure = 0.05f;
+    private const float MaxPressure = 1.00f;
     private const float VelocitySoftCap = 800f; // px/s where pressure reaches minimum
 
     /// <summary>

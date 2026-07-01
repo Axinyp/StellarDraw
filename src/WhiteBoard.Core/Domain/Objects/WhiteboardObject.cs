@@ -1,5 +1,3 @@
-using WhiteBoard.Contracts.Services;
-
 namespace WhiteBoard.Core.Domain.Objects;
 
 /// <summary>
@@ -14,22 +12,24 @@ namespace WhiteBoard.Core.Domain.Objects;
 /// </summary>
 public abstract class WhiteboardObject
 {
-    public Guid    Id        { get; } = Guid.NewGuid();
-    public int     ZIndex    { get; set; }
-    public bool    IsLocked  { get; set; }
-    public string? OwnerId   { get; set; }
+    public Guid Id { get; } = Guid.NewGuid();
+    public int ZIndex { get; set; }
+    public bool IsLocked { get; set; }
+    public string? OwnerId { get; set; }
 
     // Bounds and Transform are intentionally not publicly settable.
     // All geometry mutations must go through Command handlers (which also update SpatialIndex).
-    public float BoundsX      { get; private set; }
-    public float BoundsY      { get; private set; }
-    public float BoundsWidth  { get; private set; }
+    public float BoundsX { get; private set; }
+
+    public float BoundsY { get; private set; }
+    public float BoundsWidth { get; private set; }
     public float BoundsHeight { get; private set; }
 
     // 对象创建时的局部坐标（在 Transform 为 identity 时的初始 Bounds）。
     // 平移/旋转时不变，仅在 SetBounds 首次调用（构造）时初始化，resize 不修改。
     // 用于旋转 AABB 计算：world_corner = NewTransform × local_corner，避免 AABB 每次旋转膨胀。
     public float LocalBoundsX { get; private set; }
+
     public float LocalBoundsY { get; private set; }
     public float LocalBoundsW { get; private set; }
     public float LocalBoundsH { get; private set; }
@@ -38,7 +38,8 @@ public abstract class WhiteboardObject
     // Matrix3x2 stored as 6 floats: M11,M12,M21,M22,OffsetX,OffsetY
     public float[] Transform { get; private set; } = [1f, 0f, 0f, 1f, 0f, 0f];
 
-    protected WhiteboardObject() { }
+    protected WhiteboardObject()
+    { }
 
     protected WhiteboardObject(Guid id, float bx, float by, float bw, float bh, float[] transform)
     {
@@ -65,8 +66,8 @@ public abstract class WhiteboardObject
 
     internal void ApplyTranslation(float dx, float dy)
     {
-        BoundsX      += dx;
-        BoundsY      += dy;
+        BoundsX += dx;
+        BoundsY += dy;
         Transform[4] += dx;
         Transform[5] += dy;
     }

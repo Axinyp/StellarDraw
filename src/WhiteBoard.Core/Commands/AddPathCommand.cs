@@ -7,7 +7,7 @@ namespace WhiteBoard.Core.Commands;
 public sealed class AddPathCommand : IWhiteboardCommand
 {
     private readonly PathObject _path;
-    private readonly PageModel  _page;
+    private readonly PageModel _page;
 
     public AddPathCommand(PathObject path, PageModel page)
     {
@@ -23,5 +23,6 @@ public sealed class AddPathCommand : IWhiteboardCommand
         objectId == _path.Id ? new DeleteObjectCommand(_path, _page) : null;
 
     public void Execute() => _page.AddObject(_path);
-    public void Undo()    => _page.RemoveObject(_path);
+
+    public void Undo() => _page.RemoveObject(_path);
 }

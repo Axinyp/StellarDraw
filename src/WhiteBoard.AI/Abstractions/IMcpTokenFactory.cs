@@ -10,10 +10,10 @@ public interface IMcpTokenFactory
     /// 签发新 Token。若已有 Token，实现层应先撤销旧 Token。
     /// </summary>
     Task<string> IssueTokenAsync(
-        TimeSpan?             lifetime          = null,
-        bool                  allowDestructive  = false,
+        TimeSpan? lifetime = null,
+        bool allowDestructive = false,
         IReadOnlySet<string>? allowedTransports = null,
-        CancellationToken     ct                = default);
+        CancellationToken ct = default);
 
     /// <summary>撤销指定 Token。</summary>
     Task RevokeTokenAsync(string token, CancellationToken ct = default);

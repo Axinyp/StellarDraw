@@ -7,14 +7,14 @@ namespace WhiteBoard.AI.Abstractions;
 public interface IImageGenProvider
 {
     string ProviderName { get; }
-    bool   IsAvailable  { get; }
+    bool IsAvailable { get; }
 
     Task<byte[]> GenerateAsync(
-        string            prompt,
-        ImageGenStyle     style  = ImageGenStyle.Realistic,
-        int               width  = 512,
-        int               height = 512,
-        CancellationToken ct     = default);
+        string prompt,
+        ImageGenStyle style = ImageGenStyle.Realistic,
+        int width = 512,
+        int height = 512,
+        CancellationToken ct = default);
 }
 
 public enum ImageGenStyle

@@ -6,37 +6,37 @@
              MinWidth="280" Background="#F8F9FA">
 
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
-        <conv:InverseBoolConverter x:Key="NegBool"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis" />
+        <conv:InverseBoolConverter x:Key="NegBool" />
 
         <Style x:Key="UserBubble" TargetType="Border">
-            <Setter Property="Background" Value="#1A73E8"/>
-            <Setter Property="CornerRadius" Value="12,12,2,12"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="40,2,4,2"/>
-            <Setter Property="HorizontalAlignment" Value="Right"/>
-            <Setter Property="MaxWidth" Value="240"/>
+            <Setter Property="Background" Value="#1A73E8" />
+            <Setter Property="CornerRadius" Value="12,12,2,12" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="40,2,4,2" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="MaxWidth" Value="240" />
         </Style>
 
         <Style x:Key="AiBubble" TargetType="Border">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="12,12,12,2"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="4,2,40,2"/>
-            <Setter Property="HorizontalAlignment" Value="Left"/>
-            <Setter Property="MaxWidth" Value="240"/>
-            <Setter Property="BorderBrush" Value="#E0E0E0"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White" />
+            <Setter Property="CornerRadius" Value="12,12,12,2" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="4,2,40,2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="MaxWidth" Value="240" />
+            <Setter Property="BorderBrush" Value="#E0E0E0" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#757575"/>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#757575" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -44,14 +44,14 @@
                                 Padding="{TemplateBinding Padding}"
                                 CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#EEEEEE"/>
+                                <Setter Property="Background" Value="#EEEEEE" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="#BDBDBD"/>
+                                <Setter Property="Foreground" Value="#BDBDBD" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -60,12 +60,12 @@
         </Style>
 
         <Style x:Key="SendBtn" TargetType="Button">
-            <Setter Property="Background" Value="#1A73E8"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Background" Value="#1A73E8" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -73,14 +73,14 @@
                                 CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#B0BEC5"/>
+                                <Setter Property="Background" Value="#B0BEC5" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1558B0"/>
+                                <Setter Property="Background" Value="#1558B0" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -103,24 +103,24 @@
                         Command="{Binding ClearCommand}"
                         Style="{StaticResource ActionBtn}"
                         FontSize="12"
-                        Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}"/>
+                        Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}" />
                 <Button DockPanel.Dock="Right"
                         Content="⚙"
                         Command="{Binding ToggleSettingsCommand}"
                         Style="{StaticResource ActionBtn}"
                         FontSize="14"
-                        ToolTip="AI 设置"/>
+                        ToolTip="AI 设置" />
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="AI 对话"
                                FontWeight="SemiBold"
                                FontSize="13"
                                Foreground="#424242"
-                               Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}"/>
+                               Visibility="{Binding ShowSettings, Converter={StaticResource InvBoolToVis}}" />
                     <TextBlock Text="AI 设置"
                                FontWeight="SemiBold"
                                FontSize="13"
                                Foreground="#424242"
-                               Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}"/>
+                               Visibility="{Binding ShowSettings, Converter={StaticResource BoolToVis}}" />
                     <!-- MCP 活动指示 -->
                     <Border Background="#E8F5E9"
                             CornerRadius="8"
@@ -129,7 +129,7 @@
                             Visibility="{Binding HasMcpActivity, Converter={StaticResource BoolToVis}}">
                         <TextBlock FontSize="10" Foreground="#2E7D32"
                                    Text="{Binding McpActiveConnections,
-                                                  StringFormat='MCP {0}'}"/>
+                                                  StringFormat='MCP {0}'}" />
                     </Border>
                 </StackPanel>
             </DockPanel>
@@ -156,16 +156,16 @@
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    Foreground="#BF360C"
-                                   Margin="0,0,0,6"/>
+                                   Margin="0,0,0,6" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Content="取消"
                                     Command="{Binding ConfirmCancelCommand}"
                                     Style="{StaticResource ActionBtn}"
-                                    Margin="0,0,8,0"/>
+                                    Margin="0,0,8,0" />
                             <Button Content="确认执行"
                                     Command="{Binding ConfirmOkCommand}"
                                     Style="{StaticResource SendBtn}"
-                                    Background="#E53935"/>
+                                    Background="#E53935" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -176,15 +176,15 @@
                            Foreground="#F57F17"
                            Margin="2,0,0,4"
                            TextTrimming="CharacterEllipsis"
-                           Visibility="{Binding ShowStatusBar, Converter={StaticResource BoolToVis}}"/>
+                           Visibility="{Binding ShowStatusBar, Converter={StaticResource BoolToVis}}" />
 
                 <!-- 输入行 -->
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <!-- PTT 按钮 -->
@@ -208,7 +208,7 @@
                             <Style TargetType="Border">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding ElementName=InputBox, Path=IsFocused}" Value="True">
-                                        <Setter Property="BorderBrush" Value="#1A73E8"/>
+                                        <Setter Property="BorderBrush" Value="#1A73E8" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -222,7 +222,7 @@
                                  BorderThickness="0"
                                  Background="Transparent">
                             <TextBox.InputBindings>
-                                <KeyBinding Key="Return" Command="{Binding SendCommand}"/>
+                                <KeyBinding Key="Return" Command="{Binding SendCommand}" />
                             </TextBox.InputBindings>
                         </TextBox>
                     </Border>
@@ -235,7 +235,7 @@
                             Foreground="#E53935"
                             Margin="4,0"
                             ToolTip="中断"
-                            Visibility="{Binding IsProcessing, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding IsProcessing, Converter={StaticResource BoolToVis}}" />
 
                     <!-- 发送按钮 -->
                     <Button Grid.Column="3"
@@ -243,7 +243,7 @@
                             Command="{Binding SendCommand}"
                             Style="{StaticResource SendBtn}"
                             IsEnabled="{Binding CanSend}"
-                            Visibility="{Binding IsProcessing, Converter={StaticResource InvBoolToVis}}"/>
+                            Visibility="{Binding IsProcessing, Converter={StaticResource InvBoolToVis}}" />
                 </Grid>
             </StackPanel>
         </Border>
@@ -265,7 +265,7 @@
                                     <TextBlock Text="{Binding Text}"
                                                Foreground="White"
                                                FontSize="13"
-                                               TextWrapping="Wrap"/>
+                                               TextWrapping="Wrap" />
                                 </Border>
 
                                 <!-- AI / 系统消息 -->
@@ -275,16 +275,16 @@
                                         <TextBlock Text="{Binding Author}"
                                                    FontSize="10"
                                                    Foreground="#9E9E9E"
-                                                   Margin="0,0,0,2"/>
+                                                   Margin="0,0,0,2" />
                                         <TextBlock Text="{Binding Text}"
                                                    FontSize="13"
                                                    TextWrapping="Wrap">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#212121"/>
+                                                    <Setter Property="Foreground" Value="#212121" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsError}" Value="True">
-                                                            <Setter Property="Foreground" Value="#E53935"/>
+                                                            <Setter Property="Foreground" Value="#E53935" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -302,8 +302,7 @@
             <conv:AiSettingsView DataContext="{Binding SettingsVm}"
                                  Visibility="{Binding DataContext.ShowSettings,
                                               RelativeSource={RelativeSource AncestorType=UserControl},
-                                              Converter={StaticResource BoolToVis}}"/>
+                                              Converter={StaticResource BoolToVis}}" />
         </Grid>
-
     </DockPanel>
 </UserControl>

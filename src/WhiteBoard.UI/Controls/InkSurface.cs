@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.UI.Rendering;
 using WhiteBoard.UI.ViewModels;
@@ -25,20 +24,24 @@ namespace WhiteBoard.UI.Controls;
 /// </summary>
 public sealed class InkSurface : FrameworkElement
 {
-    private readonly DrawingVisual    _committedVisual = new();
-    private readonly DrawingVisual    _wetInkVisual    = new();
-    private readonly DrawingVisual    _predictedVisual = new();
-    private readonly DrawingVisual    _selectionVisual = new();   // 选择覆盖层（屏幕空间，无视图变换）
-    private readonly DrawingVisual    _latencyVisual   = new();   // 延迟 Overlay（仅 ShowLatency=true 时使用）
+    private readonly DrawingVisual _committedVisual = new();
+    private readonly DrawingVisual _wetInkVisual = new();
+    private readonly DrawingVisual _predictedVisual = new();
+    private readonly DrawingVisual _selectionVisual = new();   // 选择覆盖层（屏幕空间，无视图变换）
+    private readonly DrawingVisual _latencyVisual = new();   // 延迟 Overlay（仅 ShowLatency=true 时使用）
     private readonly VisualCollection _visuals;
-    private readonly MatrixTransform  _viewMatrixTransform = new();
-    private readonly Canvas           _overlayCanvas   = new() { IsHitTestVisible = true }; // 浮动工具栏宿主
+    private readonly MatrixTransform _viewMatrixTransform = new();
+    private readonly Canvas _overlayCanvas = new() { IsHitTestVisible = true }; // 浮动工具栏宿主
+
+    // 拖动期间从 committed 层隐藏的对象 id（覆盖层实时绘制其跟手图形，避免与原件重影）
+    private readonly HashSet<Guid> _hiddenObjectIds = new();
 
     private Matrix _viewMatrix = Matrix.Identity;
 
     // 延迟测量
-    private long   _lastTouchTimestampMs;      // 最近一次 OnTouchMove/OnMouseMove 时的时间戳
-    private bool   _isDrawing;                 // 是否正在绘制（用于激活帧计时）
+    private long _lastTouchTimestampMs;      // 最近一次 OnTouchMove/OnMouseMove 时的时间戳
+
+    private bool _isDrawing;                 // 是否正在绘制（用于激活帧计时）
     private readonly LatencyStats _latencyStats = new();
 
     // 帧间预测平滑：保留上一帧结果做 EMA 混合，消除逐帧位置跳变
@@ -46,11 +49,13 @@ public sealed class InkSurface : FrameworkElement
 
     // 绘图状态
     private List<PressurePoint>? _currentPoints;
-    private int  _primaryTouchId   = -1;
-    private int  _activeTouchCount;
+
+    private int _primaryTouchId = -1;
+    private int _activeTouchCount;
 
     // 鼠标平移状态
-    private bool  _isPanning;
+    private bool _isPanning;
+
     private Point _panStartScreen;
     private Matrix _panStartMatrix;
 
@@ -65,7 +70,7 @@ public sealed class InkSurface : FrameworkElement
         _visuals = new VisualCollection(this)
             { _committedVisual, _wetInkVisual, _predictedVisual, _selectionVisual, _latencyVisual };
         _committedVisual.Transform = _viewMatrixTransform;
-        _wetInkVisual.Transform    = _viewMatrixTransform;
+        _wetInkVisual.Transform = _viewMatrixTransform;
         _predictedVisual.Transform = _viewMatrixTransform;
         // _selectionVisual 和 _latencyVisual 均为屏幕空间，不附加视图变换
 
@@ -73,8 +78,8 @@ public sealed class InkSurface : FrameworkElement
         AddVisualChild(_overlayCanvas);
         AddLogicalChild(_overlayCanvas);
 
-        Focusable             = true;
-        ClipToBounds          = true;
+        Focusable = true;
+        ClipToBounds = true;
         IsManipulationEnabled = true;           // 启用双指操作
         Stylus.SetIsFlicksEnabled(this, false); // 禁用划动手势，防止误触
 
@@ -121,8 +126,8 @@ public sealed class InkSurface : FrameworkElement
         _latencyStats.Record((double)lagMs);
 
         var typeface = new Typeface("Consolas");
-        var dpi      = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var lines    = new[]
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var lines = new[]
         {
             $"Frame lag : {lagMs,4} ms",
             $"Avg (10)  : {_latencyStats.Avg,5:F1} ms",
@@ -162,14 +167,15 @@ public sealed class InkSurface : FrameworkElement
         var s = (InkSurface)d;
         if (e.OldValue is WhiteboardViewModel old)
         {
-            old.RedrawRequested   -= s.RenderCommitted;
-            old.SelectionChanged  -= s.OnSelectionChanged;
+            old.RedrawRequested -= s.RenderCommitted;
+            old.SelectionChanged -= s.OnSelectionChanged;
         }
         if (e.NewValue is WhiteboardViewModel vm)
         {
-            s._controller = new SelectionController(s._selectionVisual, vm, () => s._viewMatrix, s._overlayCanvas);
-            vm.RedrawRequested   += s.RenderCommitted;
-            vm.SelectionChanged  += s.OnSelectionChanged;
+            s._controller = new SelectionController(s._selectionVisual, vm, () => s._viewMatrix, s._overlayCanvas,
+                ids => s.SetHiddenObjects(ids));
+            vm.RedrawRequested += s.RenderCommitted;
+            vm.SelectionChanged += s.OnSelectionChanged;
             s.RenderCommitted();
         }
     }
@@ -179,7 +185,8 @@ public sealed class InkSurface : FrameworkElement
     // ── Visual tree ──────────────────────────────────────────────────────────
 
     // _overlayCanvas 作为额外 UIElement 子级（不在 VisualCollection 中），需单独处理
-    protected override int    VisualChildrenCount => _visuals.Count + 1;
+    protected override int VisualChildrenCount => _visuals.Count + 1;
+
     protected override Visual GetVisualChild(int index)
         => index < _visuals.Count ? _visuals[index] : _overlayCanvas;
 
@@ -202,14 +209,27 @@ public sealed class InkSurface : FrameworkElement
         using var dc = _committedVisual.RenderOpen();
         var vm = ViewModel;
         if (vm is null) return;
-        InkRenderer.RenderPage(dc, vm.CurrentPage, RenderSize);
+        InkRenderer.RenderPage(dc, vm.CurrentPage, RenderSize,
+            _hiddenObjectIds.Count > 0 ? _hiddenObjectIds : null);
         // 页面重绘后同步更新选择覆盖层（对象移动/删除后 bounds 已更新）
         _controller?.RenderOverlay();
     }
 
+    /// <summary>
+    /// 设置拖动期间需从 committed 层隐藏的对象（覆盖层会实时绘制其跟手图形）。
+    /// 传 null/空集合表示恢复全部显示。设置后立即重绘 committed 层。
+    /// </summary>
+    internal void SetHiddenObjects(IReadOnlyCollection<Guid>? ids)
+    {
+        _hiddenObjectIds.Clear();
+        if (ids is not null)
+            foreach (var id in ids) _hiddenObjectIds.Add(id);
+        RenderCommitted();
+    }
+
     private void RenderWetInk()
     {
-        var vm  = ViewModel;
+        var vm = ViewModel;
         var pts = _currentPoints;
         using (var dc = _wetInkVisual.RenderOpen())
         {
@@ -242,29 +262,32 @@ public sealed class InkSurface : FrameworkElement
 
     // 将两帧预测结果做逐点 EMA 混合，长度取较短者
     private static IReadOnlyList<PredictedPoint> BlendPredictions(
-        IReadOnlyList<PredictedPoint>  current,
+        IReadOnlyList<PredictedPoint> current,
         IReadOnlyList<PredictedPoint>? previous,
-        float                          alpha)
+        float alpha)
     {
         if (previous is null || previous.Count == 0 || current.Count == 0)
             return current;
 
-        int count   = Math.Min(current.Count, previous.Count);
-        float beta  = 1f - alpha;
+        int count = Math.Min(current.Count, previous.Count);
+        float beta = 1f - alpha;
         var blended = new PredictedPoint[count];
         for (int i = 0; i < count; i++)
         {
             blended[i] = new PredictedPoint(
-                X:          alpha * current[i].X  + beta * previous[i].X,
-                Y:          alpha * current[i].Y  + beta * previous[i].Y,
-                Pressure:   current[i].Pressure,
+                X: alpha * current[i].X + beta * previous[i].X,
+                Y: alpha * current[i].Y + beta * previous[i].Y,
+                Pressure: current[i].Pressure,
                 Confidence: current[i].Confidence);
         }
         return blended;
     }
 
-    private void ClearWetInk()      { using (_wetInkVisual.RenderOpen()) { } }
-    private void ClearPredictedInk() { using (_predictedVisual.RenderOpen()) { } }
+    private void ClearWetInk()
+    { using (_wetInkVisual.RenderOpen()) { } }
+
+    private void ClearPredictedInk()
+    { using (_predictedVisual.RenderOpen()) { } }
 
     // ══════════════════════════════════════════════════════════════════════════
     // 通道 A：单指触摸绘图
@@ -293,11 +316,11 @@ public sealed class InkSurface : FrameworkElement
         _primaryTouchId = e.TouchDevice.Id;
 
         var screen = e.GetTouchPoint(this).Position;
-        var doc    = ToDoc(screen);
+        var doc = ToDoc(screen);
 
         if (vm.Toolbar.CurrentTool == ToolType.Hand)
         {
-            _isPanning      = true;
+            _isPanning = true;
             _panStartScreen = screen;
             _panStartMatrix = _viewMatrix;
         }
@@ -317,10 +340,10 @@ public sealed class InkSurface : FrameworkElement
         if (_isManipulating || e.TouchDevice.Id != _primaryTouchId) return;
         e.Handled = true;
 
-        var vm     = ViewModel;
+        var vm = ViewModel;
         if (vm is null) return;
         var screen = e.GetTouchPoint(this).Position;
-        var doc    = ToDoc(screen);
+        var doc = ToDoc(screen);
 
         if (_isPanning)
         {
@@ -356,31 +379,40 @@ public sealed class InkSurface : FrameworkElement
     protected override async void OnTouchUp(TouchEventArgs e)
     {
         base.OnTouchUp(e);
-        _activeTouchCount = Math.Max(0, _activeTouchCount - 1);
-
-        if (e.TouchDevice.Id != _primaryTouchId)
+        // async void 事件处理器：未捕获异常会直接升级为应用级未处理异常导致崩溃，
+        // 而下方 await 链（OnUpAsync/CommitResizeAsync 等含 Matrix.Invert）可能抛出，必须兜底。
+        try
         {
+            _activeTouchCount = Math.Max(0, _activeTouchCount - 1);
+
+            if (e.TouchDevice.Id != _primaryTouchId)
+            {
+                e.TouchDevice.Capture(null);
+                return;
+            }
+
+            var screen = e.GetTouchPoint(this).Position;
             e.TouchDevice.Capture(null);
-            return;
+            e.Handled = true;
+            _primaryTouchId = -1;
+            _isPanning = false;
+
+            var vm = ViewModel;
+            if (vm is null) return;
+
+            if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+            {
+                await _controller.OnUpAsync(screen);
+                vm.NotifySelectionChanged();
+                return;
+            }
+
+            await CommitOrClearAsync(vm);
         }
-
-        var screen = e.GetTouchPoint(this).Position;
-        e.TouchDevice.Capture(null);
-        e.Handled = true;
-        _primaryTouchId = -1;
-        _isPanning      = false;
-
-        var vm = ViewModel;
-        if (vm is null) return;
-
-        if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+        catch (Exception ex)
         {
-            await _controller.OnUpAsync(screen);
-            vm.NotifySelectionChanged();
-            return;
+            System.Diagnostics.Debug.WriteLine($"[OnTouchUp] {ex.Message}");
         }
-
-        await CommitOrClearAsync(vm);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -409,16 +441,32 @@ public sealed class InkSurface : FrameworkElement
         e.Handled = true;
     }
 
+    // 视图缩放上下限，防止接近奇异矩阵（Invert 抛异常）或坐标数值爆炸
+    private const double MinViewScale = 0.1;
+    private const double MaxViewScale = 10.0;
+
+    /// <summary>以 pivot 为中心缩放视图，并将累计缩放钳制在 [MinViewScale, MaxViewScale]。</summary>
+    private void ApplyZoomClamped(double factor, Point pivot)
+    {
+        double current = _viewMatrix.M11;   // 视图矩阵仅含缩放+平移（无旋转），M11 即当前缩放
+        if (current <= 1e-9) current = 1;
+        double target = current * factor;
+        if (target < MinViewScale) factor = MinViewScale / current;
+        else if (target > MaxViewScale) factor = MaxViewScale / current;
+        if (Math.Abs(factor - 1.0) < 1e-6) return;
+        _viewMatrix.ScaleAtPrepend(factor, factor, pivot.X, pivot.Y);
+    }
+
     protected override void OnManipulationDelta(ManipulationDeltaEventArgs e)
     {
         base.OnManipulationDelta(e);
-        var d      = e.DeltaManipulation;
+        var d = e.DeltaManipulation;
         var origin = e.ManipulationOrigin;
 
         _viewMatrix.Translate(d.Translation.X, d.Translation.Y);
         var s = d.Scale.X;
         if (Math.Abs(s - 1.0) > 0.002)
-            _viewMatrix.ScaleAtPrepend(s, s, origin.X, origin.Y);
+            ApplyZoomClamped(s, origin);
 
         _viewMatrixTransform.Matrix = _viewMatrix;
         _controller?.RenderOverlay();
@@ -428,7 +476,7 @@ public sealed class InkSurface : FrameworkElement
     protected override void OnManipulationCompleted(ManipulationCompletedEventArgs e)
     {
         base.OnManipulationCompleted(e);
-        _isManipulating  = false;
+        _isManipulating = false;
         _activeTouchCount = 0;
         e.Handled = true;
     }
@@ -451,11 +499,11 @@ public sealed class InkSurface : FrameworkElement
         CaptureMouse();
 
         var screen = e.GetPosition(this);
-        var doc    = ToDoc(screen);
+        var doc = ToDoc(screen);
 
         if (vm.Toolbar.CurrentTool == ToolType.Hand)
         {
-            _isPanning      = true;
+            _isPanning = true;
             _panStartScreen = screen;
             _panStartMatrix = _viewMatrix;
             return;
@@ -477,7 +525,7 @@ public sealed class InkSurface : FrameworkElement
         if (vm is null || e.LeftButton != MouseButtonState.Pressed) return;
 
         var screen = e.GetPosition(this);
-        var doc    = ToDoc(screen);
+        var doc = ToDoc(screen);
 
         if (_isPanning)
         {
@@ -513,20 +561,28 @@ public sealed class InkSurface : FrameworkElement
     {
         base.OnMouseLeftButtonUp(e);
         if (e.StylusDevice is not null) return;
-        ReleaseMouseCapture();
-        _isPanning = false;
-        var vm = ViewModel;
-        if (vm is null) return;
-
-        if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+        // async void：异常须兜底，避免下方 await 链抛出导致应用崩溃（参见 OnTouchUp）。
+        try
         {
-            var screen = e.GetPosition(this);
-            await _controller.OnUpAsync(screen);
-            vm.NotifySelectionChanged();
-            return;
-        }
+            ReleaseMouseCapture();
+            _isPanning = false;
+            var vm = ViewModel;
+            if (vm is null) return;
 
-        await CommitOrClearAsync(vm);
+            if (vm.Toolbar.CurrentTool == ToolType.Select && _controller is not null)
+            {
+                var screen = e.GetPosition(this);
+                await _controller.OnUpAsync(screen);
+                vm.NotifySelectionChanged();
+                return;
+            }
+
+            await CommitOrClearAsync(vm);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OnMouseLeftButtonUp] {ex.Message}");
+        }
     }
 
     // ── Zoom (Ctrl + Scroll) ──────────────────────────────────────────────────
@@ -535,9 +591,9 @@ public sealed class InkSurface : FrameworkElement
     {
         base.OnMouseWheel(e);
         if (!Keyboard.IsKeyDown(Key.LeftCtrl) && !Keyboard.IsKeyDown(Key.RightCtrl)) return;
-        var pivot  = e.GetPosition(this);
+        var pivot = e.GetPosition(this);
         var factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
-        _viewMatrix.ScaleAtPrepend(factor, factor, pivot.X, pivot.Y);
+        ApplyZoomClamped(factor, pivot);
         _viewMatrixTransform.Matrix = _viewMatrix;
         _controller?.RenderOverlay();
         e.Handled = true;
@@ -569,10 +625,10 @@ public sealed class InkSurface : FrameworkElement
 
     private void AbortCurrentStroke()
     {
-        _isDrawing      = false;
-        _prevPredicted  = null;
-        _currentPoints  = null;
-        _isPanning      = false;
+        _isDrawing = false;
+        _prevPredicted = null;
+        _currentPoints = null;
+        _isPanning = false;
         ClearWetInk();
         ClearPredictedInk();
     }
@@ -622,12 +678,12 @@ internal sealed class LatencyStats
 {
     private const int WindowSize = 120;
     private readonly double[] _buf = new double[WindowSize];
-    private int  _head;
-    private int  _filled;
+    private int _head;
+    private int _filled;
 
-    public int    Count => _filled;
-    public double Avg   { get; private set; }
-    public double P95   { get; private set; }
+    public int Count => _filled;
+    public double Avg { get; private set; }
+    public double P95 { get; private set; }
 
     public void Record(double ms)
     {

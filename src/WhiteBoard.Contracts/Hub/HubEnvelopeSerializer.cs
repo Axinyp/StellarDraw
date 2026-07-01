@@ -13,8 +13,8 @@ public static class HubEnvelopeSerializer
 {
     private static readonly JsonSerializerOptions Opts = new()
     {
-        PropertyNamingPolicy        = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition      = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNameCaseInsensitive = true,
     };
 
@@ -22,11 +22,11 @@ public static class HubEnvelopeSerializer
 
     public static HubEnvelope? Wrap(WhiteboardEvent evt) => evt switch
     {
-        StrokeAddedEvent e       => new HubEnvelope("StrokeAdded",       JsonSerializer.Serialize(e,       Opts)),
-        ObjectDeletedEvent e     => new HubEnvelope("ObjectDeleted",      JsonSerializer.Serialize(e,       Opts)),
-        ObjectTransformedEvent e => new HubEnvelope("ObjectTransformed",  JsonSerializer.Serialize(e,       Opts)),
-        PageAddedEvent e         => new HubEnvelope("PageAdded",          JsonSerializer.Serialize(e,       Opts)),
-        _                        => null,
+        StrokeAddedEvent e => new HubEnvelope("StrokeAdded", JsonSerializer.Serialize(e, Opts)),
+        ObjectDeletedEvent e => new HubEnvelope("ObjectDeleted", JsonSerializer.Serialize(e, Opts)),
+        ObjectTransformedEvent e => new HubEnvelope("ObjectTransformed", JsonSerializer.Serialize(e, Opts)),
+        PageAddedEvent e => new HubEnvelope("PageAdded", JsonSerializer.Serialize(e, Opts)),
+        _ => null,
     };
 
     // ── HubEnvelope → WhiteboardEvent ────────────────────────────────────────
@@ -37,11 +37,11 @@ public static class HubEnvelopeSerializer
         {
             return env.T switch
             {
-                "StrokeAdded"       => JsonSerializer.Deserialize<StrokeAddedEvent>(env.P,       Opts),
-                "ObjectDeleted"     => JsonSerializer.Deserialize<ObjectDeletedEvent>(env.P,     Opts),
+                "StrokeAdded" => JsonSerializer.Deserialize<StrokeAddedEvent>(env.P, Opts),
+                "ObjectDeleted" => JsonSerializer.Deserialize<ObjectDeletedEvent>(env.P, Opts),
                 "ObjectTransformed" => JsonSerializer.Deserialize<ObjectTransformedEvent>(env.P, Opts),
-                "PageAdded"         => JsonSerializer.Deserialize<PageAddedEvent>(env.P,         Opts),
-                _                   => null,
+                "PageAdded" => JsonSerializer.Deserialize<PageAddedEvent>(env.P, Opts),
+                _ => null,
             };
         }
         catch (JsonException)
@@ -57,7 +57,7 @@ public static class HubEnvelopeSerializer
 
     public static HubEnvelope? DeserializeEnvelope(string json)
     {
-        try   { return JsonSerializer.Deserialize<HubEnvelope>(json, Opts); }
+        try { return JsonSerializer.Deserialize<HubEnvelope>(json, Opts); }
         catch { return null; }
     }
 }

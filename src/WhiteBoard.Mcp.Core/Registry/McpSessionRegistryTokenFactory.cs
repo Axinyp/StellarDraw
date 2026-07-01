@@ -25,17 +25,17 @@ public sealed class McpSessionRegistryTokenFactory : IMcpTokenFactory
         WhiteboardAISession session)
     {
         _registry = registry;
-        _session  = session;
+        _session = session;
     }
 
     public async Task<string> IssueTokenAsync(
-        TimeSpan?             lifetime          = null,
-        bool                  allowDestructive  = false,
+        TimeSpan? lifetime = null,
+        bool allowDestructive = false,
         IReadOnlySet<string>? allowedTransports = null,
-        CancellationToken     ct                = default)
+        CancellationToken ct = default)
     {
         var policy = new McpTokenPolicy(
-            lifetime          ?? TimeSpan.FromHours(1),
+            lifetime ?? TimeSpan.FromHours(1),
             allowDestructive,
             allowedTransports ?? DefaultTransports);
 

@@ -9,7 +9,7 @@ namespace WhiteBoard.Core.Commands;
 /// </summary>
 public sealed class UndoRedoStack
 {
-    private readonly int                       _maxDepth;
+    private readonly int _maxDepth;
     private readonly Stack<IWhiteboardCommand> _undoStack = new();
     private readonly Stack<IWhiteboardCommand> _redoStack = new();
 
@@ -62,6 +62,10 @@ public sealed class UndoRedoStack
                     inverse.Execute();  // execute inverse (e.g. Delete to undo an Add)
                 else
                     cmd.Undo();         // fallback: standard undo on the original command
+
+                // 命中命令进入 redo 栈，使该对象级撤销可被 Redo 重做；
+                // 否则它会被永久丢弃（撤销后无法重做、栈状态与页面发散）。
+                _redoStack.Push(cmd);
 
                 // 按原顺序（从 temp 底部到顶部）放回 undoStack
                 foreach (var t in temp.Reverse())

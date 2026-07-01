@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using WhiteBoard.AI.Session;
@@ -14,6 +13,7 @@ public sealed class McpSessionRegistry : IMcpSessionRegistry, IDisposable
         _bindings.Values.Where(b => !b.IsRevoked && b.ExpiresAt > DateTimeOffset.UtcNow).ToList();
 
     public event EventHandler<McpSessionBinding>? ConnectionOpened;
+
     public event EventHandler<McpSessionBinding>? ConnectionClosed;
 
     event EventHandler<McpSessionBinding> IMcpSessionRegistry.ConnectionOpened
@@ -21,6 +21,7 @@ public sealed class McpSessionRegistry : IMcpSessionRegistry, IDisposable
         add => ConnectionOpened += value;
         remove => ConnectionOpened -= value;
     }
+
     event EventHandler<McpSessionBinding> IMcpSessionRegistry.ConnectionClosed
     {
         add => ConnectionClosed += value;

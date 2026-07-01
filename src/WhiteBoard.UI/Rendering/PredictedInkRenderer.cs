@@ -11,11 +11,11 @@ namespace WhiteBoard.UI.Rendering;
 public static class PredictedInkRenderer
 {
     public static void RenderPredictedStroke(
-        DrawingContext                dc,
+        DrawingContext dc,
         IReadOnlyList<PredictedPoint> predicted,
-        IReadOnlyList<PressurePoint>  confirmed,
-        uint                          colorArgb,
-        float                         thickness)
+        IReadOnlyList<PressurePoint> confirmed,
+        uint colorArgb,
+        float thickness)
     {
         if (predicted.Count == 0 || confirmed.Count < 2) return;
 
@@ -45,9 +45,9 @@ public static class PredictedInkRenderer
             float t = segCount > 1 ? (float)seg / (segCount - 1) : 0f;
             float opacity = (0.50f + (0.05f - 0.50f) * t) * (base_.A / 255f);
 
-            float p0x = xs[i - 1],   p0y = ys[i - 1];
-            float p1x = xs[i],       p1y = ys[i];
-            float p2x = xs[i + 1],   p2y = ys[i + 1];
+            float p0x = xs[i - 1], p0y = ys[i - 1];
+            float p1x = xs[i], p1y = ys[i];
+            float p2x = xs[i + 1], p2y = ys[i + 1];
             float p3x = i + 2 < total ? xs[i + 2] : p2x + (p2x - p1x);
             float p3y = i + 2 < total ? ys[i + 2] : p2y + (p2y - p1y);
 
@@ -63,17 +63,17 @@ public static class PredictedInkRenderer
                 ctx.BezierTo(
                     new Point(cp1x, cp1y),
                     new Point(cp2x, cp2y),
-                    new Point(p2x,  p2y),
+                    new Point(p2x, p2y),
                     isStroked: true, isSmoothJoin: false);
             }
             geo.Freeze();
 
             var color = Color.FromArgb((byte)(255 * opacity), base_.R, base_.G, base_.B);
-            var pen   = new Pen(new SolidColorBrush(color), thickness)
+            var pen = new Pen(new SolidColorBrush(color), thickness)
             {
-                LineJoin     = PenLineJoin.Round,
+                LineJoin = PenLineJoin.Round,
                 StartLineCap = PenLineCap.Round,
-                EndLineCap   = PenLineCap.Round,
+                EndLineCap = PenLineCap.Round,
             };
             dc.DrawGeometry(null, pen, geo);
         }
@@ -84,5 +84,5 @@ public static class PredictedInkRenderer
             (byte)(argb >> 24),
             (byte)(argb >> 16),
             (byte)(argb >> 8),
-            (byte) argb);
+            (byte)argb);
 }

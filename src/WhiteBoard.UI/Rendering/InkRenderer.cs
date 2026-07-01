@@ -1,8 +1,11 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using WhiteBoard.Core.Algorithms;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
+using WhiteBoard.Core.Services;
 
 namespace WhiteBoard.UI.Rendering;
 
@@ -18,10 +21,15 @@ namespace WhiteBoard.UI.Rendering;
 public static class InkRenderer
 {
     /// <summary>重绘页面所有已提交对象到 dc（应提交层 DrawingVisual 专用）。</summary>
-    public static void RenderPage(DrawingContext dc, PageModel page, Size canvasSize)
+    /// <param name="excludeIds">拖动期间需跳过的对象 id（由覆盖层实时绘制其跟手图形，避免重影）。</param>
+    public static void RenderPage(DrawingContext dc, PageModel page, Size canvasSize,
+        IReadOnlySet<Guid>? excludeIds = null)
     {
         foreach (var obj in page.GetAllObjects().OrderBy(o => o.ZIndex))
+        {
+            if (excludeIds is not null && excludeIds.Contains(obj.Id)) continue;
             RenderObject(dc, obj);
+        }
     }
 
     public static void RenderObject(DrawingContext dc, WhiteboardObject obj)
@@ -31,18 +39,23 @@ public static class InkRenderer
             case StrokeObject s:
                 RenderStroke(dc, s);
                 break;
+
             case ShapeObject sh:
                 RenderShape(dc, sh);
                 break;
+
             case PathObject path:
                 RenderPath(dc, path);
                 break;
+
             case TextObject t:
                 RenderText(dc, t);
                 break;
+
             case ImageObject img:
                 RenderImagePlaceholder(dc, img);
                 break;
+
             default:
                 RenderGenericBounds(dc, obj);
                 break;
@@ -68,9 +81,9 @@ public static class InkRenderer
 
         var pen = new Pen(new SolidColorBrush(color), s.Style.Thickness)
         {
-            LineJoin  = PenLineJoin.Round,
+            LineJoin = PenLineJoin.Round,
             StartLineCap = PenLineCap.Round,
-            EndLineCap   = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
         };
 
         var guideline = new GuidelineSet();
@@ -100,11 +113,11 @@ public static class InkRenderer
         geo.Freeze();
 
         var color = ArgbToColor(colorArgb);
-        var pen   = new Pen(new SolidColorBrush(color), thickness)
+        var pen = new Pen(new SolidColorBrush(color), thickness)
         {
-            LineJoin     = PenLineJoin.Round,
+            LineJoin = PenLineJoin.Round,
             StartLineCap = PenLineCap.Round,
-            EndLineCap   = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
         };
         dc.DrawGeometry(null, pen, geo);
     }
@@ -116,7 +129,7 @@ public static class InkRenderer
         if (string.IsNullOrWhiteSpace(path.PathData)) return;
 
         Geometry? geo;
-        try   { geo = Geometry.Parse(path.PathData); }
+        try { geo = Geometry.Parse(path.PathData); }
         catch { return; }
 
         geo.Freeze();
@@ -125,14 +138,14 @@ public static class InkRenderer
         bool isIdentity = t[0] == 1f && t[1] == 0f && t[2] == 0f && t[3] == 1f && t[4] == 0f && t[5] == 0f;
         if (!isIdentity) dc.PushTransform(new MatrixTransform(t[0], t[1], t[2], t[3], t[4], t[5]));
 
-        var fillColor   = ArgbToColor(path.FillArgb);
+        var fillColor = ArgbToColor(path.FillArgb);
         var strokeColor = ArgbToColor(path.StrokeArgb);
-        var fill   = path.IsFilled ? new SolidColorBrush(fillColor) : null;
+        var fill = path.IsFilled ? new SolidColorBrush(fillColor) : null;
         var stroke = new Pen(new SolidColorBrush(strokeColor), path.StrokeWidth)
         {
-            LineJoin     = PenLineJoin.Round,
+            LineJoin = PenLineJoin.Round,
             StartLineCap = PenLineCap.Round,
-            EndLineCap   = PenLineCap.Round,
+            EndLineCap = PenLineCap.Round,
         };
 
         dc.DrawGeometry(fill, stroke, geo);
@@ -153,7 +166,7 @@ public static class InkRenderer
             new SolidColorBrush(ArgbToColor(t.Style.ColorArgb)),
             pixelsPerDip: 1.0);
 
-        if (t.Style.Bold)   ft.SetFontWeight(FontWeights.Bold,   0, t.Content.Length);
+        if (t.Style.Bold) ft.SetFontWeight(FontWeights.Bold, 0, t.Content.Length);
         if (t.Style.Italic) ft.SetFontStyle(FontStyles.Italic, 0, t.Content.Length);
 
         dc.DrawText(ft, new Point(t.BoundsX, t.BoundsY));
@@ -163,7 +176,7 @@ public static class InkRenderer
 
     private static void RenderShape(DrawingContext dc, ShapeObject sh)
     {
-        var fill   = sh.IsFilled ? new SolidColorBrush(ArgbToColor(sh.FillArgb)) : null;
+        var fill = sh.IsFilled ? new SolidColorBrush(ArgbToColor(sh.FillArgb)) : null;
         var stroke = new Pen(new SolidColorBrush(ArgbToColor(sh.StrokeArgb)), sh.StrokeWidth)
         {
             LineJoin = PenLineJoin.Round,
@@ -215,16 +228,16 @@ public static class InkRenderer
         dc.DrawLine(pen, from, to);
 
         // 箭头头部：以终点为顶，两侧各展开 20° 绘制两条短线
-        var dir   = to - from;
-        var len   = Math.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
+        var dir = to - from;
+        var len = Math.Sqrt(dir.X * dir.X + dir.Y * dir.Y);
         if (len < 1) return;
-        var unit  = new Vector(dir.X / len, dir.Y / len);
+        var unit = new Vector(dir.X / len, dir.Y / len);
         double hs = Math.Min(len * 0.25, 20); // 箭头长度
         const double angle = Math.PI / 6;     // 30°
 
         double cos = Math.Cos(angle), sin = Math.Sin(angle);
-        var left  = new Vector(-unit.X * cos - unit.Y * sin, -unit.X * sin + unit.Y * cos) * hs;
-        var right = new Vector(-unit.X * cos + unit.Y * sin,  unit.X * sin + unit.Y * cos) * hs;
+        var left = new Vector(-unit.X * cos - unit.Y * sin, -unit.X * sin + unit.Y * cos) * hs;
+        var right = new Vector(-unit.X * cos + unit.Y * sin, unit.X * sin + unit.Y * cos) * hs;
 
         dc.DrawLine(pen, to, to + left);
         dc.DrawLine(pen, to, to + right);
@@ -237,6 +250,18 @@ public static class InkRenderer
         var rect = new Rect(img.BoundsX, img.BoundsY, img.BoundsWidth, img.BoundsHeight);
 
         var bitmap = ImageAssetStore.Retrieve(img.AssetId);
+        if (bitmap is null)
+        {
+            // WPF 缓存未命中时，回退到 Core 的原始字节仓库（AI 生成/插入的图片），
+            // 解码为 BitmapSource 并回填 WPF 缓存，避免每帧重复解码。
+            var bytes = RawImageAssetStore.Retrieve(img.AssetId);
+            if (bytes is not null)
+            {
+                bitmap = DecodeBitmap(bytes);
+                if (bitmap is not null) ImageAssetStore.Store(img.AssetId, bitmap);
+            }
+        }
+
         if (bitmap is not null)
         {
             dc.DrawImage(bitmap, rect);
@@ -256,8 +281,32 @@ public static class InkRenderer
             Brushes.CornflowerBlue,
             pixelsPerDip: 1.0);
         dc.DrawText(ft, new Point(
-            img.BoundsX + img.BoundsWidth  / 2 - ft.Width  / 2,
+            img.BoundsX + img.BoundsWidth / 2 - ft.Width / 2,
             img.BoundsY + img.BoundsHeight / 2 - ft.Height / 2));
+    }
+
+    /// <summary>
+    /// 将原始图片字节（PNG 等）解码为冻结的 <see cref="BitmapSource"/>。
+    /// 冻结后可跨线程安全访问；解码失败返回 null 由调用方回退占位符。
+    /// </summary>
+    private static BitmapSource? DecodeBitmap(byte[] bytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(bytes);
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.None;
+            bmp.StreamSource = ms;
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static void RenderGenericBounds(DrawingContext dc, WhiteboardObject obj)
@@ -281,10 +330,10 @@ public static class InkRenderer
         for (int i = 1; i < pts.Count - 2; i += 2)
         {
             ctx.BezierTo(
-                new Point(pts[i].X,     pts[i].Y),
-                new Point(pts[i+1].X,   pts[i+1].Y),
-                new Point(pts[Math.Min(i+2, pts.Count-1)].X,
-                           pts[Math.Min(i+2, pts.Count-1)].Y),
+                new Point(pts[i].X, pts[i].Y),
+                new Point(pts[i + 1].X, pts[i + 1].Y),
+                new Point(pts[Math.Min(i + 2, pts.Count - 1)].X,
+                           pts[Math.Min(i + 2, pts.Count - 1)].Y),
                 true, false);
         }
         // Tail: remaining points as line segments
@@ -300,5 +349,5 @@ public static class InkRenderer
             (byte)(argb >> 24),
             (byte)(argb >> 16),
             (byte)(argb >> 8),
-            (byte) argb);
+            (byte)argb);
 }

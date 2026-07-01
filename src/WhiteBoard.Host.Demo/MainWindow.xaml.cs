@@ -1,31 +1,36 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
-using System.Windows.Controls;
 using WhiteBoard.AI.Providers;
+using WhiteBoard.AI.Providers.ImageGen;
 using WhiteBoard.AI.Session;
 using WhiteBoard.AI.Settings;
 using WhiteBoard.Core.Domain;
+using WhiteBoard.Mcp.Core.Hosting;
+using WhiteBoard.Mcp.Core.Registry;
+using WhiteBoard.Mcp.Core.Server;
 using WhiteBoard.UI.ViewModels;
 
 namespace WhiteBoard.Host.Demo;
 
 public partial class MainWindow : Window
 {
-    private readonly PluginManager        _manager = new();
-    private readonly InMemoryMessageBus   _bus     = new();
-    private readonly MockHostCapabilities _host    = MockHostCapabilities.Instance;
+    private readonly PluginManager _manager = new();
+    private readonly InMemoryMessageBus _bus = new();
+    private readonly MockHostCapabilities _host = MockHostCapabilities.Instance;
 
     private static readonly GridLength AiPanelWidth = new(320, GridUnitType.Pixel);
 
     private WhiteboardAISession? _aiSession;
-    private AiChatViewModel?     _aiChatVm;
+    private AiChatViewModel? _aiChatVm;
+    private McpSessionRegistry? _mcpRegistry;
+    private EmbeddedMcpServerHost? _mcpHost;
 
     public MainWindow()
     {
         InitializeComponent();
-        Closed  += async (_, _) => await TearDownAsync();
-        Loaded  += async (_, _) => await AutoLoadAsync();
+        Closed += async (_, _) => await TearDownAsync();
+        Loaded += async (_, _) => await AutoLoadAsync();
         PluginHost.SizeChanged += OnPluginHostSizeChanged;
     }
 
@@ -43,7 +48,7 @@ public partial class MainWindow : Window
     {
         var session = _manager.GetExportedSession();
         if (session is null) return;
-        session.CanvasWidth  = (float)e.NewSize.Width;
+        session.CanvasWidth = (float)e.NewSize.Width;
         session.CanvasHeight = (float)e.NewSize.Height;
     }
 
@@ -128,7 +133,7 @@ public partial class MainWindow : Window
             // Wire up AI session after plugin is loaded
             var session = _manager.GetExportedSession();
             if (session is not null)
-                InitAiSession(session);
+                await InitAiSessionAsync(session);
             else
                 TxtInfo.Text += "  |  ⚠ AI: 未能获取 Session";
         }
@@ -141,17 +146,17 @@ public partial class MainWindow : Window
 
     // ── AI 会话初始化 ─────────────────────────────────────────────────────────
 
-    private void InitAiSession(WhiteboardSession session)
+    private async Task InitAiSessionAsync(WhiteboardSession session)
     {
         // 同步路径：调用时已确保旧 session 已被 DisposeAiSessionAsync 清理
-        var settings    = LoadSettings();
-        var secrets     = new EnvSecretStore();
+        var settings = LoadSettings();
+        var secrets = new EnvSecretStore();
         var llmProvider = new SettingsBackedLlmProvider(settings, secrets);
 
         // 以 PluginHost 当前实际尺寸初始化画布大小，后续通过 SizeChanged 持续同步
         if (PluginHost.ActualWidth > 0 && PluginHost.ActualHeight > 0)
         {
-            session.CanvasWidth  = (float)PluginHost.ActualWidth;
+            session.CanvasWidth = (float)PluginHost.ActualWidth;
             session.CanvasHeight = (float)PluginHost.ActualHeight;
         }
 
@@ -159,12 +164,81 @@ public partial class MainWindow : Window
         settingsVm.LoadFrom(settings);
         settingsVm.TestConnectionRequested += OnTestConnectionRequested;
 
-        _aiSession = new WhiteboardAISession(llmProvider, session);
-        _aiChatVm  = new AiChatViewModel(_aiSession, settingsVm);
+        // 图像生成 Provider：未启用 / 未配置 Key 时为 null，generate_and_insert_image 工具不注册
+        var imageGen = ImageGenProviderFactory.Create(settings, secrets);
+
+        _aiSession = new WhiteboardAISession(llmProvider, session, imageGen: imageGen);
+        _aiChatVm = new AiChatViewModel(_aiSession, settingsVm);
         _aiChatVm.SettingsChanged += OnSettingsChanged;
         AiPanel.DataContext = _aiChatVm;
 
         TxtInfo.Text += $"  |  AI: {settings.LlmProviderType}/{settings.LlmModel}";
+        if (imageGen is not null)
+            TxtInfo.Text += $"  |  图像: {settings.ImageGenProviderType}";
+
+        // MCP 内嵌服务（含 token 签发与 UI 回写）
+        if (settings.McpServer.Enabled)
+            await InitMcpAsync(settings, settingsVm);
+    }
+
+    /// <summary>
+    /// 启动 MCP 内嵌服务并接通 token 链路：注入 token 工厂、订阅签发事件回写设置 UI、
+    /// 接通「重新生成」命令，并签发首个 token。HTTP 传输按需启动 Kestrel。
+    /// </summary>
+    private async Task InitMcpAsync(AIWhiteboardSettings settings, AiSettingsViewModel settingsVm)
+    {
+        if (_aiSession is null) return;
+
+        _mcpRegistry = new McpSessionRegistry();
+        var factory = new McpSessionRegistryTokenFactory(_mcpRegistry, _aiSession);
+        _aiSession.SetMcpTokenFactory(factory);
+
+        // token 签发后回写「当前 Token」（事件可能来自后台线程，切回 UI 线程）。
+        // _aiSession / settingsVm 每次重建会整体替换，故此处闭包订阅无需显式退订。
+        _aiSession.McpTokenIssued += (_, token) =>
+            Dispatcher.Invoke(() => settingsVm.CurrentMcpToken = token);
+
+        // 「重新生成」按钮：IssueMcpTokenAsync 内部会先撤销旧 token 再签发新 token。
+        settingsVm.RegenerateMcpTokenRequested += async (_, _) =>
+        {
+            try
+            {
+                if (_aiSession is not null)
+                    await _aiSession.IssueMcpTokenAsync(
+                        TimeSpan.FromMinutes(settingsVm.McpTokenLifetimeMinutes),
+                        settingsVm.McpAllowDestructiveTools);
+            }
+            catch (Exception ex) { SetStatus($"重新生成 Token 失败: {ex.Message}"); }
+        };
+
+        // 启动内嵌 HTTP MCP server（供 Cursor 等 HTTP 客户端连接）
+        if (settings.McpServer.HttpEnabled)
+        {
+            try
+            {
+                _mcpHost = new EmbeddedMcpServerHost();
+                await _mcpHost.StartAsync(new EmbeddedMcpServerOptions
+                {
+                    Url = settings.McpServer.HttpUrl,
+                    RoutePrefix = settings.McpServer.RoutePrefix,
+                    EnableLegacySse = settings.McpServer.EnableLegacySse,
+                }, _mcpRegistry, new McpToolBridge());
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"MCP 服务启动失败: {ex.Message}");
+                _mcpHost = null;
+            }
+        }
+
+        // 签发首个 token（即便 HTTP 未启用，stdio/管道宿主仍需 token），触发上面的 UI 回写。
+        try
+        {
+            await _aiSession.IssueMcpTokenAsync(
+                TimeSpan.FromMinutes(settings.McpServer.TokenLifetimeMinutes),
+                settings.McpServer.AllowDestructiveTools);
+        }
+        catch (Exception ex) { SetStatus($"MCP Token 签发失败: {ex.Message}"); }
     }
 
     private async void OnSettingsChanged(object? sender, AIWhiteboardSettings settings)
@@ -173,7 +247,7 @@ public partial class MainWindow : Window
         var session = _manager.GetExportedSession();
         if (session is null) return;
         await DisposeAiSessionAsync();
-        InitAiSession(session);
+        await InitAiSessionAsync(session);
         SetStatus($"设置已保存并应用: {settings.LlmProviderType}/{settings.LlmModel}");
     }
 
@@ -213,11 +287,22 @@ public partial class MainWindow : Window
             _aiChatVm = null;
         }
 
+        // 先停 HTTP server（停止接受新连接），再 dispose session（其内部会撤销 token，
+        // 需要 registry 仍存活），最后才 dispose registry。
+        if (_mcpHost is not null)
+        {
+            await _mcpHost.DisposeAsync();
+            _mcpHost = null;
+        }
+
         if (_aiSession is not null)
         {
             await _aiSession.DisposeAsync();
             _aiSession = null;
         }
+
+        _mcpRegistry?.Dispose();
+        _mcpRegistry = null;
 
         AiPanel.DataContext = null;
     }
@@ -258,10 +343,10 @@ public partial class MainWindow : Window
     private static AIWhiteboardSettings BuildDefaultSettings() => new()
     {
         LlmProviderType = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_PROVIDER") ?? "ollama",
-        LlmEndpoint     = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_ENDPOINT") ?? "http://localhost:11434",
-        LlmModel        = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_MODEL")    ?? "qwen2.5",
-        LlmApiKeyRef    = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_APIKEY_REF") ?? "",
-        ExecutionMode   = "ConfirmRequired",
+        LlmEndpoint = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_ENDPOINT") ?? "http://localhost:11434",
+        LlmModel = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_MODEL") ?? "qwen2.5",
+        LlmApiKeyRef = Environment.GetEnvironmentVariable("WHITEBOARD_LLM_APIKEY_REF") ?? "",
+        ExecutionMode = "ConfirmRequired",
     };
 
     private void SetStatus(string text) => TxtStatus.Text = text;
@@ -271,14 +356,18 @@ public partial class MainWindow : Window
 /// Demo 用 ISecretStore：优先从环境变量读取密钥，找不到时直接将 key 本身当作密钥值返回。
 /// 这样用户既可以填环境变量名（如 OPENAI_API_KEY），也可以直接填实际 API Key（如 sk-xxx）。
 /// </summary>
-file sealed class EnvSecretStore : ISecretStore
+internal sealed class EnvSecretStore : ISecretStore
 {
     public string Load(string key)
         => Environment.GetEnvironmentVariable(key)
         ?? Environment.GetEnvironmentVariable(key.Replace(".", "_").ToUpperInvariant())
         ?? key;   // 兜底：直接将 keyRef 本身当密钥值使用
 
-    public void Save(string key, string value) { }
-    public void Delete(string key) { }
+    public void Save(string key, string value)
+    { }
+
+    public void Delete(string key)
+    { }
+
     public bool Exists(string key) => !string.IsNullOrEmpty(Load(key));
 }

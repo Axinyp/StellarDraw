@@ -41,14 +41,14 @@ public static class LassoHitTest
         IReadOnlyList<(float X, float Y)> lasso,
         float bx, float by, float bw, float bh)
     {
-        float right  = bx + bw;
+        float right = bx + bw;
         float bottom = by + bh;
 
         // Any corner of AABB inside lasso?
-        if (ContainsPoint(lasso, bx,    by)   ||
-            ContainsPoint(lasso, right, by)   ||
+        if (ContainsPoint(lasso, bx, by) ||
+            ContainsPoint(lasso, right, by) ||
             ContainsPoint(lasso, right, bottom) ||
-            ContainsPoint(lasso, bx,    bottom))
+            ContainsPoint(lasso, bx, bottom))
             return true;
 
         // Any lasso vertex inside AABB?
@@ -83,7 +83,7 @@ public static class LassoHitTest
     {
         if (points.Count < 2) return [];
 
-        var forward  = new List<(float, float)>(points.Count);
+        var forward = new List<(float, float)>(points.Count);
         var backward = new List<(float, float)>(points.Count);
 
         for (int i = 0; i < points.Count; i++)
@@ -128,9 +128,9 @@ public static class LassoHitTest
         int Code(float x, float y)
         {
             int c = 0;
-            if (x < left)   c |= L;
-            if (x > right)  c |= R;
-            if (y < top)    c |= B;
+            if (x < left) c |= L;
+            if (x > right) c |= R;
+            if (y < top) c |= B;
             if (y > bottom) c |= T;
             return c;
         }
@@ -145,13 +145,13 @@ public static class LassoHitTest
             int code = c0 != 0 ? c0 : c1;
             float x, y;
 
-            if ((code & T) != 0)      { x = x0 + (x1 - x0) * (bottom - y0) / (y1 - y0); y = bottom; }
-            else if ((code & B) != 0) { x = x0 + (x1 - x0) * (top    - y0) / (y1 - y0); y = top; }
-            else if ((code & R) != 0) { y = y0 + (y1 - y0) * (right  - x0) / (x1 - x0); x = right; }
-            else                       { y = y0 + (y1 - y0) * (left   - x0) / (x1 - x0); x = left; }
+            if ((code & T) != 0) { x = x0 + (x1 - x0) * (bottom - y0) / (y1 - y0); y = bottom; }
+            else if ((code & B) != 0) { x = x0 + (x1 - x0) * (top - y0) / (y1 - y0); y = top; }
+            else if ((code & R) != 0) { y = y0 + (y1 - y0) * (right - x0) / (x1 - x0); x = right; }
+            else { y = y0 + (y1 - y0) * (left - x0) / (x1 - x0); x = left; }
 
             if (code == c0) { x0 = x; y0 = y; c0 = Code(x0, y0); }
-            else             { x1 = x; y1 = y; c1 = Code(x1, y1); }
+            else { x1 = x; y1 = y; c1 = Code(x1, y1); }
         }
     }
 }

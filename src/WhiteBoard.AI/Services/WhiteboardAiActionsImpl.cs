@@ -1,6 +1,7 @@
 using System.Text.Json;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
+using WhiteBoard.Core.Services;
 
 namespace WhiteBoard.AI.Services;
 
@@ -11,17 +12,20 @@ namespace WhiteBoard.AI.Services;
 /// </summary>
 public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
 {
-    private readonly WhiteboardSession             _session;
-    private readonly Dictionary<string, Guid>      _aliasMap = new();
+    private readonly WhiteboardSession _session;
+    private readonly Dictionary<string, Guid> _aliasMap = new();
 
     public WhiteboardAiActionsImpl(WhiteboardSession session) => _session = session;
 
     // ── Alias 管理 ────────────────────────────────────────────────────────────
 
-    public IReadOnlyDictionary<string, Guid> GetAliasMap()  => _aliasMap;
-    public void RegisterAlias(string alias, Guid objectId)  => _aliasMap[alias] = objectId;
-    public void ClearAliases()                              => _aliasMap.Clear();
-    public (float Width, float Height) GetCanvasSize()      => (_session.CanvasWidth, _session.CanvasHeight);
+    public IReadOnlyDictionary<string, Guid> GetAliasMap() => _aliasMap;
+
+    public void RegisterAlias(string alias, Guid objectId) => _aliasMap[alias] = objectId;
+
+    public void ClearAliases() => _aliasMap.Clear();
+
+    public (float Width, float Height) GetCanvasSize() => (_session.CanvasWidth, _session.CanvasHeight);
 
     private Guid? Resolve(string aliasOrId)
     {
@@ -40,11 +44,11 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
     {
         var shapeType = spec.ShapeType.ToLowerInvariant() switch
         {
-            "circle"    => ShapeType.Circle,
-            "line"      => ShapeType.Line,
-            "arrow"     => ShapeType.Arrow,
-            "triangle"  => ShapeType.Triangle,
-            _           => ShapeType.Rectangle,
+            "circle" => ShapeType.Circle,
+            "line" => ShapeType.Line,
+            "arrow" => ShapeType.Arrow,
+            "triangle" => ShapeType.Triangle,
+            _ => ShapeType.Rectangle,
         };
 
         var shape = new ShapeObject(
@@ -67,7 +71,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             created: [shape.Id.ToString()],
             aliases: aliasDict,
             groupId: groupId,
-            pageId:  _session.Current.Id,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
@@ -96,7 +100,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             created: [path.Id.ToString()],
             aliases: aliasDict,
             groupId: groupId,
-            pageId:  _session.Current.Id,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
@@ -122,24 +126,39 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             created: [text.Id.ToString()],
             aliases: aliasDict,
             groupId: groupId,
-            pageId:  _session.Current.Id,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
+    /// <summary>
+    /// 插入图片对象。把内联 PNG 字节存入跨层资产仓库（<see cref="RawImageAssetStore"/>），
+    /// 生成真实 ImageObject 入库，注册 alias 并返回真实对象 Id。
+    /// 供 generate_and_insert_image（DALL-E/SD）与数学/LaTeX 渲染工具复用。
+    /// </summary>
     public async Task<ToolResult> InsertImageAsync(ImageSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default)
     {
-        var assetId = Guid.NewGuid().ToString("N");
-        var image   = new ImageObject(assetId, spec.X, spec.Y, spec.Width, spec.Height);
+        if (spec.ImageData is null || spec.ImageData.Length == 0)
+            return ToolResult.Error("ImageData 为空：当前仅支持内联图片字节，Url 远程拉取尚未实现");
 
-        await _session.AddShapeAsync(
-            new ShapeObject(ShapeType.Rectangle, 0xFFFFFFFF, 0xFF888888, 1f, true,
-                spec.X, spec.Y, spec.Width, spec.Height),
-            groupId: groupId, ct: ct);
+        // 按内容生成 AssetId 并存入跨层仓库，UI 渲染层据此解码显示。
+        var assetId = RawImageAssetStore.ComputeAssetId(spec.ImageData);
+        RawImageAssetStore.Store(assetId, spec.ImageData);
+
+        var image = new ImageObject(assetId, spec.X, spec.Y, spec.Width, spec.Height);
+        await _session.AddImageAsync(image, groupId: groupId, ct: ct);
+
+        if (alias is not null) RegisterAlias(alias, image.Id);
+
+        var aliasDict = alias is not null
+            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = image.Id.ToString() }
+            : new Dictionary<string, string>();
 
         return ToolResult.Ok(
             created: [image.Id.ToString()],
-            pageId:  _session.Current.Id,
+            aliases: aliasDict,
+            groupId: groupId,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
@@ -156,7 +175,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
         return ToolResult.Ok(
             updated: ids.Select(id => id.ToString()).ToList(),
             groupId: groupId,
-            pageId:  _session.Current.Id,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
@@ -173,7 +192,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
 
         return ToolResult.Ok(
             deleted: ids.Select(id => id.ToString()).ToList(),
-            pageId:  _session.Current.Id,
+            pageId: _session.Current.Id,
             version: _session.Current.Version);
     }
 
@@ -203,7 +222,7 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
         var selected = _session.Selection.ToList();
         return ToolResult.Ok(
             updated: selected.Select(id => id.ToString()).ToList(),
-            pageId:  _session.Current.Id);
+            pageId: _session.Current.Id);
     }
 
     public Task<PageSnapshot> GetSnapshotAsync(CancellationToken ct = default)
@@ -257,9 +276,9 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             var pages = _session.Pages.AllPages;
             result = JsonSerializer.Serialize(new
             {
-                count   = pages.Count,
+                count = pages.Count,
                 current = _session.Pages.CurrentIndex,
-                pages   = pages.Select((p, i) => new { index = i, id = p.Id, title = p.Title })
+                pages = pages.Select((p, i) => new { index = i, id = p.Id, title = p.Title })
             });
             done.TrySetResult();
             return ValueTask.CompletedTask;

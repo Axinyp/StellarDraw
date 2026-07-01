@@ -7,7 +7,7 @@ namespace WhiteBoard.Core.Commands;
 public sealed class AddTextCommand : IWhiteboardCommand
 {
     private readonly TextObject _text;
-    private readonly PageModel  _page;
+    private readonly PageModel _page;
 
     public AddTextCommand(TextObject text, PageModel page)
     {
@@ -23,5 +23,6 @@ public sealed class AddTextCommand : IWhiteboardCommand
         objectId == _text.Id ? new DeleteObjectCommand(_text, _page) : null;
 
     public void Execute() => _page.AddObject(_text);
-    public void Undo()    => _page.RemoveObject(_text);
+
+    public void Undo() => _page.RemoveObject(_text);
 }

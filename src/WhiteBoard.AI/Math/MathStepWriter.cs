@@ -11,11 +11,11 @@ namespace WhiteBoard.AI.Math;
 public sealed class MathStepWriter
 {
     private readonly IWhiteboardAiActions _actions;
-    private readonly IMathRenderer?       _renderer;
+    private readonly IMathRenderer? _renderer;
 
     public MathStepWriter(IWhiteboardAiActions actions, IMathRenderer? renderer = null)
     {
-        _actions  = actions;
+        _actions = actions;
         _renderer = renderer;
     }
 
@@ -31,11 +31,11 @@ public sealed class MathStepWriter
     /// <param name="ct">取消令牌。</param>
     public async Task WriteStepsAsync(
         IReadOnlyList<string> steps,
-        float startX      = 100f,
-        float startY      = 100f,
+        float startX = 100f,
+        float startY = 100f,
         float columnWidth = 500f,
-        float rowHeight   = 60f,
-        string? groupId   = null,
+        float rowHeight = 60f,
+        string? groupId = null,
         CancellationToken ct = default)
     {
         var y = startY;
@@ -60,7 +60,7 @@ public sealed class MathStepWriter
             try
             {
                 var pngBytes = _renderer.Render(step);
-                var spec     = new ImageSpec(x, y, w, h, pngBytes);
+                var spec = new ImageSpec(x, y, w, h, pngBytes);
                 await _actions.InsertImageAsync(spec, groupId: groupId, ct: ct);
                 return;
             }

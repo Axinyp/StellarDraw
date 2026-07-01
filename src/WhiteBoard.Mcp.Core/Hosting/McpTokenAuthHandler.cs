@@ -1,14 +1,14 @@
-using System.Security.Claims;
-using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using WhiteBoard.Mcp.Core.Registry;
 
 namespace WhiteBoard.Mcp.Core.Hosting;
 
-public sealed class McpTokenAuthOptions : AuthenticationSchemeOptions { }
+public sealed class McpTokenAuthOptions : AuthenticationSchemeOptions
+{ }
 
 public sealed class McpTokenAuthHandler : AuthenticationHandler<McpTokenAuthOptions>
 {

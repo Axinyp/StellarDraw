@@ -12,14 +12,14 @@ namespace WhiteBoard.AI.Tools;
 /// </summary>
 public sealed class WhiteboardToolRegistry
 {
-    private readonly Dictionary<string, AIFunction>        _functions    = new();
+    private readonly Dictionary<string, AIFunction> _functions = new();
     private readonly Dictionary<string, ToolCapabilityInfo> _capabilities = new();
-    private readonly HashSet<string>                       _externalNames = [];
+    private readonly HashSet<string> _externalNames = [];
 
     public WhiteboardToolRegistry(
         IWhiteboardAiActions actions,
-        IImageGenProvider?   imageGen     = null,
-        IMathRenderer?       mathRenderer = null)
+        IImageGenProvider? imageGen = null,
+        IMathRenderer? mathRenderer = null)
     {
         DrawingToolCatalog.Register(this, actions);
         EditingToolCatalog.Register(this, actions);
@@ -36,7 +36,7 @@ public sealed class WhiteboardToolRegistry
 
     public void Register(AIFunction fn, ToolCapabilityInfo capability)
     {
-        _functions[fn.Name]    = fn;
+        _functions[fn.Name] = fn;
         _capabilities[fn.Name] = capability;
     }
 
@@ -80,8 +80,8 @@ public sealed class WhiteboardToolRegistry
     /// 由 UI 层在完成 InkSurface 初始化后调用，传入实际操作视口的回调。
     /// </summary>
     public void RegisterViewportControls(
-        Action? zoomIn    = null,
-        Action? zoomOut   = null,
+        Action? zoomIn = null,
+        Action? zoomOut = null,
         Action? resetView = null)
         => NavigationToolCatalog.RegisterViewportControls(this, zoomIn, zoomOut, resetView);
 
@@ -94,12 +94,12 @@ public sealed class WhiteboardToolRegistry
     {
         foreach (var (fn, requiresConfirmation, isDestructive) in registrations)
         {
-            _functions[fn.Name]    = fn;
+            _functions[fn.Name] = fn;
             _capabilities[fn.Name] = new ToolCapabilityInfo(
-                IsDestructive:        isDestructive,
+                IsDestructive: isDestructive,
                 RequiresConfirmation: requiresConfirmation,
-                RequiredProviders:    [],
-                SupportsStreaming:    false,
+                RequiredProviders: [],
+                SupportsStreaming: false,
                 SafeInCollaborationMode: !isDestructive);
             _externalNames.Add(fn.Name);
         }

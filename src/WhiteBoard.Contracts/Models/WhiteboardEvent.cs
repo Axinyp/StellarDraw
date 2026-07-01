@@ -10,10 +10,10 @@ namespace WhiteBoard.Contracts.Models;
 /// </para>
 /// </summary>
 public abstract record WhiteboardEvent(
-    string         EventId,
-    string         PageId,
-    string         ObjectId,
-    string         ClientId,
+    string EventId,
+    string PageId,
+    string ObjectId,
+    string ClientId,
     DateTimeOffset OccurredAtUtc);
 
 /// <summary>笔画新增事件。StrokeData 为 <see cref="Core.Services.PageSerializer.SerializeObject"/> 产生的二进制块。</summary>

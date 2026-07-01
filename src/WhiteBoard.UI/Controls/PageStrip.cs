@@ -43,27 +43,27 @@ public sealed class PageStrip : UserControl
     {
         var pagePanel = new StackPanel
         {
-            Orientation       = Orientation.Horizontal,
+            Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
         var scroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility   = ScrollBarVisibility.Hidden,
-            Content                       = pagePanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            Content = pagePanel,
         };
 
         var addBtn = new Button
         {
-            Content           = "+",
-            Width             = 28,
-            Height            = 26,
-            Margin            = new Thickness(4, 0, 4, 0),
-            FontSize          = 16,
-            FontWeight        = FontWeights.Bold,
-            ToolTip           = "添加页面",
-            Cursor            = Cursors.Hand,
+            Content = "+",
+            Width = 28,
+            Height = 26,
+            Margin = new Thickness(4, 0, 4, 0),
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            ToolTip = "添加页面",
+            Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
         };
         addBtn.Click += (_, _) => ViewModel?.AddPageCommand.Execute(null);
@@ -75,10 +75,10 @@ public sealed class PageStrip : UserControl
 
         Content = new Border
         {
-            Background      = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
-            BorderBrush     = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            Background = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Child           = dock,
+            Child = dock,
         };
         return pagePanel;
     }
@@ -91,13 +91,13 @@ public sealed class PageStrip : UserControl
 
         if (e.OldValue is WhiteboardViewModel old)
         {
-            old.Pages.PropertyChanged         -= strip.OnPagesPropertyChanged;
+            old.Pages.PropertyChanged -= strip.OnPagesPropertyChanged;
             old.Pages.Pages.CollectionChanged -= strip.OnCollectionChanged;
         }
 
         if (e.NewValue is WhiteboardViewModel vm)
         {
-            vm.Pages.PropertyChanged         += strip.OnPagesPropertyChanged;
+            vm.Pages.PropertyChanged += strip.OnPagesPropertyChanged;
             vm.Pages.Pages.CollectionChanged += strip.OnCollectionChanged;
             strip.Rebuild(vm);
         }
@@ -125,14 +125,14 @@ public sealed class PageStrip : UserControl
             var p = page;
             var btn = new Button
             {
-                Height            = 26,
-                Padding           = new Thickness(10, 0, 10, 0),
-                Margin            = new Thickness(2, 0, 2, 0),
-                FontSize          = 12,
-                Cursor            = Cursors.Hand,
-                Tag               = p,
+                Height = 26,
+                Padding = new Thickness(10, 0, 10, 0),
+                Margin = new Thickness(2, 0, 2, 0),
+                FontSize = 12,
+                Cursor = Cursors.Hand,
+                Tag = p,
                 VerticalAlignment = VerticalAlignment.Center,
-                BorderThickness   = new Thickness(1),
+                BorderThickness = new Thickness(1),
             };
             btn.Content = (string.IsNullOrWhiteSpace(p.Title) || p.Title == "Page")
                 ? $"第 {num} 页"
@@ -150,7 +150,7 @@ public sealed class PageStrip : UserControl
         foreach (var child in _pagePanel.Children.OfType<Button>())
         {
             bool active = child.Tag is PageModel p && ReferenceEquals(p, current);
-            child.Background  = new SolidColorBrush(active
+            child.Background = new SolidColorBrush(active
                 ? Color.FromRgb(0xCC, 0xE4, 0xFF)
                 : Color.FromRgb(0xE8, 0xE8, 0xE8));
             child.BorderBrush = new SolidColorBrush(active

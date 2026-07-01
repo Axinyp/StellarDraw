@@ -10,22 +10,23 @@ public sealed class CompositeCommand : IWhiteboardCommand
     private readonly IReadOnlyList<IWhiteboardCommand> _commands;
 
     public string GroupLabel { get; }
-    public string GroupId    { get; }
+    public string GroupId { get; }
 
     public CompositeCommand(IReadOnlyList<IWhiteboardCommand> commands,
         string groupLabel = "AI 操作", string? groupId = null)
     {
-        _commands  = commands;
+        _commands = commands;
         GroupLabel = groupLabel;
-        GroupId    = groupId ?? Guid.NewGuid().ToString("N");
+        GroupId = groupId ?? Guid.NewGuid().ToString("N");
     }
 
     public IReadOnlyList<Guid> AffectedObjectIds =>
         _commands.SelectMany(c => c.AffectedObjectIds).Distinct().ToList();
 
     // 批量命令不支持单对象粒度撤销，返回 false/null
-    public bool                SupportsObjectUndo(Guid _) => false;
-    public IWhiteboardCommand? CreateObjectUndo(Guid _)   => null;
+    public bool SupportsObjectUndo(Guid _) => false;
+
+    public IWhiteboardCommand? CreateObjectUndo(Guid _) => null;
 
     public void Execute()
     {

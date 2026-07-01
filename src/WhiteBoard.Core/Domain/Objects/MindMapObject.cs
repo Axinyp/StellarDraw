@@ -29,6 +29,7 @@ public sealed class MindMapData
     public List<MindMapData> Children { get; set; } = [];
 
     public string ToJson() => JsonSerializer.Serialize(this);
+
     public static MindMapData FromJson(string json) =>
         JsonSerializer.Deserialize<MindMapData>(json) ?? new MindMapData();
 }

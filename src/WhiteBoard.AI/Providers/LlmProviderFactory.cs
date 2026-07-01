@@ -22,11 +22,11 @@ public static class LlmProviderFactory
     {
         return settings.LlmProviderType.ToLowerInvariant() switch
         {
-            "ollama"    => CreateOllamaCompatible(settings),
-            "openai"    => CreateOpenAI(settings, secrets),
+            "ollama" => CreateOllamaCompatible(settings),
+            "openai" => CreateOpenAI(settings, secrets),
             "anthropic" => CreateAnthropic(settings, secrets),
-            "azure"     => CreateAzureOpenAI(settings, secrets),
-            "custom"    => CreateCustomEndpoint(settings, secrets),
+            "azure" => CreateAzureOpenAI(settings, secrets),
+            "custom" => CreateCustomEndpoint(settings, secrets),
             var unknown => throw new NotSupportedException(
                 $"Unknown LLM provider: '{unknown}'. " +
                 "Supported: ollama, openai, anthropic, azure, custom")
@@ -36,7 +36,7 @@ public static class LlmProviderFactory
     // Ollama supports OpenAI-compatible /v1 endpoint — no separate package needed.
     private static IChatClient CreateOllamaCompatible(AIWhiteboardSettings s)
     {
-        var baseUrl  = string.IsNullOrWhiteSpace(s.LlmEndpoint)
+        var baseUrl = string.IsNullOrWhiteSpace(s.LlmEndpoint)
             ? "http://localhost:11434"
             : s.LlmEndpoint.TrimEnd('/');
         var endpoint = new Uri($"{baseUrl}/v1");
@@ -57,7 +57,7 @@ public static class LlmProviderFactory
 
     private static IChatClient CreateAnthropic(AIWhiteboardSettings s, ISecretStore secrets)
     {
-        var apiKey   = LoadKey(s.LlmApiKeyRef, secrets, "Anthropic");
+        var apiKey = LoadKey(s.LlmApiKeyRef, secrets, "Anthropic");
         var endpoint = string.IsNullOrWhiteSpace(s.LlmEndpoint)
             ? "https://api.anthropic.com/v1"
             : s.LlmEndpoint;

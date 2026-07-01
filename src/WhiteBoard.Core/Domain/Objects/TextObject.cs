@@ -3,13 +3,13 @@ namespace WhiteBoard.Core.Domain.Objects;
 /// <summary>文本对象：存储富文本内容与字体样式，由 <see cref="UI.Rendering.InkRenderer"/> 渲染为 FormattedText。</summary>
 public sealed class TextObject : WhiteboardObject
 {
-    public string    Content { get; set; }
-    public TextStyle Style   { get; set; }
+    public string Content { get; set; }
+    public TextStyle Style { get; set; }
 
     public TextObject(string content, TextStyle style, float x, float y, float width, float height)
     {
         Content = content;
-        Style   = style;
+        Style = style;
         SetBounds(x, y, width, height);
     }
 
@@ -18,13 +18,13 @@ public sealed class TextObject : WhiteboardObject
         : base(id, bx, by, bw, bh, transform)
     {
         Content = content;
-        Style   = style;
+        Style = style;
     }
 }
 
 public sealed record TextStyle(
     string FontFamily,
-    float  FontSize,
-    bool   Bold,
-    bool   Italic,
-    uint   ColorArgb);
+    float FontSize,
+    bool Bold,
+    bool Italic,
+    uint ColorArgb);

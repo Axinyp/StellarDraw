@@ -2,14 +2,14 @@ namespace WhiteBoard.Contracts.Services;
 
 public interface IOcrStrategy
 {
-    string   Name               { get; }
-    bool     RequiresInternet   { get; }
+    string Name { get; }
+    bool RequiresInternet { get; }
     string[] SupportedLanguages { get; }
 
     Task<OcrResult> RecognizeAsync(
         IReadOnlyList<StrokePoints> strokes,
-        string?                    languageHint,
-        CancellationToken          ct);
+        string? languageHint,
+        CancellationToken ct);
 }
 
 public record OcrResult(bool Success, string Text, float Confidence, IReadOnlyList<OcrWord> Words);

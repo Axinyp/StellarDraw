@@ -1,4 +1,3 @@
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -16,21 +15,21 @@ namespace WhiteBoard.UI.ViewModels;
 public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
 {
     private readonly WhiteboardSession _session;
-    private readonly Dispatcher        _dispatcher;
+    private readonly Dispatcher _dispatcher;
 
-    public ToolbarViewModel  Toolbar { get; }
-    public PageListViewModel Pages   { get; }
+    public ToolbarViewModel Toolbar { get; }
+    public PageListViewModel Pages { get; }
 
-    public ICommand UndoCommand          { get; }
-    public ICommand RedoCommand          { get; }
-    public ICommand ClearPageCommand     { get; }
-    public ICommand SelectCommand        { get; }
-    public ICommand InsertShapeCommand   { get; }
-    public ICommand InsertImageCommand   { get; }
-    public ICommand AddPageCommand       { get; }
+    public ICommand UndoCommand { get; }
+    public ICommand RedoCommand { get; }
+    public ICommand ClearPageCommand { get; }
+    public ICommand SelectCommand { get; }
+    public ICommand InsertShapeCommand { get; }
+    public ICommand InsertImageCommand { get; }
+    public ICommand AddPageCommand { get; }
     public ICommand DeleteSelectedCommand { get; }
-    public ICommand CopySelectedCommand   { get; }
-    public ICommand BringToFrontCommand   { get; }
+    public ICommand CopySelectedCommand { get; }
+    public ICommand BringToFrontCommand { get; }
 
     /// <summary>已提交层需要重绘时在 UI 线程触发（由 Session 执行器线程通过 Dispatcher 转发）。</summary>
     public event Action? RedrawRequested;
@@ -40,22 +39,22 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
 
     public WhiteboardViewModel(WhiteboardSession session, Dispatcher dispatcher)
     {
-        _session    = session;
+        _session = session;
         _dispatcher = dispatcher;
 
         Toolbar = new ToolbarViewModel();
-        Pages   = new PageListViewModel(session.Pages);
+        Pages = new PageListViewModel(session.Pages);
 
-        UndoCommand            = new RelayCommand(Undo,    () => _session.History.CanUndo);
-        RedoCommand            = new RelayCommand(Redo,    () => _session.History.CanRedo);
-        ClearPageCommand       = new RelayCommand(ClearPage);
-        SelectCommand          = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
-        InsertShapeCommand     = new RelayCommand<string>(InsertShape);
-        InsertImageCommand     = new RelayCommand(InsertImage);
-        AddPageCommand         = new RelayCommand(AddPage);
-        DeleteSelectedCommand  = new RelayCommand(() => _ = DeleteSelectedAsync());
-        CopySelectedCommand    = new RelayCommand(() => _ = CopySelectedAsync());
-        BringToFrontCommand    = new RelayCommand(() => _ = BringToFrontSelectedAsync());
+        UndoCommand = new RelayCommand(Undo, () => _session.History.CanUndo);
+        RedoCommand = new RelayCommand(Redo, () => _session.History.CanRedo);
+        ClearPageCommand = new RelayCommand(ClearPage);
+        SelectCommand = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
+        InsertShapeCommand = new RelayCommand<string>(InsertShape);
+        InsertImageCommand = new RelayCommand(InsertImage);
+        AddPageCommand = new RelayCommand(AddPage);
+        DeleteSelectedCommand = new RelayCommand(() => _ = DeleteSelectedAsync());
+        CopySelectedCommand = new RelayCommand(() => _ = CopySelectedAsync());
+        BringToFrontCommand = new RelayCommand(() => _ = BringToFrontSelectedAsync());
 
         SubscribeToCurrentPage();
         Pages.PropertyChanged += (_, e) =>
@@ -65,9 +64,9 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         };
     }
 
-    public PageModel         CurrentPage => _session.Current;
-    public IStrokePredictor? Predictor   => _session.Predictor;
-    public SelectionModel    Selection   => _session.Selection;
+    public PageModel CurrentPage => _session.Current;
+    public IStrokePredictor? Predictor => _session.Predictor;
+    public SelectionModel Selection => _session.Selection;
 
     public void NotifySelectionChanged()
         => _dispatcher.BeginInvoke(() => SelectionChanged?.Invoke(), DispatcherPriority.Render);
@@ -78,7 +77,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     {
         if (points.Count < 2) return;
 
-        var style  = BuildStyle();
+        var style = BuildStyle();
         var stroke = new StrokeObject(points, style); // 使用自动计算 Bounds 的构造函数
 
         await _session.AddStrokeAsync(stroke);
@@ -162,8 +161,9 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         _session.PostOperationAsync(() =>
         {
             _session.History.Undo();
-        }).AsTask().ContinueWith(_ => RequestRedraw(),
-            TaskContinuationOptions.ExecuteSynchronously);
+        }).AsTask().ContinueWith(_ =>
+            // 续体可能在执行器线程触发，重绘涉及 DispatcherObject，必须 marshal 回 UI 线程。
+            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
     }
 
     private void Redo()
@@ -171,8 +171,9 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         _session.PostOperationAsync(() =>
         {
             _session.History.Redo();
-        }).AsTask().ContinueWith(_ => RequestRedraw(),
-            TaskContinuationOptions.ExecuteSynchronously);
+        }).AsTask().ContinueWith(_ =>
+            // 同 Undo：避免在执行器线程直接触碰 UI 渲染。
+            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
     }
 
     private void AddPage()
@@ -190,16 +191,16 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     {
         if (_subscribedPage is not null)
         {
-            _subscribedPage.ObjectAdded   -= OnObjectChanged;
+            _subscribedPage.ObjectAdded -= OnObjectChanged;
             _subscribedPage.ObjectRemoved -= OnObjectChanged;
-            _subscribedPage.Cleared       -= OnPageCleared;
+            _subscribedPage.Cleared -= OnPageCleared;
         }
         _subscribedPage = Pages.CurrentPage;
         if (_subscribedPage is not null)
         {
-            _subscribedPage.ObjectAdded   += OnObjectChanged;
+            _subscribedPage.ObjectAdded += OnObjectChanged;
             _subscribedPage.ObjectRemoved += OnObjectChanged;
-            _subscribedPage.Cleared       += OnPageCleared;
+            _subscribedPage.Cleared += OnPageCleared;
         }
     }
 
@@ -218,15 +219,15 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         var penType = Toolbar.CurrentTool switch
         {
             ToolType.Highlighter => PenType.Highlighter,
-            ToolType.Marker      => PenType.Marker,
-            _                    => PenType.Pen,
+            ToolType.Marker => PenType.Marker,
+            _ => PenType.Pen,
         };
         return new StrokeStyle(
             penType,
             InkType.Normal,
             Toolbar.PenColor,
             Toolbar.Thickness,
-            IsFilled:    false,
+            IsFilled: false,
             IsAntiAlias: Toolbar.IsAntiAlias);
     }
 
@@ -240,11 +241,11 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     {
         var type = shapeType?.ToLowerInvariant() switch
         {
-            "circle"   => ShapeType.Circle,
+            "circle" => ShapeType.Circle,
             "triangle" => ShapeType.Triangle,
-            "line"     => ShapeType.Line,
-            "arrow"    => ShapeType.Arrow,
-            _          => ShapeType.Rectangle,
+            "line" => ShapeType.Line,
+            "arrow" => ShapeType.Arrow,
+            _ => ShapeType.Rectangle,
         };
         var w = _session.CanvasWidth;
         var h = _session.CanvasHeight;
@@ -258,7 +259,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title  = "选择图片",
+            Title = "选择图片",
             Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*",
         };
         if (dlg.ShowDialog() != true) return;
@@ -267,24 +268,24 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         {
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
-            bitmap.UriSource        = new Uri(dlg.FileName);
-            bitmap.CacheOption      = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions    = BitmapCreateOptions.None;
+            bitmap.UriSource = new Uri(dlg.FileName);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.None;
             bitmap.EndInit();
             bitmap.Freeze();
 
-            var raw     = System.IO.File.ReadAllBytes(dlg.FileName);
-            var hash    = System.Security.Cryptography.SHA256.HashData(raw);
+            var raw = System.IO.File.ReadAllBytes(dlg.FileName);
+            var hash = System.Security.Cryptography.SHA256.HashData(raw);
             var assetId = BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant();
 
             ImageAssetStore.Store(assetId, bitmap);
 
-            var maxW  = Math.Min(bitmap.PixelWidth, 600f);
+            var maxW = Math.Min(bitmap.PixelWidth, 600f);
             var scale = maxW / bitmap.PixelWidth;
-            var imgW  = (float)(bitmap.PixelWidth  * scale);
-            var imgH  = (float)(bitmap.PixelHeight * scale);
-            var x     = (_session.CanvasWidth  - imgW) / 2;
-            var y     = (_session.CanvasHeight - imgH) / 2;
+            var imgW = (float)(bitmap.PixelWidth * scale);
+            var imgH = (float)(bitmap.PixelHeight * scale);
+            var x = (_session.CanvasWidth - imgW) / 2;
+            var y = (_session.CanvasHeight - imgH) / 2;
 
             var image = new ImageObject(assetId, x, y, imgW, imgH);
             _session.AddImageAsync(image).ContinueWith(_ =>
@@ -300,9 +301,9 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     {
         if (_subscribedPage is not null)
         {
-            _subscribedPage.ObjectAdded   -= OnObjectChanged;
+            _subscribedPage.ObjectAdded -= OnObjectChanged;
             _subscribedPage.ObjectRemoved -= OnObjectChanged;
-            _subscribedPage.Cleared       -= OnPageCleared;
+            _subscribedPage.Cleared -= OnPageCleared;
         }
         Pages.Dispose();
     }

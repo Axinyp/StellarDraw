@@ -18,6 +18,8 @@
     <ProjectReference Include="..\WhiteBoard.Protocol\WhiteBoard.Protocol.csproj" />
     <!-- WhiteBoard.UI 传递引入 Core + AI，Host 通过 SharedAssemblies 与 Plugin 共享这些程序集 -->
     <ProjectReference Include="..\WhiteBoard.UI\WhiteBoard.UI.csproj" />
+    <!-- MCP 内嵌服务宿主 wiring 所需（EmbeddedMcpServerHost / McpSessionRegistry / TokenFactory） -->
+    <ProjectReference Include="..\WhiteBoard.Mcp.Core\WhiteBoard.Mcp.Core.csproj" />
     <!-- 编译时不引用，但确保 Plugin 先于 Host 构建 -->
     <ProjectReference Include="..\WhiteBoard.Plugin\WhiteBoard.Plugin.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

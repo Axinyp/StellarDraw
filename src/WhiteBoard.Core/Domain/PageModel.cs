@@ -12,23 +12,25 @@ namespace WhiteBoard.Core.Domain;
 /// </summary>
 public sealed class PageModel
 {
-    public string Id         { get; }
-    public string Title      { get; set; }
+    public string Id { get; }
+    public string Title { get; set; }
     public string Background { get; set; }
-    public long   Version    => _version;
+    public long Version => _version;
 
     private readonly List<WhiteboardObject> _objects = [];
-    private readonly SpatialIndex           _index   = new();
-    private long                            _version;
+    private readonly SpatialIndex _index = new();
+    private long _version;
 
     public event Action<WhiteboardObject>? ObjectAdded;
+
     public event Action<WhiteboardObject>? ObjectRemoved;
-    public event Action?                   Cleared;
+
+    public event Action? Cleared;
 
     public PageModel(string? id = null, string title = "Page", string background = "white")
     {
-        Id         = id ?? Guid.NewGuid().ToString("N");
-        Title      = title;
+        Id = id ?? Guid.NewGuid().ToString("N");
+        Title = title;
         Background = background;
     }
 

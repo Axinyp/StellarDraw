@@ -15,9 +15,11 @@ public interface IPlugin : IAsyncDisposable
     string PluginId { get; }
 
     /// <summary>插件版本号（SemVer 格式）。</summary>
-    string Version  { get; }
+    string Version { get; }
 
     Task InitializeAsync(IPluginMessageBus bus, IHostCapabilities host, CancellationToken ct);
+
     Task StartAsync(CancellationToken ct);
+
     Task StopAsync(CancellationToken ct);
 }

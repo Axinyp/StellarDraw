@@ -27,7 +27,8 @@ public sealed class TableData
     public int Cols { get; set; }
     public string[] Cells { get; set; } = [];   // row-major: [row*Cols + col]
 
-    public TableData() { }
+    public TableData()
+    { }
 
     public TableData(int rows, int cols)
     {
@@ -38,9 +39,11 @@ public sealed class TableData
     }
 
     public string GetCell(int row, int col) => Cells[row * Cols + col];
+
     public void SetCell(int row, int col, string value) => Cells[row * Cols + col] = value;
 
     public string ToJson() => JsonSerializer.Serialize(this);
+
     public static TableData FromJson(string json) =>
         JsonSerializer.Deserialize<TableData>(json) ?? new TableData();
 }

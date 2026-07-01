@@ -4,7 +4,7 @@ namespace WhiteBoard.AI.Abstractions;
 public interface ISttProvider
 {
     string ProviderName { get; }
-    bool   IsAvailable  { get; }
+    bool IsAvailable { get; }
 
     /// <summary>识别音频字节流，返回转录文字。</summary>
     Task<SttResult> TranscribeAsync(byte[] audioData, string language = "zh",
@@ -12,7 +12,7 @@ public interface ISttProvider
 }
 
 public sealed record SttResult(
-    string  Text,
-    float   Confidence,
-    string  Language,
-    bool    IsPartial);
+    string Text,
+    float Confidence,
+    string Language,
+    bool IsPartial);
