@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Protocol;
 using WhiteBoard.Mcp.Core.Registry;
 using WhiteBoard.Mcp.Core.Server;
 
@@ -56,8 +57,14 @@ public sealed class EmbeddedMcpServerHost : IAsyncDisposable
                     var tools = bridge.ExportTools(session.Registry,
                         new McpExportOptions(binding.Policy.AllowDestructiveTools));
 
+                    // 必须显式初始化 tools capability 与集合：否则 ToolCollection 为 null，
+                    // 上面的 ?.Add 被短路、工具不注册，server 也不声明 tools capability，
+                    // 客户端 tools/list 会收到 -32601 (Method not available)。
+                    mcpOpts.Capabilities ??= new ServerCapabilities();
+                    mcpOpts.Capabilities.Tools ??= new ToolsCapability();
+                    mcpOpts.ToolCollection ??= new();
                     foreach (var tool in tools)
-                        mcpOpts.ToolCollection?.Add(tool);
+                        mcpOpts.ToolCollection.Add(tool);
                 };
             });
 

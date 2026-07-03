@@ -50,6 +50,9 @@ public sealed class InkSurface : FrameworkElement
     // 绘图状态
     private List<PressurePoint>? _currentPoints;
 
+    // Shape 工具：拖拽绘制形状的起点（文档坐标），null 表示当前未在绘制形状
+    private Point? _shapeStartDoc;
+
     private int _primaryTouchId = -1;
     private int _activeTouchCount;
 
@@ -286,6 +289,53 @@ public sealed class InkSurface : FrameworkElement
     private void ClearWetInk()
     { using (_wetInkVisual.RenderOpen()) { } }
 
+    // ── Shape 工具：拖拽绘制形状 ────────────────────────────────────────────────
+
+    /// <summary>在湿墨迹层（文档空间）绘制形状预览，起点 _shapeStartDoc → 当前点构成矩形。</summary>
+    private void RenderShapePreview(Point currentDoc)
+    {
+        if (_shapeStartDoc is not { } start) return;
+        var vm = ViewModel;
+        if (vm is null) return;
+
+        float x = (float)Math.Min(start.X, currentDoc.X);
+        float y = (float)Math.Min(start.Y, currentDoc.Y);
+        float w = (float)Math.Abs(currentDoc.X - start.X);
+        float h = (float)Math.Abs(currentDoc.Y - start.Y);
+
+        using var dc = _wetInkVisual.RenderOpen();
+        if (w < 1 || h < 1) return;
+        // 半透明蓝填充 + 蓝边作预览提示
+        var preview = new WhiteBoard.Core.Domain.Objects.ShapeObject(
+            WhiteboardViewModel.ParseShapeType(vm.Toolbar.PendingShapeType),
+            0x330078D4u, 0xFF0078D4u, 1.5f, true, x, y, w, h);
+        InkRenderer.RenderObject(dc, preview);
+    }
+
+    /// <summary>松开时按拖出的矩形提交形状；拖拽过小视为点击，用默认大小居中于落点。</summary>
+    private void CommitShape(Point currentDoc)
+    {
+        if (_shapeStartDoc is not { } start) return;
+        var vm = ViewModel;
+        _shapeStartDoc = null;
+        ClearWetInk();
+        if (vm is null) return;
+
+        float x = (float)Math.Min(start.X, currentDoc.X);
+        float y = (float)Math.Min(start.Y, currentDoc.Y);
+        float w = (float)Math.Abs(currentDoc.X - start.X);
+        float h = (float)Math.Abs(currentDoc.Y - start.Y);
+
+        if (w < 5 || h < 5)   // 未拖拽（点击）→ 默认尺寸居中于落点
+        {
+            w = 160; h = 120;
+            x = (float)currentDoc.X - w / 2;
+            y = (float)currentDoc.Y - h / 2;
+        }
+
+        vm.InsertShapeAt(vm.Toolbar.PendingShapeType, x, y, w, h);
+    }
+
     private void ClearPredictedInk()
     { using (_predictedVisual.RenderOpen()) { } }
 
@@ -328,6 +378,10 @@ public sealed class InkSurface : FrameworkElement
         {
             _controller?.OnDown(screen);
         }
+        else if (vm.Toolbar.CurrentTool == ToolType.Shape)
+        {
+            _shapeStartDoc = doc;
+        }
         else if (vm.Toolbar.CurrentTool is ToolType.Pen or ToolType.Highlighter or ToolType.Marker)
         {
             _currentPoints = [new PressurePoint((float)doc.X, (float)doc.Y, 0.5f, 0)];
@@ -353,6 +407,12 @@ public sealed class InkSurface : FrameworkElement
             _viewMatrix.Translate(dx, dy);
             _viewMatrixTransform.Matrix = _viewMatrix;
             _controller?.RenderOverlay();
+            return;
+        }
+
+        if (vm.Toolbar.CurrentTool == ToolType.Shape)
+        {
+            if (_shapeStartDoc is not null) RenderShapePreview(doc);
             return;
         }
 
@@ -404,6 +464,12 @@ public sealed class InkSurface : FrameworkElement
             {
                 await _controller.OnUpAsync(screen);
                 vm.NotifySelectionChanged();
+                return;
+            }
+
+            if (vm.Toolbar.CurrentTool == ToolType.Shape)
+            {
+                CommitShape(ToDoc(screen));
                 return;
             }
 
@@ -513,6 +579,11 @@ public sealed class InkSurface : FrameworkElement
             _controller?.OnDown(screen);
             return;
         }
+        if (vm.Toolbar.CurrentTool == ToolType.Shape)
+        {
+            _shapeStartDoc = doc;
+            return;
+        }
         if (vm.Toolbar.CurrentTool is ToolType.Pen or ToolType.Highlighter or ToolType.Marker)
             _currentPoints = [new PressurePoint((float)doc.X, (float)doc.Y, 0.5f, 0)];
     }
@@ -534,6 +605,12 @@ public sealed class InkSurface : FrameworkElement
             _viewMatrix.Translate(cur.X - _panStartScreen.X, cur.Y - _panStartScreen.Y);
             _viewMatrixTransform.Matrix = _viewMatrix;
             _controller?.RenderOverlay();
+            return;
+        }
+
+        if (vm.Toolbar.CurrentTool == ToolType.Shape)
+        {
+            if (_shapeStartDoc is not null) RenderShapePreview(doc);
             return;
         }
 
@@ -574,6 +651,12 @@ public sealed class InkSurface : FrameworkElement
                 var screen = e.GetPosition(this);
                 await _controller.OnUpAsync(screen);
                 vm.NotifySelectionChanged();
+                return;
+            }
+
+            if (vm.Toolbar.CurrentTool == ToolType.Shape)
+            {
+                CommitShape(ToDoc(e.GetPosition(this)));
                 return;
             }
 

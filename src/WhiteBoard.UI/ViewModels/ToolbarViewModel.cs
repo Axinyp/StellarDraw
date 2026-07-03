@@ -5,7 +5,7 @@ namespace WhiteBoard.UI.ViewModels;
 
 /// <summary>工具类型枚举：对应工具栏各按钮功能。</summary>
 public enum ToolType
-{ Pen, Highlighter, Marker, Eraser, Select, Hand }
+{ Pen, Highlighter, Marker, Eraser, Select, Hand, Shape }
 
 /// <summary>
 /// 工具栏 ViewModel：维护当前工具、画笔颜色、笔宽、抗锯齿状态。
@@ -17,6 +17,7 @@ public sealed class ToolbarViewModel : ViewModelBase
     private uint _penColor = 0xFF000000u;
     private float _thickness = 3f;
     private bool _isAntiAlias = true;
+    private string _pendingShapeType = "rectangle";
 
     public ToolType CurrentTool
     {
@@ -49,6 +50,14 @@ public sealed class ToolbarViewModel : ViewModelBase
     public bool IsEraserActive => _currentTool == ToolType.Eraser;
     public bool IsSelectActive => _currentTool == ToolType.Select;
     public bool IsHandActive => _currentTool == ToolType.Hand;
+    public bool IsShapeActive => _currentTool == ToolType.Shape;
+
+    /// <summary>待绘制的形状类型（rectangle/circle/triangle/line/arrow）。Shape 工具激活时生效。</summary>
+    public string PendingShapeType
+    {
+        get => _pendingShapeType;
+        set => Set(ref _pendingShapeType, value);
+    }
 
     // Tool commands
     public ICommand SelectPenCommand => new RelayCommand(() => SetTool(ToolType.Pen));
@@ -59,6 +68,13 @@ public sealed class ToolbarViewModel : ViewModelBase
     public ICommand SelectSelectCommand => new RelayCommand(() => SetTool(ToolType.Select));
     public ICommand SelectHandCommand => new RelayCommand(() => SetTool(ToolType.Hand));
 
+    /// <summary>选中形状工具并记录待绘制形状类型（由工具栏形状下拉调用）。</summary>
+    public void SetShapeTool(string shapeType)
+    {
+        PendingShapeType = shapeType;
+        SetTool(ToolType.Shape);
+    }
+
     private void SetTool(ToolType t)
     {
         CurrentTool = t;
@@ -67,6 +83,7 @@ public sealed class ToolbarViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsEraserActive));
         OnPropertyChanged(nameof(IsSelectActive));
         OnPropertyChanged(nameof(IsHandActive));
+        OnPropertyChanged(nameof(IsShapeActive));
     }
 
     private static Color ArgbToColor(uint argb)

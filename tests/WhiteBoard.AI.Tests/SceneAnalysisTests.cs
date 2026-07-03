@@ -36,7 +36,7 @@ public class SceneAnalysisTests
 
         Assert.NotNull(desc);
         Assert.Contains("generate_and_insert_image", desc, StringComparison.Ordinal);
-        Assert.Contains("不适用", desc,      StringComparison.Ordinal);
+        Assert.Contains("复杂图像", desc, StringComparison.Ordinal);
     }
 
     [Fact]

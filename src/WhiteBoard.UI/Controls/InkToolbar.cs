@@ -207,13 +207,13 @@ public sealed class InkToolbar : UserControl
 
         panel.Children.Add(MakeSep());
 
-        // 插入形状（下拉菜单）
+        // 选择形状后进入 Shape 工具，由用户在画布拖拽确定位置与大小（drag-to-create）
         var shapeMenu = new ContextMenu();
         foreach (var (type, label) in ShapeDefs)
         {
             var captured = type;
             var item = new MenuItem { Header = label };
-            item.Click += (_, _) => Board?.InsertShapeCommand.Execute(captured);
+            item.Click += (_, _) => Board?.Toolbar.SetShapeTool(captured);
             shapeMenu.Items.Add(item);
         }
 

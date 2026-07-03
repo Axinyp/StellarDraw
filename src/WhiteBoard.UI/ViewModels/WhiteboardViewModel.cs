@@ -239,21 +239,26 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
 
     private void InsertShape(string? shapeType)
     {
-        var type = shapeType?.ToLowerInvariant() switch
-        {
-            "circle" => ShapeType.Circle,
-            "triangle" => ShapeType.Triangle,
-            "line" => ShapeType.Line,
-            "arrow" => ShapeType.Arrow,
-            _ => ShapeType.Rectangle,
-        };
         var w = _session.CanvasWidth;
         var h = _session.CanvasHeight;
-        var shape = new ShapeObject(type, 0xFFFFFFFF, 0xFF333333, 2f, true,
-            w / 2 - 80, h / 2 - 60, 160, 120);
+        InsertShapeAt(shapeType, w / 2 - 80, h / 2 - 60, 160, 120);
+    }
+
+    /// <summary>
+    /// 在指定文档矩形内插入形状（供画布拖拽绘制使用）。
+    /// 由 InkSurface 在 Shape 工具下拖拽松开时调用，传入用户拉出的位置与大小。
+    /// </summary>
+    public void InsertShapeAt(string? shapeType, float x, float y, float w, float h)
+    {
+        var shape = new ShapeObject(ParseShapeType(shapeType), 0xFFFFFFFF, 0xFF333333, 2f, true,
+            x, y, w, h);
         _session.AddShapeAsync(shape).ContinueWith(_ =>
             _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
     }
+
+    /// <summary>将形状类型字符串解析为 <see cref="ShapeType"/>，未知值回退为矩形（UI 只传合法值）。</summary>
+    public static ShapeType ParseShapeType(string? shapeType) =>
+        ShapeTypeParser.TryParse(shapeType, out var t) ? t : ShapeType.Rectangle;
 
     private void InsertImage()
     {

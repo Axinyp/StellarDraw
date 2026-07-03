@@ -40,3 +40,36 @@ public enum ShapeType : byte
     Arrow = 4,
     Triangle = 5,
 }
+
+/// <summary>
+/// 形状类型字符串解析（含常见别名容错）。统一 UI 工具栏与 AI 工具的解析逻辑。
+/// 注意：Circle 渲染即按 Bounds 画椭圆，故 ellipse/oval 也映射到 Circle。
+/// </summary>
+public static class ShapeTypeParser
+{
+    /// <summary>供工具描述/错误信息展示的受支持取值。</summary>
+    public const string Supported = "rectangle, circle, ellipse, triangle, line, arrow";
+
+    /// <summary>解析形状类型；识别失败返回 false（调用方决定报错或回退）。</summary>
+    public static bool TryParse(string? value, out ShapeType type)
+    {
+        type = ShapeType.Rectangle;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "rectangle" or "rect" or "square":
+                type = ShapeType.Rectangle; return true;
+            case "circle" or "ellipse" or "oval":
+                type = ShapeType.Circle; return true;   // Circle 按 Bounds 画椭圆，宽≠高即椭圆
+            case "line":
+                type = ShapeType.Line; return true;
+            case "arrow":
+                type = ShapeType.Arrow; return true;
+            case "triangle":
+                type = ShapeType.Triangle; return true;
+            default:
+                return false;
+        }
+    }
+}

@@ -42,14 +42,11 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
     public async Task<ToolResult> InsertShapeAsync(ShapeSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default)
     {
-        var shapeType = spec.ShapeType.ToLowerInvariant() switch
-        {
-            "circle" => ShapeType.Circle,
-            "line" => ShapeType.Line,
-            "arrow" => ShapeType.Arrow,
-            "triangle" => ShapeType.Triangle,
-            _ => ShapeType.Rectangle,
-        };
+        // 未知形状类型直接报错，避免静默降级为矩形却返回 ok（AI 据此改用 draw_path 或换类型）
+        if (!ShapeTypeParser.TryParse(spec.ShapeType, out var shapeType))
+            return ToolResult.Error(
+                $"不支持的 shapeType '{spec.ShapeType}'。支持: {ShapeTypeParser.Supported}；" +
+                "复杂/任意轮廓请改用 draw_path，复杂图像请用 generate_and_insert_image。");
 
         var shape = new ShapeObject(
             shapeType,
