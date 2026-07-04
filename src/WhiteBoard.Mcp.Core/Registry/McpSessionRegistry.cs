@@ -88,6 +88,21 @@ public sealed class McpSessionRegistry : IMcpSessionRegistry, IDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 将所有仍有效（未撤销、未过期）的 Token 绑定重新指向新的会话实例。
+    /// 用于设置保存时重建 <see cref="WhiteboardAISession"/> 后，把已签发的 Token 移交给新会话，
+    /// 避免因旧会话被回收导致 Token 失效（<see cref="ResolveAsync"/> 会因弱引用失效而拒绝）。
+    /// </summary>
+    public void RebindActiveSessions(WhiteboardAISession session)
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var binding in _bindings.Values)
+        {
+            if (!binding.IsRevoked && binding.ExpiresAt > now)
+                binding.SessionRef = new WeakReference<WhiteboardAISession>(session);
+        }
+    }
+
     private void Cleanup()
     {
         var now = DateTimeOffset.UtcNow;

@@ -31,7 +31,7 @@ public sealed class AIWhiteboardSettings
     // ── STT ────────────────────────────────────────────────────────────────────
 
     [JsonPropertyName("sttProvider")]
-    public string SttProviderType { get; set; } = "whisper";
+    public string SttProviderType { get; set; } = "whisper-local";
 
     [JsonPropertyName("sttLanguage")]
     public string SttLanguage { get; set; } = "zh";

@@ -48,9 +48,11 @@ public sealed class AgentLoop
         _history.TrimToTokenBudget();
 
         var options = new ChatOptions { Tools = [.. tools] };
-        int maxTurns = 20;
+        // 复杂绘图可能需要几十次工具调用；上限过低会导致多步任务半途截断（表现为"没画完就停"）。
+        int maxTurns = 40;
 
-        for (int turn = 0; turn < maxTurns && !ct.IsCancellationRequested; turn++)
+        int turn = 0;
+        for (; turn < maxTurns && !ct.IsCancellationRequested; turn++)
         {
             // ── 流式 LLM 调用（Channel 模式：生产者写，迭代器读，不受 try/catch 限制）─
             var channel = Channel.CreateUnbounded<AgentLoopEvent>(
@@ -129,7 +131,7 @@ public sealed class AgentLoop
                 }
                 catch (Exception ex)
                 {
-                    resultJson = JsonSerializer.Serialize(new { error = ex.Message });
+                    resultJson = JsonSerializer.Serialize(new { error = ex.Message }, Services.AiJson.Options);
                     success = false;
                 }
 
@@ -141,6 +143,12 @@ public sealed class AgentLoop
                 [.. results.Cast<AIContent>()]));
             _history.TrimToTokenBudget();
         }
+
+        // 循环因达到 maxTurns 而自然结束（而非 finishReason/取消触发的 yield break）：
+        // 明确告知用户任务可能未完成，可回复"继续"让 AI 接着执行剩余步骤。
+        if (turn >= maxTurns && !ct.IsCancellationRequested)
+            yield return new TextChunkEvent(
+                "\n\n（已达到单轮最大工具调用轮次上限，任务可能尚未完成——如需继续请回复\"继续\"）");
     }
 
     // ── 私有辅助 ──────────────────────────────────────────────────────────────
@@ -157,13 +165,21 @@ public sealed class AgentLoop
     {
         try
         {
+            var sanitizer = new StreamingToolMarkupSanitizer();
             await foreach (var update in _llm.GetStreamingResponseAsync(
                 _history.Messages, options, ct).ConfigureAwait(false))
             {
                 allUpdates.Add(update);
                 if (!string.IsNullOrEmpty(update.Text))
-                    writer.TryWrite(new TextChunkEvent(update.Text));
+                {
+                    var clean = sanitizer.Push(update.Text);
+                    if (clean.Length > 0)
+                        writer.TryWrite(new TextChunkEvent(clean));
+                }
             }
+            var tail = sanitizer.Flush();
+            if (tail.Length > 0)
+                writer.TryWrite(new TextChunkEvent(tail));
         }
         catch (OperationCanceledException) { /* 正常取消，不写错误事件 */ }
         catch (Exception ex)
@@ -182,8 +198,8 @@ public sealed class AgentLoop
     private static ChatMessage AssembleAssistantMessage(
         IReadOnlyList<ChatResponseUpdate> updates)
     {
-        // 拼接所有文字片段
-        var fullText = string.Concat(updates.Select(u => u.Text ?? ""));
+        // 拼接所有文字片段（清洗掉泄漏的工具调用标记，避免污染历史上下文）
+        var fullText = ToolMarkupSanitizer.Clean(string.Concat(updates.Select(u => u.Text ?? "")));
 
         // 收集工具调用（按 CallId 去重，保留最完整版本）
         var fnCalls = new Dictionary<string, FunctionCallContent>(StringComparer.Ordinal);
@@ -219,7 +235,7 @@ public sealed class AgentLoop
     private static string SerializeArgs(IDictionary<string, object?>? args)
     {
         if (args is null || args.Count == 0) return "{}";
-        try { return JsonSerializer.Serialize(args); }
+        try { return JsonSerializer.Serialize(args, Services.AiJson.Options); }
         catch { return "{}"; }
     }
 

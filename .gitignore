@@ -43,3 +43,6 @@ secrets.json
 Thumbs.db
 desktop.ini
 .ace-tool/
+
+# 本地 Whisper 模型文件（体积大，不入库）
+/models/

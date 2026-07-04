@@ -33,6 +33,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     public sealed class ChatMessage : INotifyPropertyChanged
     {
         private string _text = "";
+        private bool _isProcessExpanded;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -53,6 +54,77 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                 }
             }
         }
+
+        // ── 工具调用过程（可折叠，参考 Cherry Studio）──────────────────────────
+
+        /// <summary>本条 AI 回复期间的工具调用步骤。</summary>
+        public ObservableCollection<ToolStep> Steps { get; } = [];
+
+        /// <summary>是否展开过程详情（默认折叠）。</summary>
+        public bool IsProcessExpanded
+        {
+            get => _isProcessExpanded;
+            set
+            {
+                if (_isProcessExpanded != value)
+                {
+                    _isProcessExpanded = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsProcessExpanded)));
+                }
+            }
+        }
+
+        public bool HasProcess => Steps.Count > 0;
+
+        /// <summary>折叠状态下显示的摘要，如"🔧 3 个工具调用"。</summary>
+        public string ProcessSummary => $"🔧 {Steps.Count} 个工具调用";
+
+        /// <summary>添加一个工具调用步骤并刷新摘要（须在 UI 线程调用）。</summary>
+        public ToolStep AddStep(string toolName, string args)
+        {
+            var step = new ToolStep { ToolName = toolName, Args = args };
+            Steps.Add(step);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasProcess)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessSummary)));
+            return step;
+        }
+    }
+
+    /// <summary>单次工具调用的展示项：名称、入参、结果与状态。</summary>
+    public sealed class ToolStep : INotifyPropertyChanged
+    {
+        private string _result = "";
+        private bool _success;
+        private string _status = "调用中…";
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string ToolName { get; init; } = "";
+        public string Args { get; init; } = "";
+
+        public string Result
+        {
+            get => _result;
+            set { _result = value; Raise(nameof(Result)); Raise(nameof(HasResult)); }
+        }
+
+        public bool Success
+        {
+            get => _success;
+            set { _success = value; Raise(nameof(Success)); }
+        }
+
+        /// <summary>状态图标："调用中…" / "✓" / "✗"。</summary>
+        public string Status
+        {
+            get => _status;
+            set { _status = value; Raise(nameof(Status)); }
+        }
+
+        public bool HasResult => !string.IsNullOrEmpty(_result);
+
+        private void Raise(string name)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
     // ── Observable collections ─────────────────────────────────────────────────
@@ -178,25 +250,35 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
         ToggleSettingsCommand = new RelayCommand(() => ShowSettings = !ShowSettings);
 
         _aiSession.VoiceTextReady += OnVoiceTextReady;
+        _aiSession.VoiceError += OnVoiceError;
     }
 
     // ── Public methods ────────────────────────────────────────────────────────
 
     public async Task SendAsync()
+        => await SendTextAsync(InputText.Trim(), clearInput: true);
+
+    /// <summary>
+    /// 发送一条消息并驱动完整 UI 反馈（用户气泡、状态栏、流式回复、工具调用状态）。
+    /// 打字与语音（PTT/唤醒词）共用此管道，保证两条路径的 UI 表现一致。
+    /// </summary>
+    /// <param name="author">用户气泡署名（语音传入"你（语音）"以区分来源）。</param>
+    /// <param name="clearInput">是否清空输入框（打字发送为 true）。</param>
+    public async Task SendTextAsync(string text, string author = "你", bool clearInput = false)
     {
-        var text = InputText.Trim();
         if (string.IsNullOrEmpty(text) || IsProcessing) return;
 
-        InputText = "";
+        if (clearInput) InputText = "";
         IsProcessing = true;
         StatusBarText = "AI 正在思考…";
         ShowStatusBar = _showStatusBar;
 
-        Messages.Add(new ChatMessage { Author = "你", Text = text, IsUser = true });
+        Messages.Add(new ChatMessage { Author = author, Text = text, IsUser = true });
         var assistantMsg = new ChatMessage { Author = "AI", Text = "" };
         Messages.Add(assistantMsg);
 
         bool firstChunk = true;
+        ToolStep? pendingStep = null;
         _currentCts = new CancellationTokenSource();
 
         try
@@ -215,10 +297,19 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
                         break;
 
                     case ToolCallingEvent toolCall:
+                        // 记入可折叠的过程步骤，而非仅在状态条一闪而过
+                        pendingStep = assistantMsg.AddStep(toolCall.ToolName, toolCall.ArgsJson);
                         StatusBarText = $"正在调用: {toolCall.ToolName}…";
                         break;
 
                     case ToolResultEvent toolResult:
+                        if (pendingStep is not null)
+                        {
+                            pendingStep.Success = toolResult.Success;
+                            pendingStep.Result = toolResult.ResultJson;
+                            pendingStep.Status = toolResult.Success ? "✓" : "✗";
+                            pendingStep = null;
+                        }
                         StatusBarText = toolResult.Success
                             ? $"✓ {toolResult.ToolName}"
                             : $"✗ {toolResult.ToolName}: 失败";
@@ -266,9 +357,18 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     private void StartPtt()
     {
-        _aiSession.StartPtt();
-        IsRecording = true;
-        StatusBarText = "正在录音…";
+        try
+        {
+            _aiSession.StartPtt();
+            IsRecording = true;
+            StatusBarText = "正在录音…";
+        }
+        catch (Exception ex)
+        {
+            // 麦克风不可用 / 无采集设备时 WaveInEvent.StartRecording 会抛异常
+            IsRecording = false;
+            StatusBarText = $"录音启动失败: {ex.Message}";
+        }
     }
 
     private async Task StopPttAsync()
@@ -281,16 +381,31 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
     private void OnVoiceTextReady(object? sender, string text)
     {
-        // VoiceTextReady 由 STT 回调线程触发，而 Messages 已绑定到 ItemsControl，
-        // 非 UI 线程修改绑定集合会抛异常，必须 marshal 回 UI 线程。
-        void AddBubble() =>
-            Messages.Add(new ChatMessage { Author = "你（语音）", Text = text, IsUser = true });
+        // VoiceTextReady 由 STT 回调线程触发；SendTextAsync 会操作绑定集合与 UI 属性，
+        // 必须 marshal 回 UI 线程，然后走与打字一致的发送管道（渲染流式回复与工具状态）。
+        void Send() => _ = SendTextAsync(text, author: "你（语音）");
 
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
-            AddBubble();
+            Send();
         else
-            dispatcher.BeginInvoke(AddBubble);
+            dispatcher.BeginInvoke(Send);
+    }
+
+    private void OnVoiceError(object? sender, string message)
+    {
+        // 语音错误回调可能来自后台线程，marshal 回 UI 线程更新状态栏。
+        void Show()
+        {
+            IsRecording = false;
+            StatusBarText = $"语音错误: {message}";
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Show();
+        else
+            dispatcher.BeginInvoke(Show);
     }
 
     // ── Confirm dialog ────────────────────────────────────────────────────────
@@ -320,6 +435,7 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _aiSession.VoiceTextReady -= OnVoiceTextReady;
+        _aiSession.VoiceError -= OnVoiceError;
         _currentCts?.Cancel();
         _currentCts?.Dispose();
     }

@@ -8,7 +8,7 @@ namespace WhiteBoard.AI.Voice;
 /// 基于 Windows System.Speech 的唤醒词检测器。
 /// 在后台以 RecognizeMode.Multiple 持续监听，仅识别预定义短语，CPU 占用极低。
 /// 无需额外 NuGet 包（已通过 System.Speech 引入）。
-///
+/// 
 /// 局限：识别精度依赖 Windows 语音识别引擎，中文需系统已安装中文语音包。
 /// </summary>
 public sealed class WindowsSpeechWakeWordDetector : IWakeWordDetector

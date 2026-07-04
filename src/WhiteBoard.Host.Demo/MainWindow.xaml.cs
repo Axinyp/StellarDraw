@@ -5,7 +5,9 @@ using WhiteBoard.AI.Providers;
 using WhiteBoard.AI.Providers.ImageGen;
 using WhiteBoard.AI.Session;
 using WhiteBoard.AI.Settings;
+using WhiteBoard.AI.Voice;
 using WhiteBoard.Core.Domain;
+using WhiteBoard.Mcp.Core.Client;
 using WhiteBoard.Mcp.Core.Hosting;
 using WhiteBoard.Mcp.Core.Registry;
 using WhiteBoard.Mcp.Core.Server;
@@ -23,8 +25,13 @@ public partial class MainWindow : Window
 
     private WhiteboardAISession? _aiSession;
     private AiChatViewModel? _aiChatVm;
+    private AiSettingsViewModel? _settingsVm;
     private McpSessionRegistry? _mcpRegistry;
     private EmbeddedMcpServerHost? _mcpHost;
+    private McpClientProvider? _mcpClientProvider;
+
+    /// <summary>最近一次已应用的设置快照，用于保存时做分区差异比对（避免非 MCP 变更也重签 Token）。</summary>
+    private AIWhiteboardSettings? _currentSettings;
 
     public MainWindow()
     {
@@ -146,10 +153,25 @@ public partial class MainWindow : Window
 
     // ── AI 会话初始化 ─────────────────────────────────────────────────────────
 
+    /// <summary>首次加载：从磁盘读取设置，构建会话核心，并按需启动 MCP 服务端子系统。</summary>
     private async Task InitAiSessionAsync(WhiteboardSession session)
     {
-        // 同步路径：调用时已确保旧 session 已被 DisposeAiSessionAsync 清理
         var settings = LoadSettings();
+        await BuildAiSessionCoreAsync(session, settings);
+        _currentSettings = settings;
+
+        // MCP 内嵌服务（含 token 签发与 UI 回写）
+        if (settings.McpServer.Enabled)
+            await InitMcpAsync(settings);
+    }
+
+    /// <summary>
+    /// 构建「会话核心」：LLM、图像生成、语音管道、外部 MCP 客户端工具、聊天 VM 与设置 VM。
+    /// 不涉及 MCP 服务端子系统（registry/host/token），后者由 <see cref="InitMcpAsync"/> 单独管理，
+    /// 以便设置保存时能保留已签发的 Token。
+    /// </summary>
+    private async Task BuildAiSessionCoreAsync(WhiteboardSession session, AIWhiteboardSettings settings)
+    {
         var secrets = new EnvSecretStore();
         var llmProvider = new SettingsBackedLlmProvider(settings, secrets);
 
@@ -160,56 +182,125 @@ public partial class MainWindow : Window
             session.CanvasHeight = (float)PluginHost.ActualHeight;
         }
 
-        var settingsVm = new AiSettingsViewModel();
-        settingsVm.LoadFrom(settings);
-        settingsVm.TestConnectionRequested += OnTestConnectionRequested;
+        _settingsVm = new AiSettingsViewModel();
+        _settingsVm.LoadFrom(settings);
+        _settingsVm.TestConnectionRequested += OnTestConnectionRequested;
 
         // 图像生成 Provider：未启用 / 未配置 Key 时为 null，generate_and_insert_image 工具不注册
         var imageGen = ImageGenProviderFactory.Create(settings, secrets);
 
         _aiSession = new WhiteboardAISession(llmProvider, session, imageGen: imageGen);
-        _aiChatVm = new AiChatViewModel(_aiSession, settingsVm);
+
+        // #1 语音管道：启用时按设置构建 STT（whisper/windows）与可选唤醒词，挂载到会话
+        if (settings.SttEnabled)
+            AttachVoiceSafe(settings, secrets);
+
+        _aiChatVm = new AiChatViewModel(_aiSession, _settingsVm);
         _aiChatVm.SettingsChanged += OnSettingsChanged;
         AiPanel.DataContext = _aiChatVm;
+
+        // #5 外部 MCP 客户端：把已配置的外部 MCP server 工具并入本会话工具集
+        await AttachMcpClientToolsAsync(settings);
 
         TxtInfo.Text += $"  |  AI: {settings.LlmProviderType}/{settings.LlmModel}";
         if (imageGen is not null)
             TxtInfo.Text += $"  |  图像: {settings.ImageGenProviderType}";
-
-        // MCP 内嵌服务（含 token 签发与 UI 回写）
-        if (settings.McpServer.Enabled)
-            await InitMcpAsync(settings, settingsVm);
     }
+
+    /// <summary>按设置构建并挂载语音管道；任何构建失败（如不支持的 provider）仅提示，不影响其余功能。</summary>
+    private void AttachVoiceSafe(AIWhiteboardSettings settings, ISecretStore secrets)
+    {
+        if (_aiSession is null) return;
+        try
+        {
+            var stt = VoiceProviderFactory.CreateStt(settings, secrets);
+
+            // 唤醒词：勾选「启用唤醒词」即挂载检测器（不再额外要求 VoiceMode=wake-word）。
+            // CreateWakeWordDetector 在未启用时返回 null。
+            var wake = VoiceProviderFactory.CreateWakeWordDetector(settings);
+
+            _aiSession.AttachVoice(
+                stt,
+                settings.SttLanguage,
+                wakeWordDetector: wake,
+                utteranceTimeout: TimeSpan.FromSeconds(settings.WakeWordUtteranceSeconds));
+
+            // 把引擎初始化失败（模型缺失 / 缺少语言包等）显式提示，避免"静默无反应"。
+            if (stt is LocalWhisperSttProvider { InitializationError: { } lwErr })
+                SetStatus(lwErr);
+            else if (stt is WindowsSpeechSttProvider { InitializationError: { } sttErr })
+                SetStatus(sttErr);
+            else if (wake is WindowsSpeechWakeWordDetector { InitializationError: { } wakeErr })
+                SetStatus(wakeErr);
+            else
+                SetStatus($"语音已就绪: {settings.SttProviderType}"
+                    + (wake is not null ? $" + 唤醒词「{settings.WakeWord}」" : ""));
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"语音初始化失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>连接已配置且启用的外部 MCP server，拉取其工具并注册进本会话（前缀隔离命名）。</summary>
+    private async Task AttachMcpClientToolsAsync(AIWhiteboardSettings settings)
+    {
+        var enabled = settings.McpClient.Connections.Where(c => c.Enabled).ToList();
+        if (_aiSession is null || enabled.Count == 0) return;
+
+        try
+        {
+            _mcpClientProvider = new McpClientProvider();
+            var specs = enabled.Select(ToConnectionSpec).ToList();
+            await _mcpClientProvider.InitializeAsync(specs);
+
+            var regs = await _mcpClientProvider.GetToolRegistrationsAsync();
+            if (regs.Count > 0)
+            {
+                _aiSession.RegisterExternalTools(
+                    regs.Select(r => (r.Function,
+                                      r.Policy.RequiresConfirmation,
+                                      r.Policy.IsDestructive)).ToList());
+
+                if (_aiChatVm is not null)
+                    _aiChatVm.McpActiveConnections = regs.Select(r => r.ConnectionId).Distinct().Count();
+
+                TxtInfo.Text += $"  |  外部MCP工具: {regs.Count}";
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"MCP 客户端连接失败: {ex.Message}");
+        }
+    }
+
+    private static ExternalMcpConnectionSpec ToConnectionSpec(McpClientConnectionSettings c) => new()
+    {
+        ConnectionId = c.ConnectionId,
+        DisplayName = c.DisplayName,
+        Enabled = c.Enabled,
+        Transport = c.Transport,
+        Command = c.Command,
+        Arguments = c.Arguments,
+        WorkingDirectory = c.WorkingDirectory,
+        Endpoint = c.Endpoint,
+        ToolNamePrefix = c.ToolNamePrefix,
+        TrustLevel = c.TrustLevel,
+        AllowDestructiveTools = c.AllowDestructiveTools,
+    };
 
     /// <summary>
     /// 启动 MCP 内嵌服务并接通 token 链路：注入 token 工厂、订阅签发事件回写设置 UI、
     /// 接通「重新生成」命令，并签发首个 token。HTTP 传输按需启动 Kestrel。
     /// </summary>
-    private async Task InitMcpAsync(AIWhiteboardSettings settings, AiSettingsViewModel settingsVm)
+    private async Task InitMcpAsync(AIWhiteboardSettings settings)
     {
-        if (_aiSession is null) return;
+        if (_aiSession is null || _settingsVm is null) return;
 
         _mcpRegistry = new McpSessionRegistry();
         var factory = new McpSessionRegistryTokenFactory(_mcpRegistry, _aiSession);
         _aiSession.SetMcpTokenFactory(factory);
-
-        // token 签发后回写「当前 Token」（事件可能来自后台线程，切回 UI 线程）。
-        // _aiSession / settingsVm 每次重建会整体替换，故此处闭包订阅无需显式退订。
-        _aiSession.McpTokenIssued += (_, token) =>
-            Dispatcher.Invoke(() => settingsVm.CurrentMcpToken = token);
-
-        // 「重新生成」按钮：IssueMcpTokenAsync 内部会先撤销旧 token 再签发新 token。
-        settingsVm.RegenerateMcpTokenRequested += async (_, _) =>
-        {
-            try
-            {
-                if (_aiSession is not null)
-                    await _aiSession.IssueMcpTokenAsync(
-                        TimeSpan.FromMinutes(settingsVm.McpTokenLifetimeMinutes),
-                        settingsVm.McpAllowDestructiveTools);
-            }
-            catch (Exception ex) { SetStatus($"重新生成 Token 失败: {ex.Message}"); }
-        };
+        WireMcpTokenHandlers();
 
         // 启动内嵌 HTTP MCP server（供 Cursor 等 HTTP 客户端连接）
         if (settings.McpServer.HttpEnabled)
@@ -241,15 +332,98 @@ public partial class MainWindow : Window
         catch (Exception ex) { SetStatus($"MCP Token 签发失败: {ex.Message}"); }
     }
 
+    /// <summary>把 token 签发事件与「重新生成」命令接到当前 <see cref="_aiSession"/> / <see cref="_settingsVm"/>。</summary>
+    private void WireMcpTokenHandlers()
+    {
+        if (_aiSession is null || _settingsVm is null) return;
+
+        // token 签发后回写「当前 Token」（事件可能来自后台线程，切回 UI 线程）。
+        // _aiSession / _settingsVm 每次重建整体替换，故闭包订阅无需显式退订。
+        _aiSession.McpTokenIssued += (_, token) =>
+            Dispatcher.Invoke(() => _settingsVm!.CurrentMcpToken = token);
+
+        // 「重新生成」按钮：IssueMcpTokenAsync 内部会先撤销旧 token 再签发新 token。
+        _settingsVm.RegenerateMcpTokenRequested += async (_, _) =>
+        {
+            try
+            {
+                if (_aiSession is not null)
+                    await _aiSession.IssueMcpTokenAsync(
+                        TimeSpan.FromMinutes(_settingsVm!.McpTokenLifetimeMinutes),
+                        _settingsVm.McpAllowDestructiveTools);
+            }
+            catch (Exception ex) { SetStatus($"重新生成 Token 失败: {ex.Message}"); }
+        };
+    }
+
     private async void OnSettingsChanged(object? sender, AIWhiteboardSettings settings)
     {
+        var old = _currentSettings;
         SaveSettings(settings);
+
         var session = _manager.GetExportedSession();
         if (session is null) return;
-        await DisposeAiSessionAsync();
-        await InitAiSessionAsync(session);
+
+        // 仅当 MCP 服务端分区真正变化才整体重建 MCP（会重签 token，属预期）；
+        // 其余分区（LLM/语音/图像/MCP 客户端）变化时保留 MCP 服务端与已签发 Token。
+        bool mcpServerChanged = old is null || McpServerSectionChanged(old.McpServer, settings.McpServer);
+
+        if (mcpServerChanged)
+        {
+            await DisposeAiSessionAsync();
+            await InitAiSessionAsync(session);
+        }
+        else
+        {
+            await RebuildAiSessionPreservingMcpAsync(session, settings);
+        }
+
         SetStatus($"设置已保存并应用: {settings.LlmProviderType}/{settings.LlmModel}");
     }
+
+    /// <summary>
+    /// 重建会话核心但保留 MCP 服务端子系统与已签发 Token：
+    /// 先把 Token 从旧会话「摘下」（避免 Dispose 撤销），重建会话后把 Token 重绑到新会话。
+    /// </summary>
+    private async Task RebuildAiSessionPreservingMcpAsync(WhiteboardSession session, AIWhiteboardSettings settings)
+    {
+        // 1. 摘下 Token，使旧会话 Dispose 时不撤销它
+        var token = _aiSession?.DetachMcpTokenForHandoff();
+
+        // 2. 拆除会话核心（聊天 VM / 外部 MCP 客户端 / 会话），但不动 _mcpHost / _mcpRegistry
+        await DisposeAiSessionCoreAsync();
+
+        // 3. 重建会话核心（LLM/语音/图像/MCP 客户端 + 聊天 VM + 设置 VM）
+        await BuildAiSessionCoreAsync(session, settings);
+
+        // 4. 把 MCP 服务端子系统重新接到新会话，并移交既有 Token（保持 Token 不变）
+        if (_mcpRegistry is not null && _aiSession is not null && _settingsVm is not null)
+        {
+            var factory = new McpSessionRegistryTokenFactory(_mcpRegistry, _aiSession);
+            _aiSession.SetMcpTokenFactory(factory);
+            WireMcpTokenHandlers();
+
+            if (token is not null)
+            {
+                _mcpRegistry.RebindActiveSessions(_aiSession);
+                _aiSession.AdoptMcpToken(token);
+                _settingsVm.CurrentMcpToken = token;
+            }
+        }
+
+        _currentSettings = settings;
+    }
+
+    /// <summary>比较 MCP 服务端设置分区是否发生变化。</summary>
+    private static bool McpServerSectionChanged(McpServerSettings a, McpServerSettings b)
+        => a.Enabled != b.Enabled
+        || a.StdioEnabled != b.StdioEnabled
+        || a.HttpEnabled != b.HttpEnabled
+        || a.EnableLegacySse != b.EnableLegacySse
+        || a.HttpUrl != b.HttpUrl
+        || a.RoutePrefix != b.RoutePrefix
+        || a.TokenLifetimeMinutes != b.TokenLifetimeMinutes
+        || a.AllowDestructiveTools != b.AllowDestructiveTools;
 
     private async void OnTestConnectionRequested(object? sender, AIWhiteboardSettings settings)
     {
@@ -277,7 +451,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task DisposeAiSessionAsync()
+    /// <summary>拆除会话核心（聊天 VM、外部 MCP 客户端、AI 会话），不触碰 MCP 服务端子系统。</summary>
+    private async Task DisposeAiSessionCoreAsync()
     {
         if (_aiChatVm is not null)
         {
@@ -286,25 +461,39 @@ public partial class MainWindow : Window
             _aiChatVm.Dispose();
             _aiChatVm = null;
         }
+        _settingsVm = null;
 
-        // 先停 HTTP server（停止接受新连接），再 dispose session（其内部会撤销 token，
-        // 需要 registry 仍存活），最后才 dispose registry。
-        if (_mcpHost is not null)
+        if (_mcpClientProvider is not null)
         {
-            await _mcpHost.DisposeAsync();
-            _mcpHost = null;
+            await _mcpClientProvider.DisposeAsync();
+            _mcpClientProvider = null;
         }
 
+        // 会话 Dispose 会撤销其当前 Token；调用方若要保留 Token，须先 DetachMcpTokenForHandoff。
         if (_aiSession is not null)
         {
             await _aiSession.DisposeAsync();
             _aiSession = null;
         }
 
+        AiPanel.DataContext = null;
+    }
+
+    /// <summary>完整拆除：会话核心 + MCP 服务端子系统（host、registry）。</summary>
+    private async Task DisposeAiSessionAsync()
+    {
+        // 先停 HTTP server（停止接受新连接）；再 dispose 会话（其内部会撤销 token，
+        // 需要 registry 仍存活）；最后才 dispose registry。
+        if (_mcpHost is not null)
+        {
+            await _mcpHost.DisposeAsync();
+            _mcpHost = null;
+        }
+
+        await DisposeAiSessionCoreAsync();
+
         _mcpRegistry?.Dispose();
         _mcpRegistry = null;
-
-        AiPanel.DataContext = null;
     }
 
     private async Task TearDownAsync()

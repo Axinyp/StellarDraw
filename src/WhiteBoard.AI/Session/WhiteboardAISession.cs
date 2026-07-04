@@ -28,6 +28,9 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     /// <summary>语音识别完成并提交文字后触发（供 UI 展示语音泡）。</summary>
     public event EventHandler<string>? VoiceTextReady;
 
+    /// <summary>语音管道出错时触发（STT 不可用、转录失败等），供 UI 提示用户。</summary>
+    public event EventHandler<string>? VoiceError;
+
     /// <summary>MCP Token 签发后触发（供 UI 展示 Token 和配置片段）。</summary>
     public event EventHandler<string>? McpTokenIssued;
 
@@ -63,6 +66,21 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     /// <summary>Raises McpTokenIssued to notify UI of a newly generated token.</summary>
     public void NotifyMcpTokenIssued(string token)
         => McpTokenIssued?.Invoke(this, token);
+
+    /// <summary>
+    /// 把当前 MCP Token 从本会话「摘下」并返回，同时置空本会话对它的引用，
+    /// 使随后的 <see cref="DisposeAsync"/> 不会撤销它。用于设置保存重建会话时移交 Token。
+    /// 仅应在 UI 线程重建流程中调用（此刻无并发签发）。
+    /// </summary>
+    public string? DetachMcpTokenForHandoff()
+    {
+        var token = _currentMcpToken;
+        _currentMcpToken = null;
+        return token;
+    }
+
+    /// <summary>领养一个由旧会话移交来的既有 MCP Token，使本会话成为其属主（负责后续撤销）。</summary>
+    public void AdoptMcpToken(string token) => _currentMcpToken = token;
 
     // ── MCP Token Lifecycle ───────────────────────────────────────────────────
 
@@ -135,6 +153,7 @@ public sealed class WhiteboardAISession : IAsyncDisposable
         DetachVoice();
         _voice = new VoicePipeline(stt, language);
         _voice.TranscriptionReady += OnTranscriptionReady;
+        _voice.ErrorOccurred += OnVoiceError;
 
         if (wakeWordDetector is not null)
         {
@@ -148,9 +167,13 @@ public sealed class WhiteboardAISession : IAsyncDisposable
         if (_voice is null) return;
         _voice.StopWakeWordListening();
         _voice.TranscriptionReady -= OnTranscriptionReady;
+        _voice.ErrorOccurred -= OnVoiceError;
         _voice.Dispose();
         _voice = null;
     }
+
+    private void OnVoiceError(object? sender, Exception ex)
+        => VoiceError?.Invoke(this, ex.Message);
 
     /// <summary>开始 Push-to-Talk 录音。</summary>
     public void StartPtt() => _voice?.StartPtt();
@@ -164,19 +187,10 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     private void OnTranscriptionReady(object? sender, SttResult result)
     {
         if (string.IsNullOrWhiteSpace(result.Text)) return;
+        // 仅把识别文字抛给 UI，由 UI（AiChatViewModel）走与打字一致的 SendTextAsync 管道，
+        // 以便流式回复、工具调用状态等 AgentLoopEvent 能正常渲染。
+        // 不在此处自行 SendMessageAsync：那样事件会被丢弃，导致界面无任何状态响应。
         VoiceTextReady?.Invoke(this, result.Text);
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await foreach (var _ in SendMessageAsync(result.Text)) { }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[WhiteboardAISession] Voice agent error: {ex.Message}");
-            }
-        });
     }
 
     // ── Text Interface ────────────────────────────────────────────────────────

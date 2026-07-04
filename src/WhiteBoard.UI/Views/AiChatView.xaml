@@ -276,6 +276,51 @@
                                                    FontSize="10"
                                                    Foreground="#9E9E9E"
                                                    Margin="0,0,0,2" />
+
+                                        <!-- 工具调用过程（可折叠，参考 Cherry Studio） -->
+                                        <Expander Visibility="{Binding HasProcess, Converter={StaticResource BoolToVis}}"
+                                                  IsExpanded="{Binding IsProcessExpanded, Mode=TwoWay}"
+                                                  Margin="0,0,0,4">
+                                            <Expander.Header>
+                                                <TextBlock Text="{Binding ProcessSummary}"
+                                                           FontSize="11"
+                                                           Foreground="#5F6368" />
+                                            </Expander.Header>
+                                            <ItemsControl ItemsSource="{Binding Steps}" Margin="0,4,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:AiChatViewModel+ToolStep}">
+                                                        <Border Background="#F5F5F5"
+                                                                CornerRadius="4"
+                                                                Padding="6,4"
+                                                                Margin="0,2">
+                                                            <StackPanel>
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="{Binding Status}"
+                                                                               FontSize="11"
+                                                                               Margin="0,0,4,0" />
+                                                                    <TextBlock Text="{Binding ToolName}"
+                                                                               FontSize="11"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="#1A73E8" />
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding Args}"
+                                                                           FontSize="10"
+                                                                           Foreground="#9E9E9E"
+                                                                           TextWrapping="Wrap"
+                                                                           Margin="0,2,0,0" />
+                                                                <TextBlock Text="{Binding Result}"
+                                                                           FontSize="10"
+                                                                           Foreground="#616161"
+                                                                           TextWrapping="Wrap"
+                                                                           Margin="0,2,0,0"
+                                                                           Visibility="{Binding HasResult, Converter={StaticResource BoolToVis}}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+
                                         <TextBlock Text="{Binding Text}"
                                                    FontSize="13"
                                                    TextWrapping="Wrap">

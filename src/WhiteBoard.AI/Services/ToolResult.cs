@@ -52,6 +52,6 @@ public sealed record ToolResult(
             pageId = PageId,
             pageVersion = PageVersion,
         };
-        return System.Text.Json.JsonSerializer.Serialize(payload);
+        return System.Text.Json.JsonSerializer.Serialize(payload, AiJson.Options);
     }
 }

@@ -199,8 +199,8 @@
                                   FontSize="12"
                                   Margin="0,0,0,8" />
 
-                        <!-- Whisper 模型路径 -->
-                        <TextBlock Text="Whisper 模型文件路径（ggml-*.bin）"
+                        <!-- 本地 Whisper 模型路径 -->
+                        <TextBlock Text="本地 Whisper 模型文件路径（ggml-*.bin，中文推荐 medium）"
                                    Style="{StaticResource FieldLabel}"
                                    Visibility="{Binding IsWhisperStt, Converter={StaticResource BoolToVis}}" />
                         <TextBox Text="{Binding SttModelPath, UpdateSourceTrigger=PropertyChanged}"
@@ -235,11 +235,11 @@
                             <TextBox Text="{Binding WakeWord, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource FieldBox}" />
                             <TextBlock Text="唤醒词引擎" Style="{StaticResource FieldLabel}" />
-                            <ComboBox SelectedItem="{Binding WakeWordProviderType}"
+                            <ComboBox SelectedValue="{Binding WakeWordProviderType}"
+                                      SelectedValuePath="Content"
                                       FontSize="12"
                                       Margin="0,0,0,8">
                                 <ComboBoxItem Content="windows" />
-                                <ComboBoxItem Content="custom" />
                             </ComboBox>
                             <TextBlock Text="话语捕获时长（秒）" Style="{StaticResource FieldLabel}" />
                             <TextBox Text="{Binding WakeWordUtteranceSeconds, UpdateSourceTrigger=PropertyChanged}"

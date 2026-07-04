@@ -15,6 +15,6 @@ internal static class ToolResultEnvelope
         string s => string.IsNullOrEmpty(s) ? """{"status":"ok"}""" : s,
         ToolResult r => r.ToJson(),
         null => """{"status":"ok"}""",
-        _ => JsonSerializer.Serialize(result)
+        _ => JsonSerializer.Serialize(result, AiJson.Options)
     };
 }

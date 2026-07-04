@@ -35,7 +35,8 @@ public sealed record McpTokenPolicy(
 public sealed class McpSessionBinding
 {
     public string Token { get; init; } = "";
-    public WeakReference<WhiteboardAISession> SessionRef { get; init; } = null!;
+    /// <summary>可重绑：设置保存重建会话时，把绑定移交给新会话实例，保持 Token 不变。</summary>
+    public WeakReference<WhiteboardAISession> SessionRef { get; set; } = null!;
     public McpTokenPolicy Policy { get; init; } = null!;
     public DateTimeOffset BoundAt { get; init; }
     public DateTimeOffset ExpiresAt { get; init; }

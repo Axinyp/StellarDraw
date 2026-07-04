@@ -1,17 +1,21 @@
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
 namespace WhiteBoard.AI.Voice;
 
 /// <summary>
 /// 麦克风录音器（Push-to-Talk 模式）。
-/// 使用 NAudio WasapiCapture 捕获 PCM 音频，
-/// StartRecording() → StopRecordingAsync() 返回完整 WAV 字节数组。
+/// 使用 NAudio <see cref="WaveInEvent"/> 直接以 16kHz/16bit/单声道 PCM 捕获，
+/// StartRecording() → StopRecordingAsync() 返回标准 WAV 字节数组。
+/// 该格式同时满足 Windows SAPI（SetInputToWaveFile）与 Whisper 上传的要求，
+/// 避免设备原生格式（常见 48kHz/float/立体声）与识别引擎不匹配的问题。
 /// 线程安全：Start/Stop 可从任意线程调用。
 /// </summary>
 public sealed class VoiceRecorder : IDisposable
 {
-    private WasapiCapture? _capture;
+    /// <summary>识别引擎友好的目标采集格式：16kHz 采样、16bit、单声道。</summary>
+    private static readonly WaveFormat TargetFormat = new(16000, 16, 1);
+
+    private WaveInEvent? _capture;
     private MemoryStream? _buffer;
     private WaveFileWriter? _writer;
     private TaskCompletionSource<byte[]>? _tcs;
@@ -26,7 +30,7 @@ public sealed class VoiceRecorder : IDisposable
         {
             StopCapture();
 
-            _capture = new WasapiCapture();
+            _capture = new WaveInEvent { WaveFormat = TargetFormat };
             _buffer = new MemoryStream();
             _writer = new WaveFileWriter(_buffer, _capture.WaveFormat);
             _tcs = new TaskCompletionSource<byte[]>(

@@ -12,13 +12,15 @@ public static class VoiceProviderFactory
     {
         return s.SttProviderType.ToLowerInvariant() switch
         {
+            "whisper-local" => new LocalWhisperSttProvider(s.SttModelPath),
+
             "windows" => new WindowsSpeechSttProvider(
                 s.SttLanguage == "zh" ? "zh-CN" : s.SttLanguage),
 
             "whisper" => CreateWhisper(s, secrets),
 
             var unknown => throw new NotSupportedException(
-                $"Unknown STT provider: '{unknown}'. Supported: windows, whisper")
+                $"Unknown STT provider: '{unknown}'. Supported: whisper-local, windows, whisper")
         };
     }
 

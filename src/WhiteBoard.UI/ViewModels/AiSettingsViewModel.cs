@@ -16,7 +16,7 @@ public sealed class AiSettingsViewModel : ViewModelBase
     private string _llmApiKeyRef = "";
     private string _executionMode = "ConfirmRequired";
     private bool _sttEnabled = true;
-    private string _sttProviderType = "whisper";
+    private string _sttProviderType = "windows";
     private string _sttLanguage = "zh";
     private string _sttModelPath = "";
     private string _sttEndpoint = "";
@@ -61,7 +61,7 @@ public sealed class AiSettingsViewModel : ViewModelBase
         ["push-to-talk", "wake-word"];
 
     public IReadOnlyList<string> SttProviders { get; } =
-        ["whisper", "windows", "azure", "custom"];
+        ["whisper-local", "windows", "whisper", "azure", "custom"];
 
     public IReadOnlyList<string> TtsProviders { get; } =
         ["windows", "azure", "custom"];
@@ -145,7 +145,8 @@ public sealed class AiSettingsViewModel : ViewModelBase
         set => Set(ref _sttEndpoint, value);
     }
 
-    public bool IsWhisperStt => _sttProviderType == "whisper";
+    /// <summary>本地 Whisper（whisper-local）需要 ggml 模型文件路径，据此控制模型路径输入框可见性。</summary>
+    public bool IsWhisperStt => _sttProviderType == "whisper-local";
 
     public bool IsSttEndpointVisible => _sttProviderType is "azure" or "custom";
 
