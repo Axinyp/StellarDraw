@@ -251,6 +251,8 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
 
         _aiSession.VoiceTextReady += OnVoiceTextReady;
         _aiSession.VoiceError += OnVoiceError;
+        _aiSession.WakeWordActivated += OnWakeWordActivated;
+        _aiSession.WakeWordDeactivated += OnWakeWordDeactivated;
     }
 
     // ── Public methods ────────────────────────────────────────────────────────
@@ -408,6 +410,38 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
             dispatcher.BeginInvoke(Show);
     }
 
+    private void OnWakeWordActivated(object? sender, EventArgs e)
+    {
+        // 唤醒命中后提示"已唤醒，正在聆听"，让用户明确知道唤醒词已触发。
+        void Show()
+        {
+            ShowStatusBar = true;
+            StatusBarText = "🎤 已唤醒，正在聆听…";
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Show();
+        else
+            dispatcher.BeginInvoke(Show);
+    }
+
+    private void OnWakeWordDeactivated(object? sender, EventArgs e)
+    {
+        // 唤醒后超时未说话：清除"已唤醒"提示，回到待唤醒状态。
+        void Clear()
+        {
+            if (StatusBarText.StartsWith("🎤"))
+                StatusBarText = "";
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            Clear();
+        else
+            dispatcher.BeginInvoke(Clear);
+    }
+
     // ── Confirm dialog ────────────────────────────────────────────────────────
 
     private void ShowConfirmDialog(ConfirmRequiredEvent e)
@@ -436,6 +470,8 @@ public sealed class AiChatViewModel : ViewModelBase, IDisposable
     {
         _aiSession.VoiceTextReady -= OnVoiceTextReady;
         _aiSession.VoiceError -= OnVoiceError;
+        _aiSession.WakeWordActivated -= OnWakeWordActivated;
+        _aiSession.WakeWordDeactivated -= OnWakeWordDeactivated;
         _currentCts?.Cancel();
         _currentCts?.Dispose();
     }

@@ -44,6 +44,13 @@ public static class VoiceProviderFactory
 
         return s.WakeWordProviderType.ToLowerInvariant() switch
         {
+            // VAD 门控 + 本地 Whisper：离线、中文准确率高，复用 STT 的 ggml 模型
+            "whisper-vad" => new VadWhisperWakeWordDetector(
+                wakeWord: s.WakeWord,
+                modelPath: s.SttModelPath,
+                language: s.SttLanguage,
+                armWindowSeconds: s.WakeWordUtteranceSeconds),
+
             "windows" => new WindowsSpeechWakeWordDetector(
                 wakeWord: s.WakeWord,
                 locale: s.SttLanguage == "zh" ? "zh-CN" : s.SttLanguage),

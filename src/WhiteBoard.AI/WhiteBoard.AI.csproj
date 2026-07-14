@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="TinyPinyin.Net" Version="1.0.2" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
     <ProjectReference Include="..\WhiteBoard.Core\WhiteBoard.Core.csproj" />

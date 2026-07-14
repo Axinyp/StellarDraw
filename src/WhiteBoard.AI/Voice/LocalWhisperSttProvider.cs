@@ -35,7 +35,7 @@ public sealed class LocalWhisperSttProvider : ISttProvider, IDisposable
 
         try
         {
-            _factory = WhisperFactory.FromPath(modelPath);
+            _factory = WhisperModelCache.Get(modelPath);
         }
         catch (Exception ex)
         {
@@ -53,6 +53,7 @@ public sealed class LocalWhisperSttProvider : ISttProvider, IDisposable
         // 每次转录新建 processor：WhisperProcessor 非线程安全，且 PTT 调用频率低，开销可接受。
         await using var processor = _factory.CreateBuilder()
             .WithLanguage(string.IsNullOrWhiteSpace(language) ? "auto" : language)
+            .WithThreads(System.Math.Max(1, Environment.ProcessorCount - 1)) // 多线程加速推理
             .Build();
 
         using var wav = new MemoryStream(audioData);
@@ -63,5 +64,6 @@ public sealed class LocalWhisperSttProvider : ISttProvider, IDisposable
         return new SttResult(sb.ToString().Trim(), 0.9f, language, false);
     }
 
-    public void Dispose() => _factory?.Dispose();
+    // 工厂由 WhisperModelCache 持有并复用，此处不 Dispose（避免影响共享它的唤醒词检测器）。
+    public void Dispose() { }
 }

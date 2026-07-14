@@ -230,6 +230,8 @@ public partial class MainWindow : Window
                 SetStatus(lwErr);
             else if (stt is WindowsSpeechSttProvider { InitializationError: { } sttErr })
                 SetStatus(sttErr);
+            else if (wake is VadWhisperWakeWordDetector { InitializationError: { } vadErr })
+                SetStatus(vadErr);
             else if (wake is WindowsSpeechWakeWordDetector { InitializationError: { } wakeErr })
                 SetStatus(wakeErr);
             else

@@ -26,6 +26,12 @@ public sealed class VoicePipeline : IDisposable
     /// <summary>管道错误回调。</summary>
     public event EventHandler<Exception>? ErrorOccurred;
 
+    /// <summary>唤醒词命中并开始捕获后续话语时触发（供 UI 提示"已唤醒"）。</summary>
+    public event EventHandler? WakeWordActivated;
+
+    /// <summary>唤醒后超时未收到命令，自动退出唤醒态时触发（供 UI 清除"已唤醒"提示）。</summary>
+    public event EventHandler? WakeWordDeactivated;
+
     public VoicePipeline(ISttProvider stt, string language = "zh")
     {
         _stt = stt;
@@ -87,14 +93,35 @@ public sealed class VoicePipeline : IDisposable
         _wakeWordDetector = detector;
         if (utteranceTimeout.HasValue)
             _utteranceTimeout = utteranceTimeout.Value;
-        _wakeWordDetector.WakeWordDetected += OnWakeWordDetected;
+
+        if (detector is IInlineCommandWakeWordDetector inline)
+        {
+            // 自带命令识别：唤醒仅用于提示"已唤醒"，命令文本由检测器直接给出，
+            // 不再另开录音器（避免唤醒延迟错过命令 + 双麦克风竞争）。
+            inline.WakeWordDetected += OnInlineWakeActivated;
+            inline.CommandRecognized += OnInlineCommandRecognized;
+            inline.WakeWordExpired += OnInlineWakeExpired;
+        }
+        else
+        {
+            _wakeWordDetector.WakeWordDetected += OnWakeWordDetected;
+        }
     }
 
     /// <summary>移除唤醒词检测器，停止后台监听。</summary>
     public void DetachWakeWordDetector()
     {
         if (_wakeWordDetector is null) return;
-        _wakeWordDetector.WakeWordDetected -= OnWakeWordDetected;
+        if (_wakeWordDetector is IInlineCommandWakeWordDetector inline)
+        {
+            inline.WakeWordDetected -= OnInlineWakeActivated;
+            inline.CommandRecognized -= OnInlineCommandRecognized;
+            inline.WakeWordExpired -= OnInlineWakeExpired;
+        }
+        else
+        {
+            _wakeWordDetector.WakeWordDetected -= OnWakeWordDetected;
+        }
         _wakeWordDetector.StopListening();
         _wakeWordDetector = null;
         _utteranceCts?.Cancel();
@@ -125,12 +152,30 @@ public sealed class VoicePipeline : IDisposable
         _ = Task.Run(() => CaptureUtteranceAsync(_utteranceCts.Token));
     }
 
+    // ── 自带命令识别的检测器（VAD+Whisper）─────────────────────────────────────
+
+    /// <summary>唤醒命中（inline 检测器）：仅提示"已唤醒"，命令由检测器随后给出。</summary>
+    private void OnInlineWakeActivated(object? sender, EventArgs e)
+        => WakeWordActivated?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>inline 检测器识别出的命令文本：直接走识别完成回调，等同一次语音输入。</summary>
+    private void OnInlineCommandRecognized(object? sender, string text)
+    {
+        if (!string.IsNullOrWhiteSpace(text))
+            TranscriptionReady?.Invoke(this, new SttResult(text, 0.9f, _language, false));
+    }
+
+    /// <summary>inline 检测器唤醒后超时未收到命令：通知 UI 退出"已唤醒"提示。</summary>
+    private void OnInlineWakeExpired(object? sender, EventArgs e)
+        => WakeWordDeactivated?.Invoke(this, EventArgs.Empty);
+
     private async Task CaptureUtteranceAsync(CancellationToken ct)
     {
         // 在启动录音前检查是否已被取消（快速连续唤醒时的竞态保护）
         if (ct.IsCancellationRequested) return;
 
         _recorder.StartRecording();
+        WakeWordActivated?.Invoke(this, EventArgs.Empty); // 通知 UI：已唤醒，开始聆听
         try
         {
             // 等待话语超时（用户说完句子的最大时长）

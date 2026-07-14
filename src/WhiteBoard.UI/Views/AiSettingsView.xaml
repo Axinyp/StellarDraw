@@ -239,6 +239,7 @@
                                       SelectedValuePath="Content"
                                       FontSize="12"
                                       Margin="0,0,0,8">
+                                <ComboBoxItem Content="whisper-vad" />
                                 <ComboBoxItem Content="windows" />
                             </ComboBox>
                             <TextBlock Text="话语捕获时长（秒）" Style="{StaticResource FieldLabel}" />

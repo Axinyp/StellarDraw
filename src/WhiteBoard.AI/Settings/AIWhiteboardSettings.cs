@@ -59,7 +59,7 @@ public sealed class AIWhiteboardSettings
     public string WakeWord { get; set; } = "嘿白板";
 
     [JsonPropertyName("wakeWordProvider")]
-    public string WakeWordProviderType { get; set; } = "windows";
+    public string WakeWordProviderType { get; set; } = "whisper-vad";
 
     /// <summary>唤醒词触发后的最大录音时长（秒）。</summary>
     [JsonPropertyName("wakeWordUtteranceSeconds")]

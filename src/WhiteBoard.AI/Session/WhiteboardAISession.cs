@@ -31,6 +31,12 @@ public sealed class WhiteboardAISession : IAsyncDisposable
     /// <summary>语音管道出错时触发（STT 不可用、转录失败等），供 UI 提示用户。</summary>
     public event EventHandler<string>? VoiceError;
 
+    /// <summary>唤醒词命中并开始聆听后续话语时触发（供 UI 提示"已唤醒"）。</summary>
+    public event EventHandler? WakeWordActivated;
+
+    /// <summary>唤醒后超时未收到命令，自动退出唤醒态时触发（供 UI 清除"已唤醒"提示）。</summary>
+    public event EventHandler? WakeWordDeactivated;
+
     /// <summary>MCP Token 签发后触发（供 UI 展示 Token 和配置片段）。</summary>
     public event EventHandler<string>? McpTokenIssued;
 
@@ -154,6 +160,8 @@ public sealed class WhiteboardAISession : IAsyncDisposable
         _voice = new VoicePipeline(stt, language);
         _voice.TranscriptionReady += OnTranscriptionReady;
         _voice.ErrorOccurred += OnVoiceError;
+        _voice.WakeWordActivated += OnWakeWordActivated;
+        _voice.WakeWordDeactivated += OnWakeWordDeactivated;
 
         if (wakeWordDetector is not null)
         {
@@ -168,12 +176,20 @@ public sealed class WhiteboardAISession : IAsyncDisposable
         _voice.StopWakeWordListening();
         _voice.TranscriptionReady -= OnTranscriptionReady;
         _voice.ErrorOccurred -= OnVoiceError;
+        _voice.WakeWordActivated -= OnWakeWordActivated;
+        _voice.WakeWordDeactivated -= OnWakeWordDeactivated;
         _voice.Dispose();
         _voice = null;
     }
 
     private void OnVoiceError(object? sender, Exception ex)
         => VoiceError?.Invoke(this, ex.Message);
+
+    private void OnWakeWordActivated(object? sender, EventArgs e)
+        => WakeWordActivated?.Invoke(this, EventArgs.Empty);
+
+    private void OnWakeWordDeactivated(object? sender, EventArgs e)
+        => WakeWordDeactivated?.Invoke(this, EventArgs.Empty);
 
     /// <summary>开始 Push-to-Talk 录音。</summary>
     public void StartPtt() => _voice?.StartPtt();
