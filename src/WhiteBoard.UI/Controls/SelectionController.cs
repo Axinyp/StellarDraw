@@ -176,41 +176,41 @@ public sealed class SelectionController
             switch (mode)
             {
                 case DragMode.RubberBand:
-                {
-                    var inv = view; inv.Invert();
-                    var p1 = inv.Transform(_downScreen);
-                    var p2 = inv.Transform(screen);
-                    float x = (float)Math.Min(p1.X, p2.X);
-                    float y = (float)Math.Min(p1.Y, p2.Y);
-                    float w = (float)Math.Abs(p2.X - p1.X);
-                    float h = (float)Math.Abs(p2.Y - p1.Y);
-                    if (w > 4 && h > 4)
-                        await _vm.SelectRegionAsync(x, y, w, h);
-                    break;
-                }
+                    {
+                        var inv = view; inv.Invert();
+                        var p1 = inv.Transform(_downScreen);
+                        var p2 = inv.Transform(screen);
+                        float x = (float)Math.Min(p1.X, p2.X);
+                        float y = (float)Math.Min(p1.Y, p2.Y);
+                        float w = (float)Math.Abs(p2.X - p1.X);
+                        float h = (float)Math.Abs(p2.Y - p1.Y);
+                        if (w > 4 && h > 4)
+                            await _vm.SelectRegionAsync(x, y, w, h);
+                        break;
+                    }
 
                 case DragMode.MoveObjects:
-                {
-                    var inv = view; inv.Invert();
-                    var docDelta = inv.Transform(new Vector(_moveDx, _moveDy));
-                    var selIds = _vm.SelectedObjectIds;
-                    if (selIds.Count > 0 && (Math.Abs(_moveDx) > 0.5 || Math.Abs(_moveDy) > 0.5))
-                        await _vm.MoveSelectedAsync((float)docDelta.X, (float)docDelta.Y);
-                    break;
-                }
+                    {
+                        var inv = view; inv.Invert();
+                        var docDelta = inv.Transform(new Vector(_moveDx, _moveDy));
+                        var selIds = _vm.SelectedObjectIds;
+                        if (selIds.Count > 0 && (Math.Abs(_moveDx) > 0.5 || Math.Abs(_moveDy) > 0.5))
+                            await _vm.MoveSelectedAsync((float)docDelta.X, (float)docDelta.Y);
+                        break;
+                    }
 
                 case DragMode.ResizeHandle:
                     await CommitResizeAsync(screen, view);
                     break;
 
                 case DragMode.RotateHandle:
-                {
-                    double angleDeg = ComputeRotateAngleDeg(screen);
-                    if (Math.Abs(angleDeg) > 0.1)
-                        await _vm.RotateSelectedAsync((float)angleDeg,
-                            (float)_rotatePivotDoc.X, (float)_rotatePivotDoc.Y);
-                    break;
-                }
+                    {
+                        double angleDeg = ComputeRotateAngleDeg(screen);
+                        if (Math.Abs(angleDeg) > 0.1)
+                            await _vm.RotateSelectedAsync((float)angleDeg,
+                                (float)_rotatePivotDoc.X, (float)_rotatePivotDoc.Y);
+                        break;
+                    }
             }
         }
         finally

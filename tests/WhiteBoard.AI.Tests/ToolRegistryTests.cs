@@ -20,7 +20,7 @@ public class ToolRegistryTests
     public void Registry_ContainsAllBaseCatalogTools()
     {
         var registry = BuildRegistry();
-        var tools    = registry.GetAvailableTools();
+        var tools = registry.GetAvailableTools();
 
         // 5 个基础 Catalog 至少各贡献 1 个工具
         Assert.True(tools.Count >= 5,
@@ -36,7 +36,7 @@ public class ToolRegistryTests
     public void Registry_ContainsRequiredTool(string toolName)
     {
         var registry = BuildRegistry();
-        var names    = registry.GetAvailableTools().Select(t => t.Name);
+        var names = registry.GetAvailableTools().Select(t => t.Name);
         Assert.Contains(toolName, names);
     }
 
@@ -91,16 +91,16 @@ public class ToolRegistryTests
     [Fact]
     public async Task GetCanvasSize_Tool_ReturnsExpectedDimensions()
     {
-        var stub     = new StubAiActions { CanvasWidth = 1920f, CanvasHeight = 1080f };
+        var stub = new StubAiActions { CanvasWidth = 1920f, CanvasHeight = 1080f };
         var registry = BuildRegistry(stub);
 
         var tools = registry.GetAvailableTools();
-        var tool  = tools.FirstOrDefault(t => t.Name == "get_canvas_size");
+        var tool = tools.FirstOrDefault(t => t.Name == "get_canvas_size");
         Assert.NotNull(tool);
 
         // 直接调用工具（通过 InvokeAsync）
         var result = await registry.InvokeAsync("get_canvas_size", null, CancellationToken.None);
-        var json   = result?.ToString() ?? "";
+        var json = result?.ToString() ?? "";
 
         Assert.Contains("1920", json);
         Assert.Contains("1080", json);
@@ -111,7 +111,7 @@ public class ToolRegistryTests
 
 file sealed class StubAiActions : IWhiteboardAiActions
 {
-    public float CanvasWidth  { get; set; } = 800f;
+    public float CanvasWidth { get; set; } = 800f;
     public float CanvasHeight { get; set; } = 600f;
 
     public Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default) =>

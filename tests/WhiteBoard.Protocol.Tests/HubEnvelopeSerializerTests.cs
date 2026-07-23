@@ -82,17 +82,17 @@ public class HubEnvelopeSerializerTests
         var original = new StrokeAddedEvent("evt-1", "page-A", "obj-X", "client-1",
             FixedTime, [0xDE, 0xAD, 0xBE, 0xEF]);
 
-        var json     = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
-        var env2     = HubEnvelopeSerializer.DeserializeEnvelope(json);
+        var json = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
+        var env2 = HubEnvelopeSerializer.DeserializeEnvelope(json);
         var restored = HubEnvelopeSerializer.Unwrap(env2!) as StrokeAddedEvent;
 
         Assert.NotNull(restored);
-        Assert.Equal(original.EventId,      restored!.EventId);
-        Assert.Equal(original.PageId,       restored.PageId);
-        Assert.Equal(original.ObjectId,     restored.ObjectId);
-        Assert.Equal(original.ClientId,     restored.ClientId);
+        Assert.Equal(original.EventId, restored!.EventId);
+        Assert.Equal(original.PageId, restored.PageId);
+        Assert.Equal(original.ObjectId, restored.ObjectId);
+        Assert.Equal(original.ClientId, restored.ClientId);
         Assert.Equal(original.OccurredAtUtc, restored.OccurredAtUtc);
-        Assert.Equal(original.StrokeData,   restored.StrokeData);
+        Assert.Equal(original.StrokeData, restored.StrokeData);
     }
 
     [Fact]
@@ -100,13 +100,13 @@ public class HubEnvelopeSerializerTests
     {
         var original = new ObjectDeletedEvent("evt-2", "page-B", "obj-Y", "client-2", FixedTime);
 
-        var json     = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
+        var json = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
         var restored = HubEnvelopeSerializer.Unwrap(HubEnvelopeSerializer.DeserializeEnvelope(json)!)
             as ObjectDeletedEvent;
 
         Assert.NotNull(restored);
-        Assert.Equal(original.EventId,  restored!.EventId);
-        Assert.Equal(original.PageId,   restored.PageId);
+        Assert.Equal(original.EventId, restored!.EventId);
+        Assert.Equal(original.PageId, restored.PageId);
         Assert.Equal(original.ObjectId, restored.ObjectId);
     }
 
@@ -116,7 +116,7 @@ public class HubEnvelopeSerializerTests
         float[] matrix = [1.5f, 0.0f, 0.0f, 1.5f, 100.0f, 200.0f];
         var original = new ObjectTransformedEvent("evt-3", "page-A", "obj-Z", "c1", FixedTime, matrix);
 
-        var json     = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
+        var json = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
         var restored = HubEnvelopeSerializer.Unwrap(HubEnvelopeSerializer.DeserializeEnvelope(json)!)
             as ObjectTransformedEvent;
 
@@ -179,7 +179,7 @@ public class HubEnvelopeSerializerTests
     {
         var original = new PageAddedEvent("evt-4", "page-NEW", "", "c1", FixedTime, 3);
 
-        var json     = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
+        var json = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
         var restored = HubEnvelopeSerializer.Unwrap(HubEnvelopeSerializer.DeserializeEnvelope(json)!)
             as PageAddedEvent;
 
@@ -214,7 +214,7 @@ public class HubEnvelopeSerializerTests
     [Fact]
     public void SerializeEnvelope_UsesCamelCase()
     {
-        var env  = new HubEnvelope("StrokeAdded", "{}");
+        var env = new HubEnvelope("StrokeAdded", "{}");
         var json = HubEnvelopeSerializer.SerializeEnvelope(env);
         Assert.Contains("\"t\"", json);
         Assert.Contains("\"p\"", json);
@@ -227,7 +227,7 @@ public class HubEnvelopeSerializerTests
     {
         var original = new StrokeAddedEvent("e-empty", "p1", "o1", "c1", FixedTime, []);
 
-        var json     = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
+        var json = HubEnvelopeSerializer.SerializeEnvelope(HubEnvelopeSerializer.Wrap(original)!);
         var restored = HubEnvelopeSerializer.Unwrap(HubEnvelopeSerializer.DeserializeEnvelope(json)!)
             as StrokeAddedEvent;
 

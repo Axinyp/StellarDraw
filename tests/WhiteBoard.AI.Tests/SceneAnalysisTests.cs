@@ -43,12 +43,12 @@ public class SceneAnalysisTests
     public void GenerateAndInsertImage_Description_MustCoverComplexScenarios()
     {
         // 仅在 ImageGen 可用时注册；这里我们用 mock provider 强制注册
-        var stub     = new StubAiActions();
+        var stub = new StubAiActions();
         var imageGen = new StubImageGenProvider();
         var registry = new WhiteboardToolRegistry(stub, imageGen: imageGen);
 
         var tools = registry.GetFunctions();
-        var fn    = tools.FirstOrDefault(t => t.Name == "generate_and_insert_image");
+        var fn = tools.FirstOrDefault(t => t.Name == "generate_and_insert_image");
 
         Assert.NotNull(fn);
         var desc = fn.Description ?? "";
@@ -88,16 +88,16 @@ public class SceneAnalysisTests
     /// generate_and_insert_image 不可用时，复杂内容降级为 draw_path 简化矢量版本。
     /// </summary>
     [Theory]
-    [InlineData("画一个五角星",                        "draw_path",               "几何图形 → SVG path")]
-    [InlineData("画一个红色圆形",                      "insert_shape",            "标准形状 → insert_shape")]
-    [InlineData("画一个矩形",                          "insert_shape",            "标准形状 → insert_shape")]
-    [InlineData("画一只在会议室开会的企鹅",            "generate_and_insert_image", "角色/动物 → 图像生成（降级→draw_path）")]
-    [InlineData("画一只可爱的猫",                      "generate_and_insert_image", "动物 → 图像生成（降级→draw_path）")]
-    [InlineData("画一个动漫人物",                      "generate_and_insert_image", "动漫角色 → 图像生成（降级→draw_path）")]
-    [InlineData("画一幅会议室的场景图",                "generate_and_insert_image", "写实场景 → 图像生成（降级→draw_path）")]
-    [InlineData("画一个向右的箭头",                    "insert_shape",            "标准形状 → insert_shape")]
-    [InlineData("画一个流程图，包含开始框和判断菱形",  "draw_path",               "流程图元素 → SVG path")]
-    [InlineData("在白板上写欢迎使用",                  "insert_text",             "文字 → insert_text")]
+    [InlineData("画一个五角星", "draw_path", "几何图形 → SVG path")]
+    [InlineData("画一个红色圆形", "insert_shape", "标准形状 → insert_shape")]
+    [InlineData("画一个矩形", "insert_shape", "标准形状 → insert_shape")]
+    [InlineData("画一只在会议室开会的企鹅", "generate_and_insert_image", "角色/动物 → 图像生成（降级→draw_path）")]
+    [InlineData("画一只可爱的猫", "generate_and_insert_image", "动物 → 图像生成（降级→draw_path）")]
+    [InlineData("画一个动漫人物", "generate_and_insert_image", "动漫角色 → 图像生成（降级→draw_path）")]
+    [InlineData("画一幅会议室的场景图", "generate_and_insert_image", "写实场景 → 图像生成（降级→draw_path）")]
+    [InlineData("画一个向右的箭头", "insert_shape", "标准形状 → insert_shape")]
+    [InlineData("画一个流程图，包含开始框和判断菱形", "draw_path", "流程图元素 → SVG path")]
+    [InlineData("在白板上写欢迎使用", "insert_text", "文字 → insert_text")]
     public void ScenarioMapping_IsDocumented(string userRequest, string expectedTool, string reason)
     {
         // 这是文档化测试——验证场景分类规则记录是否完整
@@ -123,18 +123,18 @@ public class SceneAnalysisTests
     // ── 工具边界：draw_path 的 SVG 包围盒解析 ───────────────────────────────
 
     [Theory]
-    [InlineData("M 100 100 L 300 100 L 200 300 Z",    100f, 100f, 200f, 200f)]
-    [InlineData("M100,100L300,100L200,300Z",           100f, 100f, 200f, 200f)]  // 紧凑写法
-    [InlineData("M960 240 L1025 450 L1245 450 Z",     960f, 240f, 285f, 210f)]  // 五角星局部
+    [InlineData("M 100 100 L 300 100 L 200 300 Z", 100f, 100f, 200f, 200f)]
+    [InlineData("M100,100L300,100L200,300Z", 100f, 100f, 200f, 200f)]  // 紧凑写法
+    [InlineData("M960 240 L1025 450 L1245 450 Z", 960f, 240f, 285f, 210f)]  // 五角星局部
     public void PathObject_ComputeBounds_HandlesCompactAndSpacedSvg(
         string svgPath, float expX, float expY, float expW, float expH)
     {
         var path = new WhiteBoard.Core.Domain.Objects.PathObject(
             svgPath, 0xFFFFD700, 0xFF000000, 2f, true);
 
-        Assert.Equal(expX, path.BoundsX,      precision: 0);
-        Assert.Equal(expY, path.BoundsY,      precision: 0);
-        Assert.Equal(expW, path.BoundsWidth,  precision: 0);
+        Assert.Equal(expX, path.BoundsX, precision: 0);
+        Assert.Equal(expY, path.BoundsY, precision: 0);
+        Assert.Equal(expW, path.BoundsWidth, precision: 0);
         Assert.Equal(expH, path.BoundsHeight, precision: 0);
     }
 
@@ -157,7 +157,7 @@ public class SceneAnalysisTests
 file sealed class StubImageGenProvider : WhiteBoard.AI.Abstractions.IImageGenProvider
 {
     public string ProviderName => "stub";
-    public bool   IsAvailable  => true;
+    public bool IsAvailable => true;
     public Task<byte[]> GenerateAsync(string prompt,
         WhiteBoard.AI.Abstractions.ImageGenStyle style,
         int width, int height, CancellationToken ct = default)
@@ -166,7 +166,7 @@ file sealed class StubImageGenProvider : WhiteBoard.AI.Abstractions.IImageGenPro
 
 file sealed class StubAiActions : IWhiteboardAiActions
 {
-    public float CanvasWidth  { get; set; } = 800f;
+    public float CanvasWidth { get; set; } = 800f;
     public float CanvasHeight { get; set; } = 600f;
 
     public Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default) =>
