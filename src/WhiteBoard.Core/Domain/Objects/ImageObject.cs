@@ -7,7 +7,9 @@ namespace WhiteBoard.Core.Domain.Objects;
 public sealed class ImageObject : WhiteboardObject
 {
     /// <summary>SHA256(bytes)[0..16] hex，用于资产去重。</summary>
-    public string AssetId { get; }
+    public string AssetId { get; private set; }
+
+    internal void SetAssetId(string assetId) => AssetId = assetId;
 
     public float OriginalWidth { get; }
     public float OriginalHeight { get; }

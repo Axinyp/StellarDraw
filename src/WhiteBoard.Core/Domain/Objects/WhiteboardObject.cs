@@ -50,6 +50,9 @@ public abstract class WhiteboardObject
 
     internal void SetBounds(float x, float y, float width, float height)
     {
+        if (!WhiteboardGeometry.HasValidBounds(x, y, width, height))
+            throw new ArgumentOutOfRangeException(nameof(width), "Bounds 必须是可索引的有限矩形。");
+
         BoundsX = x; BoundsY = y; BoundsWidth = width; BoundsHeight = height;
         if (!_localBoundsInitialized)
         {
@@ -60,14 +63,20 @@ public abstract class WhiteboardObject
 
     internal void SetTransform(float[] m)
     {
-        if (m.Length != 6) throw new ArgumentException("Transform must be 6 floats (Matrix3x2).", nameof(m));
+        ValidateTransform(m);
         Transform = (float[])m.Clone();
     }
 
     internal void ApplyTranslation(float dx, float dy)
     {
-        BoundsX += dx;
-        BoundsY += dy;
+        var x = BoundsX + dx;
+        var y = BoundsY + dy;
+        if (!WhiteboardGeometry.HasValidBounds(x, y, BoundsWidth, BoundsHeight) ||
+            !float.IsFinite(Transform[4] + dx) || !float.IsFinite(Transform[5] + dy))
+            throw new ArgumentOutOfRangeException(nameof(dx), "平移后的几何数据无效。");
+
+        BoundsX = x;
+        BoundsY = y;
         Transform[4] += dx;
         Transform[5] += dy;
     }
@@ -81,7 +90,16 @@ public abstract class WhiteboardObject
     // 仅更新 World Bounds 和 Transform，不触碰 LocalBounds（旋转专用）。
     internal void SetWorldBoundsAndTransform(float bx, float by, float bw, float bh, float[] transform)
     {
-        BoundsX = bx; BoundsY = by; BoundsWidth = bw; BoundsHeight = bh;
+        if (!WhiteboardGeometry.HasValidBounds(bx, by, bw, bh))
+            throw new ArgumentOutOfRangeException(nameof(bw), "Bounds 必须是可索引的有限矩形。");
+
         SetTransform(transform);
+        BoundsX = bx; BoundsY = by; BoundsWidth = bw; BoundsHeight = bh;
+    }
+
+    private static void ValidateTransform(float[] m)
+    {
+        if (m is null || m.Length != 6 || m.Any(value => !float.IsFinite(value)))
+            throw new ArgumentException("Transform must contain 6 finite floats (Matrix3x2).", nameof(m));
     }
 }

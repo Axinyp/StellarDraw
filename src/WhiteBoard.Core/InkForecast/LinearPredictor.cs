@@ -1,6 +1,6 @@
 using WhiteBoard.Contracts.Services;
 
-namespace WhiteBoard.Plugin.InkForecast;
+namespace WhiteBoard.Core.InkForecast;
 
 /// <summary>
 /// 线性外推预测器：基于最近 2-3 个点的平均速度向量做线性预测。

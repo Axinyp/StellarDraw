@@ -2,20 +2,36 @@
     x:Class="WhiteBoard.Client.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="clr-namespace:WhiteBoard.Client"
-    xmlns:loc="clr-namespace:WhiteBoard.Framework.Hosting.Wpf.Localization;assembly=WhiteBoard.Framework.Hosting.Wpf"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="{loc:Loc MainWindow.Title}"
-    Width="800"
-    Height="450"
-    mc:Ignorable="d">
-    <Grid Background="{DynamicResource App.BackgroundBrush}">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="18"
-            Foreground="{DynamicResource App.ForegroundBrush}"
-            Text="{loc:Loc MainWindow.Title}" />
-    </Grid>
+    xmlns:controls="clr-namespace:WhiteBoard.UI.Controls;assembly=WhiteBoard.UI"
+    Title="{Binding Title}"
+    Width="1280"
+    Height="800"
+    MinWidth="800"
+    MinHeight="560"
+    Background="{DynamicResource App.BackgroundBrush}">
+    <DockPanel>
+        <ToolBar DockPanel.Dock="Top">
+            <Button Command="{Binding OpenCommand}" Content="打开" Margin="4,0" />
+            <Button Command="{Binding SaveAsCommand}" Content="另存为" Margin="4,0" />
+            <Separator />
+            <TextBlock VerticalAlignment="Center" Foreground="#555" Text="{Binding StatusMessage}" />
+        </ToolBar>
+
+        <StatusBar DockPanel.Dock="Bottom" Height="24">
+            <StatusBarItem>
+                <TextBlock Foreground="#666" Text="{Binding StatusMessage}" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <controls:PageStrip DockPanel.Dock="Bottom" ViewModel="{Binding Board}" />
+        <controls:InkToolbar DockPanel.Dock="Top"
+                             ViewModel="{Binding Board.Toolbar}"
+                             Board="{Binding Board}" />
+
+        <Border Margin="4" Background="White" BorderBrush="#DDD" BorderThickness="1">
+            <controls:InkSurface x:Name="CanvasSurface"
+                                 ViewModel="{Binding Board}"
+                                 SizeChanged="OnCanvasSurfaceSizeChanged" />
+        </Border>
+    </DockPanel>
 </Window>

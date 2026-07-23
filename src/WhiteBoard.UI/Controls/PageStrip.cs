@@ -137,7 +137,11 @@ public sealed class PageStrip : UserControl
             btn.Content = (string.IsNullOrWhiteSpace(p.Title) || p.Title == "Page")
                 ? $"第 {num} 页"
                 : p.Title;
-            btn.Click += (_, _) => ViewModel?.Pages.GoToPage(p.Id);
+            btn.Click += async (_, _) =>
+            {
+                if (ViewModel is { } board)
+                    await board.GoToPageAsync(p.Id);
+            };
             _pagePanel.Children.Add(btn);
             num++;
         }
@@ -149,7 +153,7 @@ public sealed class PageStrip : UserControl
         var current = vm.Pages.CurrentPage;
         foreach (var child in _pagePanel.Children.OfType<Button>())
         {
-            bool active = child.Tag is PageModel p && ReferenceEquals(p, current);
+            bool active = child.Tag is PageInfo p && p.Id == current?.Id;
             child.Background = new SolidColorBrush(active
                 ? Color.FromRgb(0xCC, 0xE4, 0xFF)
                 : Color.FromRgb(0xE8, 0xE8, 0xE8));

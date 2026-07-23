@@ -25,6 +25,9 @@ public static class HubEnvelopeSerializer
         StrokeAddedEvent e => new HubEnvelope("StrokeAdded", JsonSerializer.Serialize(e, Opts)),
         ObjectDeletedEvent e => new HubEnvelope("ObjectDeleted", JsonSerializer.Serialize(e, Opts)),
         ObjectTransformedEvent e => new HubEnvelope("ObjectTransformed", JsonSerializer.Serialize(e, Opts)),
+        ObjectsTransformedEvent e => new HubEnvelope("ObjectsTransformed", JsonSerializer.Serialize(e, Opts)),
+        ObjectAddedEvent e => new HubEnvelope("ObjectAdded", JsonSerializer.Serialize(e, Opts)),
+        PageClearedEvent e => new HubEnvelope("PageCleared", JsonSerializer.Serialize(e, Opts)),
         PageAddedEvent e => new HubEnvelope("PageAdded", JsonSerializer.Serialize(e, Opts)),
         _ => null,
     };
@@ -40,6 +43,9 @@ public static class HubEnvelopeSerializer
                 "StrokeAdded" => JsonSerializer.Deserialize<StrokeAddedEvent>(env.P, Opts),
                 "ObjectDeleted" => JsonSerializer.Deserialize<ObjectDeletedEvent>(env.P, Opts),
                 "ObjectTransformed" => JsonSerializer.Deserialize<ObjectTransformedEvent>(env.P, Opts),
+                "ObjectsTransformed" => JsonSerializer.Deserialize<ObjectsTransformedEvent>(env.P, Opts),
+                "ObjectAdded" => JsonSerializer.Deserialize<ObjectAddedEvent>(env.P, Opts),
+                "PageCleared" => JsonSerializer.Deserialize<PageClearedEvent>(env.P, Opts),
                 "PageAdded" => JsonSerializer.Deserialize<PageAddedEvent>(env.P, Opts),
                 _ => null,
             };

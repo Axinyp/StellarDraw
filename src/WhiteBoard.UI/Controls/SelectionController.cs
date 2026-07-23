@@ -81,7 +81,7 @@ public sealed class SelectionController
     {
         _downScreen = _lastScreen = screen;
         var view = _getView();
-        var selIds = _vm.Selection.ToList();
+        var selIds = _vm.SelectedObjectIds;
 
         if (selIds.Count > 0)
         {
@@ -99,7 +99,7 @@ public sealed class SelectionController
                     _anchorDocBounds = docBounds;
                     _anchorScreenBounds = screenBounds;
                     _resizeSnapshot = selIds
-                        .Select(id => _vm.CurrentPage.GetObject(id))
+                        .Select(id => _vm.CurrentRenderPage?.GetObject(id))
                         .Where(o => o is not null)
                         .Select(o => (o!.Id, new Rect(o.BoundsX, o.BoundsY, o.BoundsWidth, o.BoundsHeight)))
                         .ToList();
@@ -134,7 +134,7 @@ public sealed class SelectionController
 
         // 点击空白区域：开始橡皮筋
         _mode = DragMode.RubberBand;
-        _vm.Selection.Clear();
+        _ = _vm.ClearSelectionAsync();
         ClearOverlay();
     }
 
@@ -168,11 +168,14 @@ public sealed class SelectionController
 
     public async Task OnUpAsync(Point screen)
     {
+        var mode = _mode;
         var view = _getView();
 
-        switch (_mode)
+        try
         {
-            case DragMode.RubberBand:
+            switch (mode)
+            {
+                case DragMode.RubberBand:
                 {
                     var inv = view; inv.Invert();
                     var p1 = inv.Transform(_downScreen);
@@ -183,46 +186,42 @@ public sealed class SelectionController
                     float h = (float)Math.Abs(p2.Y - p1.Y);
                     if (w > 4 && h > 4)
                         await _vm.SelectRegionAsync(x, y, w, h);
-                    RenderOverlay();
                     break;
                 }
 
-            case DragMode.MoveObjects:
+                case DragMode.MoveObjects:
                 {
                     var inv = view; inv.Invert();
                     var docDelta = inv.Transform(new Vector(_moveDx, _moveDy));
-                    var selIds = _vm.Selection.ToList();
+                    var selIds = _vm.SelectedObjectIds;
                     if (selIds.Count > 0 && (Math.Abs(_moveDx) > 0.5 || Math.Abs(_moveDy) > 0.5))
                         await _vm.MoveSelectedAsync((float)docDelta.X, (float)docDelta.Y);
-                    _moveDx = _moveDy = 0;
-                    _setHiddenObjects(null);   // 提交后恢复 committed 显示真实新位置
-                    RenderOverlay();
                     break;
                 }
 
-            case DragMode.ResizeHandle:
-                {
+                case DragMode.ResizeHandle:
                     await CommitResizeAsync(screen, view);
-                    _resizeSnapshot = null;
-                    _activeHandle = -1;
-                    _setHiddenObjects(null);   // 提交后恢复 committed 显示真实新尺寸
-                    RenderOverlay();
                     break;
-                }
 
-            case DragMode.RotateHandle:
+                case DragMode.RotateHandle:
                 {
                     double angleDeg = ComputeRotateAngleDeg(screen);
                     if (Math.Abs(angleDeg) > 0.1)
                         await _vm.RotateSelectedAsync((float)angleDeg,
                             (float)_rotatePivotDoc.X, (float)_rotatePivotDoc.Y);
-                    _setHiddenObjects(null);   // 提交后恢复 committed 显示真实新角度
-                    RenderOverlay();
                     break;
                 }
+            }
         }
-
-        _mode = DragMode.None;
+        finally
+        {
+            _moveDx = _moveDy = 0;
+            _resizeSnapshot = null;
+            _activeHandle = -1;
+            _setHiddenObjects(null);
+            _mode = DragMode.None;
+            RenderOverlay();
+        }
     }
 
     // ── 公共操作 ─────────────────────────────────────────────────────────────
@@ -230,14 +229,14 @@ public sealed class SelectionController
     /// <summary>清除选中状态并擦除覆盖层。</summary>
     public void ClearSelection()
     {
-        _vm.Selection.Clear();
+        _ = _vm.ClearSelectionAsync();
         ClearOverlay();
     }
 
     /// <summary>根据当前选中集合重绘选中框、手柄、旋转柄，并更新浮动工具栏位置。</summary>
     public void RenderOverlay()
     {
-        var selIds = _vm.Selection.ToList();
+        var selIds = _vm.SelectedObjectIds;
         using var dc = _visual.RenderOpen();
 
         if (selIds.Count == 0) { _toolbar.Hide(); return; }
@@ -272,7 +271,7 @@ public sealed class SelectionController
 
     private void RenderOverlayWithMoveDelta()
     {
-        var selIds = _vm.Selection.ToList();
+        var selIds = _vm.SelectedObjectIds;
         using var dc = _visual.RenderOpen();
         if (selIds.Count == 0) return;
 
@@ -286,7 +285,7 @@ public sealed class SelectionController
             view.OffsetX + _moveDx, view.OffsetY + _moveDy));
         foreach (var id in selIds)
         {
-            var obj = _vm.CurrentPage.GetObject(id);
+            var obj = _vm.CurrentRenderPage?.GetObject(id);
             if (obj != null) InkRenderer.RenderObject(dc, obj);
         }
         dc.Pop();
@@ -301,7 +300,7 @@ public sealed class SelectionController
     private void RenderResizePreview(Point cursor)
     {
         using var dc = _visual.RenderOpen();
-        var selIds = _vm.Selection.ToList();
+        var selIds = _vm.SelectedObjectIds;
         var preview = ComputeNewScreenBounds(cursor, _anchorScreenBounds, _activeHandle);
 
         // 实时绘制对象本体：把 anchor 屏幕框线性映射到 preview 屏幕框，使对象随手柄缩放跟手
@@ -316,7 +315,7 @@ public sealed class SelectionController
             dc.PushTransform(new MatrixTransform(m));
             foreach (var id in selIds)
             {
-                var obj = _vm.CurrentPage.GetObject(id);
+                var obj = _vm.CurrentRenderPage?.GetObject(id);
                 if (obj != null) InkRenderer.RenderObject(dc, obj);
             }
             dc.Pop();
@@ -328,7 +327,7 @@ public sealed class SelectionController
     private void RenderRotatePreview(Point cursor)
     {
         using var dc = _visual.RenderOpen();
-        var selIds = _vm.Selection.ToList();
+        var selIds = _vm.SelectedObjectIds;
         double angleDeg = ComputeRotateAngleDeg(cursor);
 
         // 以选中框中心为轴旋转：对象本体与选框一起转动
@@ -338,7 +337,7 @@ public sealed class SelectionController
         dc.PushTransform(new MatrixTransform(_getView()));
         foreach (var id in selIds)
         {
-            var obj = _vm.CurrentPage.GetObject(id);
+            var obj = _vm.CurrentRenderPage?.GetObject(id);
             if (obj != null) InkRenderer.RenderObject(dc, obj);
         }
         dc.Pop();
@@ -495,7 +494,7 @@ public sealed class SelectionController
 
         foreach (var id in ids)
         {
-            var obj = _vm.CurrentPage.GetObject(id);
+            var obj = _vm.CurrentRenderPage?.GetObject(id);
             if (obj is null) continue;
             minX = Math.Min(minX, obj.BoundsX);
             minY = Math.Min(minY, obj.BoundsY);

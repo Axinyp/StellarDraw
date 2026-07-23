@@ -69,7 +69,14 @@ public sealed class SpatialIndex
         _entries.Clear();
     }
 
-    private static SpatialEntry MakeEntry(WhiteboardObject obj) => new(obj);
+    private static SpatialEntry MakeEntry(WhiteboardObject obj)
+    {
+        if (!WhiteboardGeometry.HasValidBounds(
+                obj.BoundsX, obj.BoundsY, obj.BoundsWidth, obj.BoundsHeight))
+            throw new ArgumentOutOfRangeException(nameof(obj), "对象包围盒不能进入空间索引。");
+
+        return new SpatialEntry(obj);
+    }
 
     private sealed class SpatialEntry : ISpatialData
     {

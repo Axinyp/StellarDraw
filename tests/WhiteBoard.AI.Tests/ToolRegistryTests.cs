@@ -114,7 +114,8 @@ file sealed class StubAiActions : IWhiteboardAiActions
     public float CanvasWidth  { get; set; } = 800f;
     public float CanvasHeight { get; set; } = 600f;
 
-    public (float Width, float Height) GetCanvasSize() => (CanvasWidth, CanvasHeight);
+    public Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default) =>
+        Task.FromResult(new CanvasSizeSnapshot(CanvasWidth, CanvasHeight));
 
     public IReadOnlyDictionary<string, Guid> GetAliasMap() => new Dictionary<string, Guid>();
     public void RegisterAlias(string alias, Guid objectId) { }

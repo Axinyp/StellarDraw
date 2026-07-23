@@ -39,11 +39,13 @@ public sealed class TransformCommand : IWhiteboardCommand
     {
         foreach (var obj in _objects)
             _page.SpatialIndex.Update(obj, () => obj.ApplyTranslation(_dx, _dy));
+        _page.MarkContentChanged();
     }
 
     public void Undo()
     {
         foreach (var obj in _objects)
             _page.SpatialIndex.Update(obj, () => obj.ApplyTranslation(-_dx, -_dy));
+        _page.MarkContentChanged();
     }
 }

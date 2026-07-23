@@ -51,12 +51,20 @@ public partial class MainWindow : Window
 
     // ── 画布尺寸同步 ──────────────────────────────────────────────────────────
 
-    private void OnPluginHostSizeChanged(object sender, SizeChangedEventArgs e)
+    private async void OnPluginHostSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var session = _manager.GetExportedSession();
-        if (session is null) return;
-        session.CanvasWidth = (float)e.NewSize.Width;
-        session.CanvasHeight = (float)e.NewSize.Height;
+        if (session is null || e.NewSize.Width <= 0 || e.NewSize.Height <= 0)
+            return;
+
+        try
+        {
+            await session.SetCanvasSizeAsync((float)e.NewSize.Width, (float)e.NewSize.Height);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Demo] Failed to sync canvas size: {ex.Message}");
+        }
     }
 
     // ── 自动加载 ──────────────────────────────────────────────────────────────
@@ -177,10 +185,7 @@ public partial class MainWindow : Window
 
         // 以 PluginHost 当前实际尺寸初始化画布大小，后续通过 SizeChanged 持续同步
         if (PluginHost.ActualWidth > 0 && PluginHost.ActualHeight > 0)
-        {
-            session.CanvasWidth = (float)PluginHost.ActualWidth;
-            session.CanvasHeight = (float)PluginHost.ActualHeight;
-        }
+            await session.SetCanvasSizeAsync((float)PluginHost.ActualWidth, (float)PluginHost.ActualHeight);
 
         _settingsVm = new AiSettingsViewModel();
         _settingsVm.LoadFrom(settings);

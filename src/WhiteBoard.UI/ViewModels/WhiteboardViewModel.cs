@@ -1,27 +1,37 @@
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
+using WhiteBoard.Core.Services;
 using WhiteBoard.UI.Rendering;
 
 namespace WhiteBoard.UI.ViewModels;
 
 /// <summary>
-/// 白板主 ViewModel：连接 <see cref="WhiteboardSession"/>（领域层）与 WPF 视图层。
-/// 负责工具栏状态、页面列表、笔画提交和橡皮擦操作，并将领域事件转换为 UI 重绘通知。
+/// 白板主 ViewModel：只消费 <see cref="WhiteboardSession"/> 在执行器内捕获的不可变快照。
+/// 页面对象仅在 UI 线程从快照反序列化，用于渲染与交互预览，绝不回写 Session。
 /// </summary>
 public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
 {
     private readonly WhiteboardSession _session;
     private readonly Dispatcher _dispatcher;
+    private readonly RelayCommand _undoCommand;
+    private readonly RelayCommand _redoCommand;
+    private readonly HashSet<Guid> _selectedObjectIds = [];
+    private PageModel? _currentRenderPage;
+    private CanvasSizeSnapshot _canvasSize = new(1920f, 1080f);
+    private HistoryStateSnapshot _history = new(false, false);
+    private long _appliedRevision = -1;
+    private long _requestedRevision;
+    private int _refreshQueued;
+    private bool _disposed;
 
     public ToolbarViewModel Toolbar { get; }
     public PageListViewModel Pages { get; }
 
-    public ICommand UndoCommand { get; }
-    public ICommand RedoCommand { get; }
+    public ICommand UndoCommand => _undoCommand;
+    public ICommand RedoCommand => _redoCommand;
     public ICommand ClearPageCommand { get; }
     public ICommand SelectCommand { get; }
     public ICommand InsertShapeCommand { get; }
@@ -31,7 +41,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     public ICommand CopySelectedCommand { get; }
     public ICommand BringToFrontCommand { get; }
 
-    /// <summary>已提交层需要重绘时在 UI 线程触发（由 Session 执行器线程通过 Dispatcher 转发）。</summary>
+    /// <summary>已提交层需要重绘时在 UI 线程触发。</summary>
     public event Action? RedrawRequested;
 
     /// <summary>选中集合发生变化时触发（供 InkSurface 更新选择覆盖层）。</summary>
@@ -43,176 +53,240 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         _dispatcher = dispatcher;
 
         Toolbar = new ToolbarViewModel();
-        Pages = new PageListViewModel(session.Pages);
-
-        UndoCommand = new RelayCommand(Undo, () => _session.History.CanUndo);
-        RedoCommand = new RelayCommand(Redo, () => _session.History.CanRedo);
-        ClearPageCommand = new RelayCommand(ClearPage);
+        Pages = new PageListViewModel();
+        _undoCommand = new RelayCommand(() => _ = UndoAsync(), () => _history.CanUndo);
+        _redoCommand = new RelayCommand(() => _ = RedoAsync(), () => _history.CanRedo);
+        ClearPageCommand = new RelayCommand(() => _ = ClearPageAsync());
         SelectCommand = new RelayCommand(() => Toolbar.CurrentTool = ToolType.Select);
         InsertShapeCommand = new RelayCommand<string>(InsertShape);
         InsertImageCommand = new RelayCommand(InsertImage);
-        AddPageCommand = new RelayCommand(AddPage);
+        AddPageCommand = new RelayCommand(() => _ = AddPageAsync());
         DeleteSelectedCommand = new RelayCommand(() => _ = DeleteSelectedAsync());
         CopySelectedCommand = new RelayCommand(() => _ = CopySelectedAsync());
         BringToFrontCommand = new RelayCommand(() => _ = BringToFrontSelectedAsync());
 
-        SubscribeToCurrentPage();
-        Pages.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(PageListViewModel.CurrentPage))
-                SubscribeToCurrentPage();
-        };
+        _session.StateChanged += OnSessionStateChanged;
+        QueueRefresh();
     }
 
-    public PageModel CurrentPage => _session.Current;
+    /// <summary>仅供 UI 渲染与预览使用的页面副本。</summary>
+    public PageModel? CurrentRenderPage => _currentRenderPage;
+
+    /// <summary>仅供 UI 交互使用的当前选择 ID 副本。</summary>
+    public IReadOnlyList<Guid> SelectedObjectIds => _selectedObjectIds.ToArray();
+
+    public bool HasSelection => _selectedObjectIds.Count > 0;
+
+    public CanvasSizeSnapshot CanvasSize => _canvasSize;
+
     public IStrokePredictor? Predictor => _session.Predictor;
-    public SelectionModel Selection => _session.Selection;
 
-    public void NotifySelectionChanged()
-        => _dispatcher.BeginInvoke(() => SelectionChanged?.Invoke(), DispatcherPriority.Render);
+    public Task SetCanvasSizeAsync(float width, float height, CancellationToken ct = default) =>
+        _session.SetCanvasSizeAsync(width, height, ct);
 
-    // ── Stroke commit ─────────────────────────────────────────────────────────
+    /// <summary>捕获完整白板文档快照，供宿主在可信文件边界完成保存。</summary>
+    public Task<WhiteboardDocumentSnapshot> CaptureDocumentAsync(CancellationToken ct = default) =>
+        _session.CaptureDocumentAsync(ct);
+
+    /// <summary>替换完整白板文档；状态通知会统一触发快照刷新。</summary>
+    public async Task ReplaceDocumentAsync(WhiteboardDocumentSnapshot document, CancellationToken ct = default)
+    {
+        await _session.ReplaceDocumentAsync(document, ct);
+        await RefreshUiSnapshotAsync(ct);
+    }
+
+    public async Task<bool> GoToPageAsync(string pageId, CancellationToken ct = default)
+    {
+        var changed = await _session.GoToPageAsync(pageId, ct);
+        if (changed)
+            await RefreshUiSnapshotAsync(ct);
+        return changed;
+    }
 
     public async Task CommitStrokeAsync(IReadOnlyList<PressurePoint> points)
     {
-        if (points.Count < 2) return;
+        if (points.Count < 2)
+            return;
 
-        var style = BuildStyle();
-        var stroke = new StrokeObject(points, style); // 使用自动计算 Bounds 的构造函数
-
-        await _session.AddStrokeAsync(stroke);
-        RequestRedraw();
+        await _session.AddStrokeAsync(new StrokeObject(points, BuildStyle()));
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task EraseAtAsync(float docX, float docY)
     {
         await _session.EraseAtAsync(docX, docY);
-        RequestRedraw();
+        await RefreshUiSnapshotAsync();
     }
-
-    // ── Selection operations ──────────────────────────────────────────────────
 
     public async Task SelectRegionAsync(float x, float y, float w, float h)
     {
         await _session.SelectObjectsInRegionAsync(x, y, w, h);
-        NotifySelectionChanged();
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task MoveSelectedAsync(float dx, float dy)
     {
-        var ids = _session.Selection.ToList();
-        if (ids.Count == 0) return;
+        var ids = SelectedObjectIds;
+        if (ids.Count == 0)
+            return;
+
         await _session.MoveObjectsAsync(ids, dx, dy);
-        RequestRedraw();
+        await RefreshUiSnapshotAsync();
     }
 
-    public void ClearSelection()
+    public async Task ClearSelectionAsync()
     {
-        _session.Selection.Clear();
-        NotifySelectionChanged();
+        await _session.ClearSelectionAsync();
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task DeleteSelectedAsync()
     {
-        var ids = _session.Selection.ToList();
-        _session.Selection.Clear();
-        if (ids.Count > 0)
-            await _session.DeleteObjectsAsync(ids);
-        RequestRedraw();
-        NotifySelectionChanged();
+        var ids = SelectedObjectIds;
+        if (ids.Count == 0)
+            return;
+
+        await _session.DeleteObjectsAsync(ids);
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task CopySelectedAsync()
     {
-        var ids = _session.Selection.ToList();
-        if (ids.Count == 0) return;
-        var newIds = await _session.CopyObjectsAsync(ids);
-        _session.Selection.SelectAll(newIds);
-        RequestRedraw();
-        NotifySelectionChanged();
+        var ids = SelectedObjectIds;
+        if (ids.Count == 0)
+            return;
+
+        var result = await _session.CopyObjectsAsync(ids);
+        if (result.Changed)
+            await _session.SetSelectedObjectIdsAsync(result.AffectedObjectIds);
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task BringToFrontSelectedAsync()
     {
-        var ids = _session.Selection.ToList();
-        if (ids.Count == 0) return;
+        var ids = SelectedObjectIds;
+        if (ids.Count == 0)
+            return;
+
         await _session.BringToFrontAsync(ids);
-        RequestRedraw();
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task ResizeBoundsAsync(IReadOnlyList<(Guid Id, float X, float Y, float W, float H)> updates)
     {
         await _session.ResizeBoundsAsync(updates);
-        RequestRedraw();
+        await RefreshUiSnapshotAsync();
     }
 
     public async Task RotateSelectedAsync(float angleDeg, float pivotDocX, float pivotDocY)
     {
-        var ids = _session.Selection.ToList();
-        if (ids.Count == 0) return;
+        var ids = SelectedObjectIds;
+        if (ids.Count == 0)
+            return;
+
         await _session.RotateObjectsAsync(ids, angleDeg, pivotDocX, pivotDocY);
-        RequestRedraw();
+        await RefreshUiSnapshotAsync();
     }
 
-    // ── Undo / Redo ──────────────────────────────────────────────────────────
+    public void NotifySelectionChanged() =>
+        _dispatcher.BeginInvoke(NotifySelectionChangedCore, DispatcherPriority.Render);
 
-    private void Undo()
+    private async Task UndoAsync()
     {
-        _session.PostOperationAsync(() =>
+        await _session.UndoAsync();
+        await RefreshUiSnapshotAsync();
+    }
+
+    private async Task RedoAsync()
+    {
+        await _session.RedoAsync();
+        await RefreshUiSnapshotAsync();
+    }
+
+    private async Task ClearPageAsync()
+    {
+        await _session.ClearCurrentPageAsync();
+        await RefreshUiSnapshotAsync();
+    }
+
+    private async Task AddPageAsync()
+    {
+        await _session.AddPageAsync();
+        await RefreshUiSnapshotAsync();
+    }
+
+    private void InsertShape(string? shapeType) => _ = InsertShapeAsync(shapeType);
+
+    private async Task InsertShapeAsync(string? shapeType)
+    {
+        var size = _canvasSize;
+        await InsertShapeAtAsync(shapeType, size.Width / 2 - 80, size.Height / 2 - 60, 160, 120);
+    }
+
+    /// <summary>在指定文档矩形内插入形状（供画布拖拽绘制使用）。</summary>
+    public void InsertShapeAt(string? shapeType, float x, float y, float w, float h) =>
+        _ = InsertShapeAtAsync(shapeType, x, y, w, h);
+
+    private async Task InsertShapeAtAsync(string? shapeType, float x, float y, float w, float h)
+    {
+        var shape = new ShapeObject(ParseShapeType(shapeType), 0xFFFFFFFF, 0xFF333333, 2f, true,
+            x, y, w, h);
+        await _session.AddShapeAsync(shape);
+        await RefreshUiSnapshotAsync();
+    }
+
+    /// <summary>将形状类型字符串解析为 <see cref="ShapeType"/>，未知值回退为矩形。</summary>
+    public static ShapeType ParseShapeType(string? shapeType) =>
+        ShapeTypeParser.TryParse(shapeType, out var type) ? type : ShapeType.Rectangle;
+
+    private void InsertImage() => _ = InsertImageAsync();
+
+    private async Task InsertImageAsync()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            _session.History.Undo();
-        }).AsTask().ContinueWith(_ =>
-            // 续体可能在执行器线程触发，重绘涉及 DispatcherObject，必须 marshal 回 UI 线程。
-            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
-    }
+            Title = "选择图片",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
 
-    private void Redo()
-    {
-        _session.PostOperationAsync(() =>
+        try
         {
-            _session.History.Redo();
-        }).AsTask().ContinueWith(_ =>
-            // 同 Undo：避免在执行器线程直接触碰 UI 渲染。
-            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
-    }
+            var fileInfo = new System.IO.FileInfo(dialog.FileName);
+            if (fileInfo.Length <= 0 || fileInfo.Length > ImageAssetValidator.MaxCompressedBytes)
+                return;
 
-    private void AddPage()
-    {
-        Pages.AddPage();
-        SubscribeToCurrentPage();
-        RequestRedraw();
-    }
+            var raw = await System.IO.File.ReadAllBytesAsync(dialog.FileName);
+            if (!ImageAssetValidator.TryValidate(raw, out _))
+                return;
 
-    // ── Change notification ───────────────────────────────────────────────────
+            var bitmap = InkRenderer.DecodeBitmap(raw);
+            if (bitmap is null)
+                return;
 
-    private PageModel? _subscribedPage;
+            var assetId = RawImageAssetStore.ComputeAssetId(raw);
+            if (!RawImageAssetStore.TryStore(assetId, raw))
+                return;
+            ImageAssetStore.Store(assetId, bitmap);
 
-    private void SubscribeToCurrentPage()
-    {
-        if (_subscribedPage is not null)
-        {
-            _subscribedPage.ObjectAdded -= OnObjectChanged;
-            _subscribedPage.ObjectRemoved -= OnObjectChanged;
-            _subscribedPage.Cleared -= OnPageCleared;
+            var maxWidth = Math.Min(bitmap.PixelWidth, 600f);
+            var scale = maxWidth / bitmap.PixelWidth;
+            var imageWidth = (float)(bitmap.PixelWidth * scale);
+            var imageHeight = (float)(bitmap.PixelHeight * scale);
+            var size = _canvasSize;
+            await _session.AddImageAsync(new ImageObject(assetId,
+                (size.Width - imageWidth) / 2,
+                (size.Height - imageHeight) / 2,
+                imageWidth,
+                imageHeight));
+            await RefreshUiSnapshotAsync();
         }
-        _subscribedPage = Pages.CurrentPage;
-        if (_subscribedPage is not null)
+        catch (Exception ex)
         {
-            _subscribedPage.ObjectAdded += OnObjectChanged;
-            _subscribedPage.ObjectRemoved += OnObjectChanged;
-            _subscribedPage.Cleared += OnPageCleared;
+            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.Message}");
         }
     }
-
-    private void OnObjectChanged(WhiteboardObject _)
-        => _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render);
-
-    private void OnPageCleared()
-        => _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render);
-
-    private void RequestRedraw() => RedrawRequested?.Invoke();
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private StrokeStyle BuildStyle()
     {
@@ -231,85 +305,104 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
             IsAntiAlias: Toolbar.IsAntiAlias);
     }
 
-    private void ClearPage()
+    private void OnSessionStateChanged(long revision)
     {
-        _session.ClearCurrentPageAsync().ContinueWith(_ =>
-            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
+        UpdateRequestedRevision(revision);
+        QueueRefresh();
     }
 
-    private void InsertShape(string? shapeType)
+    private void UpdateRequestedRevision(long revision)
     {
-        var w = _session.CanvasWidth;
-        var h = _session.CanvasHeight;
-        InsertShapeAt(shapeType, w / 2 - 80, h / 2 - 60, 160, 120);
-    }
-
-    /// <summary>
-    /// 在指定文档矩形内插入形状（供画布拖拽绘制使用）。
-    /// 由 InkSurface 在 Shape 工具下拖拽松开时调用，传入用户拉出的位置与大小。
-    /// </summary>
-    public void InsertShapeAt(string? shapeType, float x, float y, float w, float h)
-    {
-        var shape = new ShapeObject(ParseShapeType(shapeType), 0xFFFFFFFF, 0xFF333333, 2f, true,
-            x, y, w, h);
-        _session.AddShapeAsync(shape).ContinueWith(_ =>
-            _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
-    }
-
-    /// <summary>将形状类型字符串解析为 <see cref="ShapeType"/>，未知值回退为矩形（UI 只传合法值）。</summary>
-    public static ShapeType ParseShapeType(string? shapeType) =>
-        ShapeTypeParser.TryParse(shapeType, out var t) ? t : ShapeType.Rectangle;
-
-    private void InsertImage()
-    {
-        var dlg = new Microsoft.Win32.OpenFileDialog
+        long observed;
+        do
         {
-            Title = "选择图片",
-            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件|*.*",
-        };
-        if (dlg.ShowDialog() != true) return;
-
-        try
-        {
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.UriSource = new Uri(dlg.FileName);
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions = BitmapCreateOptions.None;
-            bitmap.EndInit();
-            bitmap.Freeze();
-
-            var raw = System.IO.File.ReadAllBytes(dlg.FileName);
-            var hash = System.Security.Cryptography.SHA256.HashData(raw);
-            var assetId = BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant();
-
-            ImageAssetStore.Store(assetId, bitmap);
-
-            var maxW = Math.Min(bitmap.PixelWidth, 600f);
-            var scale = maxW / bitmap.PixelWidth;
-            var imgW = (float)(bitmap.PixelWidth * scale);
-            var imgH = (float)(bitmap.PixelHeight * scale);
-            var x = (_session.CanvasWidth - imgW) / 2;
-            var y = (_session.CanvasHeight - imgH) / 2;
-
-            var image = new ImageObject(assetId, x, y, imgW, imgH);
-            _session.AddImageAsync(image).ContinueWith(_ =>
-                _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render));
+            observed = Volatile.Read(ref _requestedRevision);
+            if (observed >= revision)
+                return;
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.Message}");
-        }
+        while (Interlocked.CompareExchange(ref _requestedRevision, revision, observed) != observed);
     }
+
+    private void QueueRefresh()
+    {
+        if (_disposed || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+            return;
+
+        _dispatcher.BeginInvoke(async () =>
+        {
+            try
+            {
+                do
+                {
+                    await RefreshUiSnapshotAsync();
+                }
+                while (!_disposed &&
+                    Volatile.Read(ref _appliedRevision) < Volatile.Read(ref _requestedRevision));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhiteboardViewModel] Refresh failed: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshQueued, 0);
+                if (!_disposed && Volatile.Read(ref _appliedRevision) < Volatile.Read(ref _requestedRevision))
+                    QueueRefresh();
+            }
+        }, DispatcherPriority.Render);
+    }
+
+    private async Task RefreshUiSnapshotAsync(CancellationToken ct = default)
+    {
+        var snapshot = await _session.CaptureUiSnapshotAsync(ct);
+        if (!_dispatcher.CheckAccess())
+        {
+            await _dispatcher.InvokeAsync(() => ApplySnapshot(snapshot), DispatcherPriority.Render, ct);
+            return;
+        }
+
+        ApplySnapshot(snapshot);
+    }
+
+    private void ApplySnapshot(SessionUiSnapshot snapshot)
+    {
+        if (snapshot.Revision < _appliedRevision)
+            return;
+
+        _appliedRevision = snapshot.Revision;
+        UpdateRequestedRevision(snapshot.Revision);
+        _canvasSize = snapshot.CanvasSize;
+        _history = snapshot.History;
+        Pages.Apply(snapshot.Pages);
+        _currentRenderPage = PageSerializer.Deserialize(
+            snapshot.CurrentPage.Data,
+            snapshot.CurrentPage.PageId,
+            snapshot.CurrentPage.Title);
+        _currentRenderPage.Background = snapshot.CurrentPage.Background;
+
+        _selectedObjectIds.Clear();
+        foreach (var id in snapshot.SelectedObjectIds)
+            _selectedObjectIds.Add(id);
+
+        _undoCommand.RaiseCanExecuteChanged();
+        _redoCommand.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(CurrentRenderPage));
+        OnPropertyChanged(nameof(SelectedObjectIds));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(CanvasSize));
+        RedrawRequested?.Invoke();
+        NotifySelectionChangedCore();
+    }
+
+    private void NotifySelectionChangedCore() => SelectionChanged?.Invoke();
 
     public void Dispose()
     {
-        if (_subscribedPage is not null)
-        {
-            _subscribedPage.ObjectAdded -= OnObjectChanged;
-            _subscribedPage.ObjectRemoved -= OnObjectChanged;
-            _subscribedPage.Cleared -= OnPageCleared;
-        }
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _session.StateChanged -= OnSessionStateChanged;
         Pages.Dispose();
     }
 }

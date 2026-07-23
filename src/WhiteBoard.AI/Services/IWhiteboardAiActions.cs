@@ -5,7 +5,7 @@ namespace WhiteBoard.AI.Services;
 /// <summary>
 /// AI 工具层与 WhiteboardSession 之间的服务层。
 /// AgentLoop 通过此接口操作白板，不直接持有 WhiteboardSession 引用。
-/// 所有方法均线程安全（内部通过 Session.PostOperationAsync 序列化）。
+/// 所有方法均线程安全（内部通过 Session 的受控异步 API 串行化）。
 /// </summary>
 public interface IWhiteboardAiActions
 {
@@ -60,8 +60,8 @@ public interface IWhiteboardAiActions
     /// <summary>清空别名映射（新会话开始或翻页时调用）。</summary>
     void ClearAliases();
 
-    /// <summary>获取当前画布的逻辑尺寸（宽×高，像素）。</summary>
-    (float Width, float Height) GetCanvasSize();
+    /// <summary>异步获取当前画布的逻辑尺寸（宽×高，像素）。</summary>
+    Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default);
 }
 
 // ── 参数规格 ──────────────────────────────────────────────────────────────────

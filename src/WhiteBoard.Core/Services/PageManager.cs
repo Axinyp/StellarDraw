@@ -58,4 +58,17 @@ public sealed class PageManager
     {
         if (_pages.Count == 0) AddPage();
     }
+
+    internal void ReplaceAll(IReadOnlyList<PageModel> pages, int currentIndex)
+    {
+        ArgumentNullException.ThrowIfNull(pages);
+        if (pages.Count == 0)
+            throw new ArgumentException("文档至少需要包含一个页面。", nameof(pages));
+        if (currentIndex < 0 || currentIndex >= pages.Count)
+            throw new ArgumentOutOfRangeException(nameof(currentIndex));
+
+        _pages.Clear();
+        _pages.AddRange(pages);
+        _currentIndex = currentIndex;
+    }
 }

@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Hashing;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
@@ -91,6 +93,24 @@ public class PageSerializerObjectTests
         var full      = PageSerializer.SerializeObject(MakeStroke());
         var truncated = full[..Math.Max(0, full.Length - 10)];
         Assert.Null(PageSerializer.DeserializeObject(truncated));
+    }
+
+    [Fact]
+    public void DeserializeObject_ExtremeFiniteBounds_ReturnsNull()
+    {
+        var data = PageSerializer.SerializeObject(MakeStroke());
+        BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(28), float.MaxValue);
+        BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(36), float.MaxValue);
+        RewriteChunkCrc(data);
+
+        Assert.Null(PageSerializer.DeserializeObject(data));
+    }
+
+    private static void RewriteChunkCrc(byte[] chunk)
+    {
+        var chunkLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(chunk));
+        var crc = Crc32.HashToUInt32(chunk.AsSpan(4, chunkLength - 8));
+        BinaryPrimitives.WriteUInt32LittleEndian(chunk.AsSpan(chunkLength - 4), crc);
     }
 
     // ── Collaboration round-trip ──────────────────────────────────────────────

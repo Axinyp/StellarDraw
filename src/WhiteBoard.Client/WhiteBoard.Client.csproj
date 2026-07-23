@@ -14,9 +14,14 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- Core 在运行时使用 RBush；显式保留运行时资产以确保独立 Client 输出目录完整。 -->
+    <PackageReference Include="RBush" Version="3.1.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Core\WhiteBoard.Core.csproj" />
+    <ProjectReference Include="..\WhiteBoard.UI\WhiteBoard.UI.csproj" />
     <ProjectReference Include="..\WhiteBoard.Framework.Hosting\WhiteBoard.Framework.Hosting.csproj" />
     <ProjectReference Include="..\WhiteBoard.Framework.Hosting.Wpf\WhiteBoard.Framework.Hosting.Wpf.csproj" />
   </ItemGroup>

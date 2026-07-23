@@ -212,7 +212,9 @@ public sealed class InkSurface : FrameworkElement
         using var dc = _committedVisual.RenderOpen();
         var vm = ViewModel;
         if (vm is null) return;
-        InkRenderer.RenderPage(dc, vm.CurrentPage, RenderSize,
+        var page = vm.CurrentRenderPage;
+        if (page is null) return;
+        InkRenderer.RenderPage(dc, page, RenderSize,
             _hiddenObjectIds.Count > 0 ? _hiddenObjectIds : null);
         // 页面重绘后同步更新选择覆盖层（对象移动/删除后 bounds 已更新）
         _controller?.RenderOverlay();
@@ -695,12 +697,12 @@ public sealed class InkSurface : FrameworkElement
         { ResetView(); e.Handled = true; }
         else if (e.Key == Key.F12 && Keyboard.Modifiers == ModifierKeys.None)
         { ShowLatency = !ShowLatency; e.Handled = true; }
-        else if (e.Key == Key.Delete && ViewModel is { } vm && vm.Selection.Count > 0)
+        else if (e.Key == Key.Delete && ViewModel is { } vm && vm.HasSelection)
         { _ = vm.DeleteSelectedAsync(); e.Handled = true; }
-        else if (e.Key == Key.Escape && ViewModel is { } vmEsc && vmEsc.Selection.Count > 0)
-        { _controller?.ClearSelection(); vmEsc.NotifySelectionChanged(); e.Handled = true; }
+        else if (e.Key == Key.Escape && ViewModel is { } vmEsc && vmEsc.HasSelection)
+        { _ = vmEsc.ClearSelectionAsync(); e.Handled = true; }
         else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control
-                 && ViewModel is { } vmCopy && vmCopy.Selection.Count > 0)
+                 && ViewModel is { } vmCopy && vmCopy.HasSelection)
         { _ = vmCopy.CopySelectedAsync(); e.Handled = true; }
     }
 

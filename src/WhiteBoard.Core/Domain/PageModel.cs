@@ -67,6 +67,8 @@ public sealed class PageModel
         Cleared?.Invoke();
     }
 
+    internal void MarkContentChanged() => _version++;
+
     internal SpatialIndex SpatialIndex => _index;
 
     public IReadOnlyList<WhiteboardObject> HitTest(float x, float y, float tolerance = 4f)

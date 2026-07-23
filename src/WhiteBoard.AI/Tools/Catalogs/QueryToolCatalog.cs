@@ -11,10 +11,10 @@ public static class QueryToolCatalog
     {
         registry.Register(
             AIFunctionFactory.Create(
-                () =>
+                async (CancellationToken ct = default) =>
                 {
-                    var (w, h) = actions.GetCanvasSize();
-                    return JsonSerializer.Serialize(new { width = w, height = h });
+                    var size = await actions.GetCanvasSizeAsync(ct);
+                    return JsonSerializer.Serialize(new { width = size.Width, height = size.Height });
                 },
                 "get_canvas_size",
                 "获取画布当前尺寸（宽×高，单位像素）。坐标传参前应先调用此工具确认边界。"),

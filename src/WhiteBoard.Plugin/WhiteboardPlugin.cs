@@ -5,7 +5,7 @@ using WhiteBoard.Contracts.Services;
 using WhiteBoard.Contracts.Wpf;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Plugin.Collaboration;
-using WhiteBoard.Plugin.InkForecast;
+using WhiteBoard.Core.InkForecast;
 using WhiteBoard.UI.Controls;
 using WhiteBoard.UI.ViewModels;
 

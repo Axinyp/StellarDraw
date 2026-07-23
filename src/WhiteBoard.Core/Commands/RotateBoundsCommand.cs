@@ -46,6 +46,7 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
             _page.SpatialIndex.Update(snap.Obj, () =>
                 snap.Obj.SetWorldBoundsAndTransform(nx, ny, nw, nh, nt));
         }
+        _page.MarkContentChanged();
     }
 
     public void Undo()
@@ -54,5 +55,6 @@ public sealed class RotateBoundsCommand : IWhiteboardCommand
             _page.SpatialIndex.Update(snap.Obj, () =>
                 snap.Obj.SetWorldBoundsAndTransform(
                     snap.OldX, snap.OldY, snap.OldW, snap.OldH, snap.OldTransform));
+        _page.MarkContentChanged();
     }
 }

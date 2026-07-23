@@ -21,6 +21,15 @@ public static class PageSerializer
     private static readonly byte[] Magic = "WBPG"u8.ToArray();
     private const int HeaderSize = 22;   // Magic(4)+Version(2)+Flags(4)+Count(4)+CRC(4)+Reserved(4)
     private const int ChunkFixedHdr = 4 + 2 + 2 + 16 + 4 + 16 + 24 + 1 + 3; // = 72 bytes before payload
+    private const int StrokePayloadHeaderSize = 16;
+    private const int BytesPerStrokePoint = 12;
+    private const int MaxStrokePointCount = 1_000_000;
+    private const int MaxTextContentBytes = 1 * 1024 * 1024;
+    private const int MaxTextStyleBytes = 256 * 1024;
+    private const int MaxJsonPayloadBytes = 4 * 1024 * 1024;
+    private const int MaxDocumentReferenceBytes = 4 * 1024;
+    private const int MaxPathDataBytes = 1 * 1024 * 1024;
+    private const int MaxObjectCount = 50_000;
 
     /// <summary>
     /// 克隆 <see cref="SerializeObject"/> 产生的字节块，赋予新 Guid 并对 Bounds/Transform 施加平移偏移。
@@ -286,6 +295,9 @@ public static class PageSerializer
         if (version < ProtocolVersion.MinSupportedPageBin) return page;
 
         var objectCount = BinaryPrimitives.ReadUInt32LittleEndian(span[10..]);
+        if (objectCount > MaxObjectCount)
+            throw new InvalidDataException("页面对象数量超过限制。");
+
         int pos = HeaderSize;
 
         for (uint i = 0; i < objectCount && pos + 8 <= data.Length; i++)
@@ -338,6 +350,9 @@ public static class PageSerializer
         var isLocked = body[64] != 0;
         var payload = body[68..];
 
+        if (!IsFiniteGeometry(bx, by, bw, bh, transform))
+            throw new InvalidDataException("对象几何数据无效。");
+
         var obj = DeserializePayload(kind, id, bx, by, bw, bh, transform, payload);
         if (obj != null)
         {
@@ -362,21 +377,33 @@ public static class PageSerializer
             _ => null,
         };
 
+    private static bool IsFiniteGeometry(float x, float y, float width, float height, float[] transform) =>
+        WhiteboardGeometry.HasValidBounds(x, y, width, height) &&
+        transform.All(float.IsFinite);
+
     private static StrokeObject DeserializeStroke(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
+        if (payload.Length < StrokePayloadHeaderSize)
+            throw new InvalidDataException("笔画数据截断。");
+
         var styleFlags = BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
         var colorArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[4..]);
         var thickness = BitConverter.ToSingle(payload[8..]);
-        var pointCount = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[12..]);
-        var points = new PressurePoint[pointCount];
-        for (int i = 0; i < pointCount; i++)
+        var pointCount = BinaryPrimitives.ReadUInt32LittleEndian(payload[12..]);
+        var availablePointCount = (payload.Length - StrokePayloadHeaderSize) / BytesPerStrokePoint;
+        if (pointCount > MaxStrokePointCount || pointCount > availablePointCount ||
+            payload.Length != StrokePayloadHeaderSize + (long)pointCount * BytesPerStrokePoint)
+            throw new InvalidDataException("笔画点数据无效。");
+
+        var points = new PressurePoint[(int)pointCount];
+        for (int i = 0; i < points.Length; i++)
         {
-            int o = 16 + i * 12;
+            int offset = StrokePayloadHeaderSize + i * BytesPerStrokePoint;
             points[i] = new PressurePoint(
-                BitConverter.ToSingle(payload[o..]),
-                BitConverter.ToSingle(payload[(o + 4)..]),
-                BitConverter.ToSingle(payload[(o + 8)..]),
+                BitConverter.ToSingle(payload[offset..]),
+                BitConverter.ToSingle(payload[(offset + 4)..]),
+                BitConverter.ToSingle(payload[(offset + 8)..]),
                 0L);
         }
         var style = new StrokeStyle(
@@ -385,86 +412,140 @@ public static class PageSerializer
             colorArgb, thickness,
             (styleFlags & (1u << 8)) != 0,
             (styleFlags & (1u << 9)) != 0);
+        if (!Enum.IsDefined(style.PenType) || !Enum.IsDefined(style.InkType) ||
+            !float.IsFinite(style.Thickness) || style.Thickness <= 0 ||
+            points.Any(point => !float.IsFinite(point.X) || !float.IsFinite(point.Y) ||
+                !float.IsFinite(point.Pressure)))
+            throw new InvalidDataException("笔画样式或坐标无效。");
+
         return new StrokeObject(id, points, style, bx, by, bw, bh, transform);
     }
 
     private static ImageObject DeserializeImage(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
+        if (payload.Length != 24)
+            throw new InvalidDataException("图片数据无效。");
+
         var assetId = Convert.ToHexString(payload[..16].ToArray()).ToLowerInvariant();
         var origW = BitConverter.ToSingle(payload[16..]);
         var origH = BitConverter.ToSingle(payload[20..]);
+        if (!float.IsFinite(origW) || origW <= 0 || !float.IsFinite(origH) || origH <= 0)
+            throw new InvalidDataException("图片尺寸无效。");
+
         return new ImageObject(id, assetId, origW, origH, bx, by, bw, bh, transform);
     }
 
     private static TextObject DeserializeText(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        var contentLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
-        var content = Encoding.UTF8.GetString(payload[4..(4 + contentLen)]);
-        var styleLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[(4 + contentLen)..]);
-        var styleJson = payload[(8 + contentLen)..(8 + contentLen + styleLen)];
-        var style = JsonSerializer.Deserialize<TextStyle>(styleJson) ?? new TextStyle("Arial", 14, false, false, 0xFF000000);
+        var offset = 0;
+        var contentBytes = ReadLengthPrefixedBytes(
+            payload, ref offset, MaxTextContentBytes, "文本内容");
+        var styleJson = ReadLengthPrefixedBytes(
+            payload, ref offset, MaxTextStyleBytes, "文本样式");
+        if (offset != payload.Length)
+            throw new InvalidDataException("文本数据包含多余字节。");
+
+        var content = Encoding.UTF8.GetString(contentBytes);
+        var style = JsonSerializer.Deserialize<TextStyle>(styleJson) ??
+            throw new InvalidDataException("文本样式无效。");
+        if (string.IsNullOrWhiteSpace(style.FontFamily) || !float.IsFinite(style.FontSize) || style.FontSize <= 0)
+            throw new InvalidDataException("文本样式无效。");
+
         return new TextObject(id, content, style, bx, by, bw, bh, transform);
     }
 
     private static MindMapObject DeserializeMindMap(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        var len = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
-        var json = Encoding.UTF8.GetString(payload[4..(4 + len)]);
-        var data = MindMapData.FromJson(json);
+        var offset = 0;
+        var jsonBytes = ReadLengthPrefixedBytes(payload, ref offset, MaxJsonPayloadBytes, "思维导图");
+        if (offset != payload.Length)
+            throw new InvalidDataException("思维导图数据包含多余字节。");
+
+        var data = MindMapData.FromJson(Encoding.UTF8.GetString(jsonBytes));
         return new MindMapObject(id, data, bx, by, bw, bh, transform);
     }
 
     private static TableObject DeserializeTable(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        var len = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
-        var json = Encoding.UTF8.GetString(payload[4..(4 + len)]);
-        var data = TableData.FromJson(json);
+        var offset = 0;
+        var jsonBytes = ReadLengthPrefixedBytes(payload, ref offset, MaxJsonPayloadBytes, "表格");
+        if (offset != payload.Length)
+            throw new InvalidDataException("表格数据包含多余字节。");
+
+        var data = TableData.FromJson(Encoding.UTF8.GetString(jsonBytes));
         return new TableObject(id, data, bx, by, bw, bh, transform);
     }
 
     private static DocumentObject DeserializeDocument(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        var refLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
-        var fileRef = Encoding.UTF8.GetString(payload[4..(4 + refLen)]);
-        var pageCount = BinaryPrimitives.ReadInt32LittleEndian(payload[(4 + refLen)..]);
-        return new DocumentObject(id, fileRef, pageCount, bx, by, bw, bh, transform);
+        var offset = 0;
+        var fileRefBytes = ReadLengthPrefixedBytes(
+            payload, ref offset, MaxDocumentReferenceBytes, "文档引用");
+        if (payload.Length - offset != sizeof(int))
+            throw new InvalidDataException("文档数据无效。");
+
+        var pageCount = BinaryPrimitives.ReadInt32LittleEndian(payload[offset..]);
+        return new DocumentObject(id, Encoding.UTF8.GetString(fileRefBytes), pageCount, bx, by, bw, bh, transform);
     }
 
     private static ShapeObject DeserializeShape(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        if (payload.Length < 14) return new ShapeObject(id, ShapeType.Rectangle, 0, 0xFF000000, 1f, false, bx, by, bw, bh, transform);
+        if (payload.Length != 14)
+            throw new InvalidDataException("形状数据无效。");
+
         var type = (ShapeType)payload[0];
         var fillArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[1..]);
         var strokeArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[5..]);
         var strokeWidth = BitConverter.ToSingle(payload[9..]);
         var isFilled = payload[13] != 0;
+        if (!Enum.IsDefined(type) || !float.IsFinite(strokeWidth) || strokeWidth <= 0)
+            throw new InvalidDataException("形状属性无效。");
+
         return new ShapeObject(id, type, fillArgb, strokeArgb, strokeWidth, isFilled, bx, by, bw, bh, transform);
     }
 
     private static PathObject DeserializePath(Guid id, float bx, float by, float bw, float bh,
         float[] transform, ReadOnlySpan<byte> payload)
     {
-        if (payload.Length < 4)
-            return new PathObject(id, "", 0xFF000000, 0xFF000000, 1f, false, bx, by, bw, bh, transform);
+        var offset = 0;
+        var pathBytes = ReadLengthPrefixedBytes(payload, ref offset, MaxPathDataBytes, "路径");
+        const int tailLength = sizeof(uint) + sizeof(uint) + sizeof(float) + sizeof(byte);
+        if (payload.Length - offset != tailLength)
+            throw new InvalidDataException("路径数据无效。");
 
-        var pathLen = (int)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..]);
-        var minRequired = 4 + pathLen + 9;
-        if (payload.Length < minRequired)
-            return new PathObject(id, "", 0xFF000000, 0xFF000000, 1f, false, bx, by, bw, bh, transform);
-
-        var pathData = Encoding.UTF8.GetString(payload[4..(4 + pathLen)]);
-        int tail = 4 + pathLen;
-        var fillArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[tail..]);
-        var strokeArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[(tail + 4)..]);
-        var strokeWidth = BitConverter.ToSingle(payload[(tail + 8)..]);
-        var isFilled = payload[tail + 12] != 0;
+        var pathData = Encoding.UTF8.GetString(pathBytes);
+        var fillArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[offset..]);
+        var strokeArgb = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 4)..]);
+        var strokeWidth = BitConverter.ToSingle(payload[(offset + 8)..]);
+        var isFilled = payload[offset + 12] != 0;
+        if (!float.IsFinite(strokeWidth) || strokeWidth <= 0)
+            throw new InvalidDataException("路径描边无效。");
 
         return new PathObject(id, pathData, fillArgb, strokeArgb, strokeWidth, isFilled, bx, by, bw, bh, transform);
+    }
+
+    private static ReadOnlySpan<byte> ReadLengthPrefixedBytes(
+        ReadOnlySpan<byte> payload,
+        ref int offset,
+        int maximumLength,
+        string fieldName)
+    {
+        if (payload.Length - offset < sizeof(uint))
+            throw new InvalidDataException($"{fieldName}数据截断。");
+
+        var length = BinaryPrimitives.ReadUInt32LittleEndian(payload[offset..]);
+        offset += sizeof(uint);
+        if (length > maximumLength || length > payload.Length - offset)
+            throw new InvalidDataException($"{fieldName}长度无效。");
+
+        var result = payload.Slice(offset, (int)length);
+        offset += (int)length;
+        return result;
     }
 }

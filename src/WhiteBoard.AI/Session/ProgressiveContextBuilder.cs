@@ -12,27 +12,29 @@ public sealed class ProgressiveContextBuilder
 
     public ProgressiveContextBuilder(WhiteboardSession session) => _session = session;
 
-    /// <summary>构建 Level 0 system prompt，始终注入到每次 LLM 调用的消息列表开头。</summary>
-    public string BuildLevel0(ExecutionMode mode, IReadOnlyList<string> availableTools)
+    /// <summary>异步构建 Level 0 system prompt，始终注入到每次 LLM 调用的消息列表开头。</summary>
+    public async Task<string> BuildLevel0Async(
+        ExecutionMode mode,
+        IReadOnlyList<string> availableTools,
+        CancellationToken ct = default)
     {
-        var page = _session.Current;
-        var history = _session.History;
+        var snapshot = await _session.CaptureUiSnapshotAsync(ct);
         var tools = string.Join(", ", availableTools);
 
         return $"""
             你是一个智能白板 AI 助手，可以操控白板上的所有功能。
 
             ## 当前状态
-            - 当前页面: {page.Id} (共 {_session.Pages.AllPages.Count} 页)
-            - 可撤销: {(history.CanUndo ? "是" : "否")}
-            - 可重做: {(history.CanRedo ? "是" : "否")}
+            - 当前页面: {snapshot.CurrentPage.PageId} (共 {snapshot.Pages.Pages.Count} 页)
+            - 可撤销: {(snapshot.History.CanUndo ? "是" : "否")}
+            - 可重做: {(snapshot.History.CanRedo ? "是" : "否")}
             - 执行模式: {(mode == ExecutionMode.ConfirmRequired ? "破坏性操作需确认" : "全自动")}
 
             ## 可用工具
             {tools}
 
             ## 坐标系
-            - 画布宽 {_session.CanvasWidth}px，高 {_session.CanvasHeight}px，左上角为原点 (0, 0)
+            - 画布宽 {snapshot.CanvasSize.Width}px，高 {snapshot.CanvasSize.Height}px，左上角为原点 (0, 0)
             - 所有坐标单位为像素
 
             ## 工具选择规则（重要）

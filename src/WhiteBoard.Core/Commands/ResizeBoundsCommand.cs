@@ -47,6 +47,7 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
             var (nx, ny, nw, nh) = _newBounds[i];
             _page.SpatialIndex.Update(snap.Obj, () => ApplyResize(snap, nx, ny, nw, nh));
         }
+        _page.MarkContentChanged();
     }
 
     public void Undo()
@@ -55,6 +56,7 @@ public sealed class ResizeBoundsCommand : IWhiteboardCommand
             _page.SpatialIndex.Update(snap.Obj, () =>
                 snap.Obj.SetBoundsAndTransform(
                     snap.OldX, snap.OldY, snap.OldW, snap.OldH, snap.OldTransform));
+        _page.MarkContentChanged();
     }
 
     // ── 缩放计算 ─────────────────────────────────────────────────────────────

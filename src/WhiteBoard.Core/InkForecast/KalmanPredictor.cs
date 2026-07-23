@@ -1,6 +1,6 @@
 using WhiteBoard.Contracts.Services;
 
-namespace WhiteBoard.Plugin.InkForecast;
+namespace WhiteBoard.Core.InkForecast;
 
 /// <summary>
 /// EMA-Kalman 混合预测器：EMA 平滑速度向量后做线性外推。

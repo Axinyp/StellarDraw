@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using WhiteBoard.Client.Modules;
 using WhiteBoard.Client.ViewModels;
 using WhiteBoard.Framework.Hosting.Extensions;
 using WhiteBoard.Framework.Hosting.Wpf;
@@ -28,6 +29,7 @@ public partial class App : Application
         {
             var builder = Host.CreateApplicationBuilder(e.Args);
             builder.AddWhiteBoardFramework();
+            builder.AddModule(new WhiteboardClientModule());
             builder.Services.AddWhiteBoardSettings(options => options.ApplicationName = "StellarDraw");
             builder.Services.AddWhiteBoardLocalization(options =>
             {
@@ -46,8 +48,7 @@ public partial class App : Application
                     new Uri("pack://application:,,,/WhiteBoard.Client;component/Themes/Dark.xaml")));
             });
 
-            // ViewModel 生命周期由业务决定；View 映射明确且 View 始终 transient。
-            builder.Services.AddSingleton<MainWindowViewModel>();
+            // View 映射明确且 View 始终 transient；业务 ViewModel 由 WhiteboardClientModule 注册。
             builder.Services.AddView<MainWindowViewModel, MainWindow>();
 
             _host = builder.BuildWhiteBoardFrameworkHost();
@@ -58,8 +59,22 @@ public partial class App : Application
         }
         catch
         {
-            _host?.Dispose();
-            _host = null;
+            if (_host is not null)
+            {
+                try
+                {
+                    await _host.StopWhiteBoardFrameworkAsync();
+                }
+                catch (Exception stopException)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Client] Failed to stop host after startup failure: {stopException.GetType().Name}");
+                }
+                finally
+                {
+                    _host.Dispose();
+                    _host = null;
+                }
+            }
             Shutdown(-1);
             throw;
         }
@@ -67,12 +82,20 @@ public partial class App : Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
-        if (_host is not null)
+        try
         {
-            await _host.StopWhiteBoardFrameworkAsync();
-            _host.Dispose();
-            _host = null;
+            if (_host is not null)
+                await _host.StopWhiteBoardFrameworkAsync();
         }
-        base.OnExit(e);
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Client] Failed to stop host: {ex.GetType().Name}");
+        }
+        finally
+        {
+            _host?.Dispose();
+            _host = null;
+            base.OnExit(e);
+        }
     }
 }

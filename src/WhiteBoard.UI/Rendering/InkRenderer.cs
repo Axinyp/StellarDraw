@@ -34,6 +34,9 @@ public static class InkRenderer
 
     public static void RenderObject(DrawingContext dc, WhiteboardObject obj)
     {
+        if (!HasRenderableGeometry(obj))
+            return;
+
         switch (obj)
         {
             case StrokeObject s:
@@ -61,6 +64,12 @@ public static class InkRenderer
                 break;
         }
     }
+
+    private static bool HasRenderableGeometry(WhiteboardObject obj) =>
+        obj.BoundsWidth > 0 && obj.BoundsHeight > 0 &&
+        float.IsFinite(obj.BoundsX) && float.IsFinite(obj.BoundsY) &&
+        float.IsFinite(obj.BoundsWidth) && float.IsFinite(obj.BoundsHeight) &&
+        obj.Transform.Length == 6 && obj.Transform.All(float.IsFinite);
 
     // ── Stroke ────────────────────────────────────────────────────────────────
 
@@ -285,19 +294,23 @@ public static class InkRenderer
             img.BoundsY + img.BoundsHeight / 2 - ft.Height / 2));
     }
 
-    /// <summary>
-    /// 将原始图片字节（PNG 等）解码为冻结的 <see cref="BitmapSource"/>。
-    /// 冻结后可跨线程安全访问；解码失败返回 null 由调用方回退占位符。
-    /// </summary>
-    private static BitmapSource? DecodeBitmap(byte[] bytes)
+    /// <summary>从已验证图片字节创建受显示缓存尺寸限制的冻结位图。</summary>
+    internal static BitmapSource? DecodeBitmap(byte[] bytes)
     {
+        if (!ImageAssetValidator.TryValidate(bytes, out var info))
+            return null;
+
         try
         {
+            const int maxDisplayDimension = 2_048;
+            var scale = Math.Min(1d, maxDisplayDimension / (double)Math.Max(info!.Width, info.Height));
             using var ms = new MemoryStream(bytes);
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
             bmp.CreateOptions = BitmapCreateOptions.None;
+            bmp.DecodePixelWidth = Math.Max(1, (int)Math.Round(info.Width * scale));
+            bmp.DecodePixelHeight = Math.Max(1, (int)Math.Round(info.Height * scale));
             bmp.StreamSource = ms;
             bmp.EndInit();
             bmp.Freeze();

@@ -1,65 +1,33 @@
 using System.Collections.ObjectModel;
 using WhiteBoard.Core.Domain;
-using WhiteBoard.Core.Services;
 
 namespace WhiteBoard.UI.ViewModels;
 
 /// <summary>
-/// 页面列表 ViewModel：将 <see cref="PageManager"/> 的页面列表桥接为 <see cref="ObservableCollection{T}"/>，
-/// 供 <see cref="Controls.PageStrip"/> 绑定展示。
-/// 页面切换（GoToPage）同步更新 <see cref="CurrentPage"/> 触发 PropertyChanged。
+/// 页面列表 ViewModel：展示由 <see cref="WhiteboardSession"/> 在执行器内捕获的页面元数据快照。
+/// 不持有 <c>PageManager</c>，因此不会从 UI 线程修改页面集合。
 /// </summary>
 public sealed class PageListViewModel : ViewModelBase, IDisposable
 {
-    private readonly PageManager _manager;
-    private PageModel? _current;
+    private PageInfo? _currentPage;
 
-    public ObservableCollection<PageModel> Pages { get; } = [];
+    public ObservableCollection<PageInfo> Pages { get; } = [];
 
-    public PageModel? CurrentPage
+    public PageInfo? CurrentPage
     {
-        get => _current;
-        private set => Set(ref _current, value);
+        get => _currentPage;
+        private set => Set(ref _currentPage, value);
     }
 
-    public PageListViewModel(PageManager manager)
+    internal void Apply(PageCollectionSnapshot snapshot)
     {
-        _manager = manager;
-        Refresh();
-    }
+        ArgumentNullException.ThrowIfNull(snapshot);
 
-    public void Refresh()
-    {
         Pages.Clear();
-        foreach (var p in _manager.AllPages)
-            Pages.Add(p);
-        CurrentPage = _manager.AllPages.Count > 0 ? _manager.Current : null;
-    }
+        foreach (var page in snapshot.Pages)
+            Pages.Add(page);
 
-    public bool GoToPage(string pageId)
-    {
-        if (!_manager.GoToPage(pageId)) return false;
-        CurrentPage = _manager.Current;
-        return true;
-    }
-
-    public PageModel AddPage(string? title = null)
-    {
-        var page = _manager.AddPage(title);
-        Pages.Add(page);
-        _manager.GoToPage(page.Id);
-        CurrentPage = page;
-        return page;
-    }
-
-    public bool RemovePage(string pageId)
-    {
-        var page = Pages.FirstOrDefault(p => p.Id == pageId);
-        if (page is null) return false;
-        if (!_manager.RemovePage(pageId)) return false;
-        Pages.Remove(page);
-        CurrentPage = _manager.AllPages.Count > 0 ? _manager.Current : null;
-        return true;
+        CurrentPage = Pages.FirstOrDefault(page => page.Id == snapshot.CurrentPageId);
     }
 
     public void Dispose()

@@ -6,9 +6,9 @@ using WhiteBoard.Core.Services;
 namespace WhiteBoard.AI.Services;
 
 /// <summary>
-/// IWhiteboardAiActions 的默认实现。
-/// 持有 WhiteboardSession 引用，通过 Session 的公开 AI 方法操作白板。
-/// 维护 alias → objectId 映射，供多步 AI 操作引用。
+/// <see cref="IWhiteboardAiActions"/> 的默认实现。
+/// 仅通过 <see cref="WhiteboardSession"/> 的受控异步 API 操作白板，
+/// 并维护 AI 会话私有的 alias → objectId 映射。
 /// </summary>
 public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
 {
@@ -25,24 +25,25 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
 
     public void ClearAliases() => _aliasMap.Clear();
 
-    public (float Width, float Height) GetCanvasSize() => (_session.CanvasWidth, _session.CanvasHeight);
+    public Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default) =>
+        _session.GetCanvasSizeAsync(ct);
 
     private Guid? Resolve(string aliasOrId)
     {
-        if (_aliasMap.TryGetValue(aliasOrId, out var id)) return id;
-        if (Guid.TryParse(aliasOrId, out var g)) return g;
-        return null;
+        if (_aliasMap.TryGetValue(aliasOrId, out var id))
+            return id;
+        return Guid.TryParse(aliasOrId, out var parsed) ? parsed : null;
     }
 
     private IReadOnlyList<Guid> ResolveAll(IReadOnlyList<string> aliasesOrIds) =>
-        aliasesOrIds.Select(Resolve).OfType<Guid>().ToList();
+        aliasesOrIds.Select(Resolve).OfType<Guid>().Distinct().ToArray();
 
     // ── Insert ─────────────────────────────────────────────────────────────────
 
     public async Task<ToolResult> InsertShapeAsync(ShapeSpec spec, string? alias = null,
         string? groupId = null, CancellationToken ct = default)
     {
-        // 未知形状类型直接报错，避免静默降级为矩形却返回 ok（AI 据此改用 draw_path 或换类型）
+        // 未知形状类型直接报错，避免静默降级为矩形却返回 ok（AI 据此改用 draw_path 或换类型）。
         if (!ShapeTypeParser.TryParse(spec.ShapeType, out var shapeType))
             return ToolResult.Error(
                 $"不支持的 shapeType '{spec.ShapeType}'。支持: {ShapeTypeParser.Supported}；" +
@@ -55,21 +56,9 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             spec.StrokeWidth,
             spec.IsFilled,
             spec.X, spec.Y, spec.Width, spec.Height);
+        var result = await _session.AddShapeAsync(shape, groupId: groupId, ct: ct);
 
-        await _session.AddShapeAsync(shape, groupId: groupId, ct: ct);
-
-        if (alias is not null) RegisterAlias(alias, shape.Id);
-
-        var aliasDict = alias is not null
-            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = shape.Id.ToString() }
-            : new Dictionary<string, string>();
-
-        return ToolResult.Ok(
-            created: [shape.Id.ToString()],
-            aliases: aliasDict,
-            groupId: groupId,
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        return CreateInsertResult(result, shape.Id, alias, groupId);
     }
 
     public async Task<ToolResult> InsertPathAsync(PathSpec spec, string? alias = null,
@@ -84,21 +73,9 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
             ParseColor(spec.StrokeColor),
             spec.StrokeWidth,
             spec.IsFilled);
+        var result = await _session.AddPathAsync(path, groupId: groupId, ct: ct);
 
-        await _session.AddPathAsync(path, groupId: groupId, ct: ct);
-
-        if (alias is not null) RegisterAlias(alias, path.Id);
-
-        var aliasDict = alias is not null
-            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = path.Id.ToString() }
-            : new Dictionary<string, string>();
-
-        return ToolResult.Ok(
-            created: [path.Id.ToString()],
-            aliases: aliasDict,
-            groupId: groupId,
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        return CreateInsertResult(result, path.Id, alias, groupId);
     }
 
     public async Task<ToolResult> InsertTextAsync(TextSpec spec, string? alias = null,
@@ -107,29 +84,16 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
         var style = new TextStyle(
             spec.FontFamily, spec.FontSize, spec.Bold, spec.Italic,
             ParseColor(spec.Color));
-
         var text = new TextObject(spec.Content, style,
             spec.X, spec.Y, spec.Width, spec.Height);
+        var result = await _session.AddTextObjectAsync(text, groupId: groupId, ct: ct);
 
-        await _session.AddTextObjectAsync(text, groupId: groupId, ct: ct);
-
-        if (alias is not null) RegisterAlias(alias, text.Id);
-
-        var aliasDict = alias is not null
-            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = text.Id.ToString() }
-            : new Dictionary<string, string>();
-
-        return ToolResult.Ok(
-            created: [text.Id.ToString()],
-            aliases: aliasDict,
-            groupId: groupId,
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        return CreateInsertResult(result, text.Id, alias, groupId);
     }
 
     /// <summary>
-    /// 插入图片对象。把内联 PNG 字节存入跨层资产仓库（<see cref="RawImageAssetStore"/>），
-    /// 生成真实 ImageObject 入库，注册 alias 并返回真实对象 Id。
+    /// 插入图片对象。把内联图片字节存入跨层资产仓库（<see cref="RawImageAssetStore"/>），
+    /// 生成真实 <see cref="ImageObject"/> 入库，注册 alias 并返回真实对象 Id。
     /// 供 generate_and_insert_image（DALL-E/SD）与数学/LaTeX 渲染工具复用。
     /// </summary>
     public async Task<ToolResult> InsertImageAsync(ImageSpec spec, string? alias = null,
@@ -138,25 +102,15 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
         if (spec.ImageData is null || spec.ImageData.Length == 0)
             return ToolResult.Error("ImageData 为空：当前仅支持内联图片字节，Url 远程拉取尚未实现");
 
-        // 按内容生成 AssetId 并存入跨层仓库，UI 渲染层据此解码显示。
+        // 按内容生成 AssetId，并仅在格式和资源预算校验通过后存入跨层仓库。
         var assetId = RawImageAssetStore.ComputeAssetId(spec.ImageData);
-        RawImageAssetStore.Store(assetId, spec.ImageData);
+        if (!RawImageAssetStore.TryStore(assetId, spec.ImageData))
+            return ToolResult.Error("ImageData 格式无效或超出图片资源预算");
 
         var image = new ImageObject(assetId, spec.X, spec.Y, spec.Width, spec.Height);
-        await _session.AddImageAsync(image, groupId: groupId, ct: ct);
+        var result = await _session.AddImageAsync(image, groupId: groupId, ct: ct);
 
-        if (alias is not null) RegisterAlias(alias, image.Id);
-
-        var aliasDict = alias is not null
-            ? (IReadOnlyDictionary<string, string>)new Dictionary<string, string> { [alias] = image.Id.ToString() }
-            : new Dictionary<string, string>();
-
-        return ToolResult.Ok(
-            created: [image.Id.ToString()],
-            aliases: aliasDict,
-            groupId: groupId,
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        return CreateInsertResult(result, image.Id, alias, groupId);
     }
 
     // ── Edit ──────────────────────────────────────────────────────────────────
@@ -165,132 +119,170 @@ public sealed class WhiteboardAiActionsImpl : IWhiteboardAiActions
         float dx, float dy, string? groupId = null, CancellationToken ct = default)
     {
         var ids = ResolveAll(aliasesOrIds);
-        if (ids.Count == 0) return ToolResult.Error("No valid objects found");
+        if (ids.Count == 0)
+            return ToolResult.Error("未找到有效对象");
 
-        await _session.MoveObjectsAsync(ids, dx, dy, groupId, ct);
-
-        return ToolResult.Ok(
-            updated: ids.Select(id => id.ToString()).ToList(),
-            groupId: groupId,
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        var result = await _session.MoveObjectsAsync(ids, dx, dy, operationId: groupId, ct: ct);
+        return CreateResult(result, updated: ToStrings(result.AffectedObjectIds), groupId: groupId);
     }
 
     public async Task<ToolResult> DeleteObjectsAsync(IReadOnlyList<string> aliasesOrIds,
         string? groupId = null, CancellationToken ct = default)
     {
         var ids = ResolveAll(aliasesOrIds);
-        if (ids.Count == 0) return ToolResult.Error("No valid objects found");
+        if (ids.Count == 0)
+            return ToolResult.Error("未找到有效对象");
 
-        await _session.DeleteObjectsAsync(ids, groupId, ct);
+        var result = await _session.DeleteObjectsAsync(ids, operationId: groupId, ct: ct);
+        if (result.Changed)
+        {
+            var deleted = result.AffectedObjectIds.ToHashSet();
+            foreach (var alias in _aliasMap
+                .Where(pair => deleted.Contains(pair.Value))
+                .Select(pair => pair.Key)
+                .ToArray())
+            {
+                _aliasMap.Remove(alias);
+            }
+        }
 
-        foreach (var alias in aliasesOrIds.Where(a => _aliasMap.ContainsKey(a)))
-            _aliasMap.Remove(alias);
-
-        return ToolResult.Ok(
-            deleted: ids.Select(id => id.ToString()).ToList(),
-            pageId: _session.Current.Id,
-            version: _session.Current.Version);
+        return CreateResult(result, deleted: ToStrings(result.AffectedObjectIds), groupId: groupId);
     }
 
     public async Task<ToolResult> ClearPageAsync(CancellationToken ct = default)
     {
-        await _session.ClearCurrentPageAsync(ct: ct);
-        _aliasMap.Clear();
-        return ToolResult.Ok(pageId: _session.Current.Id, version: _session.Current.Version);
+        var result = await _session.ClearCurrentPageAsync(ct: ct);
+        if (result.Changed)
+            _aliasMap.Clear();
+        return CreateResult(result, deleted: ToStrings(result.AffectedObjectIds));
     }
 
     public async Task<ToolResult> UndoAsync(string? groupId = null, CancellationToken ct = default)
     {
-        await _session.UndoAsync(ct);
-        return ToolResult.Ok(pageId: _session.Current.Id, version: _session.Current.Version);
+        var result = await _session.UndoAsync(ct);
+        return CreateResult(result, groupId: groupId);
     }
 
     public async Task<ToolResult> RedoAsync(CancellationToken ct = default)
     {
-        await _session.RedoAsync(ct);
-        return ToolResult.Ok(pageId: _session.Current.Id, version: _session.Current.Version);
+        var result = await _session.RedoAsync(ct);
+        return CreateResult(result);
     }
 
     public async Task<ToolResult> SelectObjectsAsync(float x, float y, float w, float h,
         CancellationToken ct = default)
     {
-        await _session.SelectObjectsInRegionAsync(x, y, w, h, ct);
-        var selected = _session.Selection.ToList();
-        return ToolResult.Ok(
-            updated: selected.Select(id => id.ToString()).ToList(),
-            pageId: _session.Current.Id);
+        var result = await _session.SelectObjectsInRegionAsync(x, y, w, h, ct);
+        return CreateResult(result, updated: ToStrings(result.AffectedObjectIds));
     }
 
-    public Task<PageSnapshot> GetSnapshotAsync(CancellationToken ct = default)
-        => _session.CaptureSnapshotAsync(ct);
+    public async Task<PageSnapshot> GetSnapshotAsync(CancellationToken ct = default)
+    {
+        var snapshot = await _session.CaptureSnapshotAsync(ct);
+        var aliasesByObjectId = _aliasMap
+            .GroupBy(pair => pair.Value)
+            .ToDictionary(group => group.Key, group => group.First().Key);
+        var objects = snapshot.Objects
+            .Select(obj => aliasesByObjectId.TryGetValue(obj.Id, out var alias)
+                ? obj with { Alias = alias }
+                : obj)
+            .ToArray();
+        return new PageSnapshot
+        {
+            PageId = snapshot.PageId,
+            Version = snapshot.Version,
+            Width = snapshot.Width,
+            Height = snapshot.Height,
+            Objects = objects,
+        };
+    }
 
     // ── Navigation ─────────────────────────────────────────────────────────────
 
     public async Task<ToolResult> AddPageAsync(string? title = null, CancellationToken ct = default)
     {
-        string newPageId = "";
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _session.PostOperationAsync(() =>
-        {
-            var page = _session.Pages.AddPage(title);
-            _session.Pages.GoToPage(page.Id);
-            newPageId = page.Id;
-            done.TrySetResult();
-            return ValueTask.CompletedTask;
-        }, ct);
-        await done.Task.WaitAsync(ct);
-        return ToolResult.Ok(pageId: newPageId);
+        var page = await _session.AddPageAsync(title, ct: ct);
+        _aliasMap.Clear();
+        return ToolResult.Ok(pageId: page.Id, version: page.Version);
     }
 
     public async Task<ToolResult> NavigateToPageAsync(int pageIndex, CancellationToken ct = default)
     {
-        bool success = false;
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _session.PostOperationAsync(() =>
+        var result = await _session.NavigateToPageAsync(pageIndex, ct);
+        if (!result.Changed)
         {
-            int count = _session.Pages.AllPages.Count;
-            if (pageIndex >= 0 && pageIndex < count)
-            {
-                _session.Pages.GoToIndex(pageIndex);
-                success = true;
-            }
-            done.TrySetResult();
-            return ValueTask.CompletedTask;
-        }, ct);
-        await done.Task.WaitAsync(ct);
-        return success
-            ? ToolResult.Ok(pageId: _session.Current.Id, version: _session.Current.Version)
-            : ToolResult.Error($"页面索引 {pageIndex} 超出范围（共 {_session.Pages.AllPages.Count} 页）");
+            var pages = await _session.GetPagesAsync(ct);
+            return ToolResult.Error($"页面索引 {pageIndex} 超出范围（共 {pages.Pages.Count} 页）");
+        }
+
+        _aliasMap.Clear();
+        return CreateResult(result);
     }
 
     public async Task<string> GetPagesInfoAsync(CancellationToken ct = default)
     {
-        string result = "";
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await _session.PostOperationAsync(() =>
+        var snapshot = await _session.GetPagesAsync(ct);
+        return JsonSerializer.Serialize(new
         {
-            var pages = _session.Pages.AllPages;
-            result = JsonSerializer.Serialize(new
+            count = snapshot.Pages.Count,
+            current = snapshot.CurrentIndex,
+            pages = snapshot.Pages.Select(page => new
             {
-                count = pages.Count,
-                current = _session.Pages.CurrentIndex,
-                pages = pages.Select((p, i) => new { index = i, id = p.Id, title = p.Title })
-            });
-            done.TrySetResult();
-            return ValueTask.CompletedTask;
-        }, ct);
-        await done.Task.WaitAsync(ct);
-        return result;
+                index = page.Index,
+                id = page.Id,
+                title = page.Title,
+            }),
+        });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private ToolResult CreateInsertResult(
+        SessionOperationResult result,
+        Guid objectId,
+        string? alias,
+        string? groupId)
+    {
+        IReadOnlyDictionary<string, string>? aliases = null;
+        if (result.Changed && alias is not null)
+        {
+            RegisterAlias(alias, objectId);
+            aliases = new Dictionary<string, string> { [alias] = objectId.ToString() };
+        }
+
+        return CreateResult(
+            result,
+            created: result.Changed ? [objectId.ToString()] : [],
+            aliases: aliases,
+            groupId: groupId);
+    }
+
+    private static ToolResult CreateResult(
+        SessionOperationResult result,
+        IReadOnlyList<string>? created = null,
+        IReadOnlyList<string>? updated = null,
+        IReadOnlyList<string>? deleted = null,
+        IReadOnlyDictionary<string, string>? aliases = null,
+        string? groupId = null) =>
+        ToolResult.Ok(
+            created,
+            updated,
+            deleted,
+            aliases,
+            groupId,
+            result.PageId,
+            result.PageVersion);
+
+    private static IReadOnlyList<string> ToStrings(IEnumerable<Guid> ids) =>
+        ids.Select(id => id.ToString()).ToArray();
+
     private static uint ParseColor(string hex)
     {
         hex = hex.TrimStart('#');
-        if (hex.Length == 6) hex = "FF" + hex;
-        return uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var v)
-            ? v : 0xFF000000;
+        if (hex.Length == 6)
+            hex = "FF" + hex;
+        return uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value)
+            ? value
+            : 0xFF000000;
     }
 }

@@ -69,11 +69,14 @@ public class SceneAnalysisTests
     [InlineData("角色")]
     [InlineData("动物")]
     [InlineData("降级")]
-    public void SystemPrompt_Level0_ContainsToolSelectionRule(string keyword)
+    public async Task SystemPrompt_Level0_ContainsToolSelectionRule(string keyword)
     {
-        var session = new WhiteboardSession();
+        await using var session = new WhiteboardSession();
+        await session.StartAsync();
         var builder = new ProgressiveContextBuilder(session);
-        var prompt  = builder.BuildLevel0(ExecutionMode.ConfirmRequired, ["insert_shape", "draw_path"]);
+        var prompt = await builder.BuildLevel0Async(
+            ExecutionMode.ConfirmRequired,
+            ["insert_shape", "draw_path"]);
 
         Assert.Contains(keyword, prompt, StringComparison.Ordinal);
     }
@@ -112,8 +115,8 @@ public class SceneAnalysisTests
         // 验证在没有任何对象时 EraseAtAsync 不会崩溃（原先在 UI 线程的 HitTest 竞态）
         var session = new WhiteboardSession();
         var ex = Record.ExceptionAsync(() => session.EraseAtAsync(100f, 100f));
-        // 注意：Session 未启动执行器，PostOperationAsync 会阻塞；
-        // 此处验证方法签名和入口路径存在，不验证异步执行
+        // 注意：Session 未启动执行器，受控异步操作会等待；
+        // 此处仅验证入口可创建 Task，不验证异步执行。
         Assert.NotNull(ex); // Task 对象非 null 即为正确
     }
 
@@ -166,7 +169,8 @@ file sealed class StubAiActions : IWhiteboardAiActions
     public float CanvasWidth  { get; set; } = 800f;
     public float CanvasHeight { get; set; } = 600f;
 
-    public (float Width, float Height) GetCanvasSize() => (CanvasWidth, CanvasHeight);
+    public Task<CanvasSizeSnapshot> GetCanvasSizeAsync(CancellationToken ct = default) =>
+        Task.FromResult(new CanvasSizeSnapshot(CanvasWidth, CanvasHeight));
 
     public IReadOnlyDictionary<string, Guid> GetAliasMap() => new Dictionary<string, Guid>();
     public void RegisterAlias(string alias, Guid objectId) { }

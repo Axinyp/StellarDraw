@@ -43,7 +43,7 @@ public sealed class AgentLoop
         var tools = _registry.GetAvailableTools();
         var toolNames = tools.Select(t => t.Name).ToList();
 
-        _history.AddSystem(_context.BuildLevel0(_mode, toolNames));
+        _history.AddSystem(await _context.BuildLevel0Async(_mode, toolNames, ct));
         _history.AddUser(userMessage);
         _history.TrimToTokenBudget();
 
