@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test-pack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore framework
+        run: dotnet restore Axinyp.Wpf.Hosting.slnx
+
+      - name: Build framework
+        run: dotnet build Axinyp.Wpf.Hosting.slnx --no-restore --configuration Release
+
+      - name: Test framework and consumer-private Spike behavior
+        run: dotnet test Axinyp.Wpf.Hosting.slnx --no-build --configuration Release --filter "Category!=LegacyCompatibility"
+
+      - name: Restore trusted legacy compatibility artifact
+        run: dotnet restore src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj
+
+      - name: Build trusted legacy compatibility artifact
+        run: dotnet build src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj --no-restore --configuration Release
+
+      - name: Test trusted legacy compatibility lifecycle
+        run: dotnet test tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-build --no-restore --configuration Release --filter "Category=LegacyCompatibility"
+        env:
+          STELLARDRAW_TRUSTED_LEGACY_PLUGIN: ${{ github.workspace }}\src\WhiteBoard.Plugin\bin\Release\net10.0-windows\WhiteBoard.Plugin.dll
+
+      - name: Restore WhiteBoard.Client integration graph
+        run: dotnet restore src/WhiteBoard.Client/WhiteBoard.Client.csproj
+
+      - name: Build WhiteBoard.Client integration graph
+        run: dotnet build src/WhiteBoard.Client/WhiteBoard.Client.csproj --no-restore --configuration Release
+
+      - name: Restore Demo plugin lifecycle tests
+        run: dotnet restore tests/WhiteBoard.Host.Demo.Tests/WhiteBoard.Host.Demo.Tests.csproj
+
+      - name: Test Demo plugin lifecycle
+        run: dotnet test tests/WhiteBoard.Host.Demo.Tests/WhiteBoard.Host.Demo.Tests.csproj --no-restore --configuration Release
+
+      - name: Pack Abstractions
+        run: dotnet pack src/Axinyp.Wpf.Hosting.Abstractions/Axinyp.Wpf.Hosting.Abstractions.csproj --no-build --configuration Release --output artifacts/packages
+
+      - name: Pack Hosting
+        run: dotnet pack src/Axinyp.Wpf.Hosting/Axinyp.Wpf.Hosting.csproj --no-build --configuration Release --output artifacts/packages
+
+      - name: Pack Hosting.Wpf
+        run: dotnet pack src/Axinyp.Wpf.Hosting.Wpf/Axinyp.Wpf.Hosting.Wpf.csproj --no-build --configuration Release --output artifacts/packages
+
+      - name: Restore package-only consumer
+        run: dotnet restore consumer-smoke/consumer-smoke.csproj --configfile consumer-smoke/NuGet.Config
+
+      - name: Build package-only consumer
+        run: dotnet build consumer-smoke/consumer-smoke.csproj --no-restore --configuration Release

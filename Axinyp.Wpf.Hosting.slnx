@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Axinyp.Wpf.Hosting.Abstractions/Axinyp.Wpf.Hosting.Abstractions.csproj" />
+    <Project Path="src/Axinyp.Wpf.Hosting/Axinyp.Wpf.Hosting.csproj" />
+    <Project Path="src/Axinyp.Wpf.Hosting.Wpf/Axinyp.Wpf.Hosting.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/BasicHost/BasicHost.csproj" />
+  </Folder>
+  <Folder Name="/consumers/">
+    <Project Path="consumers/StellarDraw.Axinyp.Spike/StellarDraw.Axinyp.Spike.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Axinyp.Wpf.Hosting.Tests/Axinyp.Wpf.Hosting.Tests.csproj" />
+    <Project Path="tests/Axinyp.Wpf.Hosting.Wpf.Tests/Axinyp.Wpf.Hosting.Wpf.Tests.csproj" />
+    <Project Path="tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj" />
+  </Folder>
+</Solution>
