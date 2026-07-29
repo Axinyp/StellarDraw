@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Axinyp.Wpf.Hosting.Wpf</RootNamespace>
+    <AssemblyName>Axinyp.Wpf.Hosting.Wpf</AssemblyName>
+    <PackageId>Axinyp.Wpf.Hosting.Wpf</PackageId>
+    <Description>通用 WPF 宿主基础设施，提供 Window、Region、Navigation、Dialog、Theme、Localization 与插件 UI 贡献能力。</Description>
+    <PackageTags>wpf;navigation;dialog;theme;localization;mvvm</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Axinyp.Wpf.Hosting.Abstractions\Axinyp.Wpf.Hosting.Abstractions.csproj" />
+    <ProjectReference Include="..\Axinyp.Wpf.Hosting\Axinyp.Wpf.Hosting.csproj" />
+  </ItemGroup>
+</Project>

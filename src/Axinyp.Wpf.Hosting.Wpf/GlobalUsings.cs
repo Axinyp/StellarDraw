@@ -1,0 +1,8 @@
+global using Axinyp.Wpf.Hosting.Abstractions.Localization;
+global using Axinyp.Wpf.Hosting.Abstractions.Modules;
+global using Axinyp.Wpf.Hosting.Abstractions.Plugins;
+global using Axinyp.Wpf.Hosting.Abstractions.Settings;
+global using Axinyp.Wpf.Hosting.Abstractions.Startup;
+global using Axinyp.Wpf.Hosting.Abstractions.Wpf;
+global using Axinyp.Wpf.Hosting.Abstractions.Wpf.Plugins;
+global using Axinyp.Wpf.Hosting.Abstractions.Wpf.Themes;

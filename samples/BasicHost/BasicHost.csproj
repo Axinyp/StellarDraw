@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Axinyp.Wpf.Hosting.Samples.BasicHost</RootNamespace>
+    <AssemblyName>Axinyp.Wpf.Hosting.Samples.BasicHost</AssemblyName>
+    <StartupObject>Axinyp.Wpf.Hosting.Samples.BasicHost.App</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Axinyp.Wpf.Hosting\Axinyp.Wpf.Hosting.csproj" />
+    <ProjectReference Include="..\..\src\Axinyp.Wpf.Hosting.Wpf\Axinyp.Wpf.Hosting.Wpf.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+global using Axinyp.Wpf.Hosting.Extensions;
+global using Axinyp.Wpf.Hosting.Abstractions.Lifecycle;
+global using Axinyp.Wpf.Hosting.Abstractions.Modules;
+global using Axinyp.Wpf.Hosting.Abstractions.Startup;
+global using Axinyp.Wpf.Hosting.Modules;
+global using Xunit;

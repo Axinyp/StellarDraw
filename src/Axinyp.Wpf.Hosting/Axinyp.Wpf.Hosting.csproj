@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Axinyp.Wpf.Hosting</RootNamespace>
+    <AssemblyName>Axinyp.Wpf.Hosting</AssemblyName>
+    <PackageId>Axinyp.Wpf.Hosting</PackageId>
+    <Description>基于 Microsoft Generic Host 的通用模块化宿主基础设施，提供模块生命周期、启动期插件、设置与本地化能力。</Description>
+    <PackageTags>wpf;hosting;generic-host;modular;plugin;mvvm</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Axinyp.Wpf.Hosting.Abstractions\Axinyp.Wpf.Hosting.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 通用主机 + DI + 配置。 -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <!-- MVVM 基元，供宿主与模块复用。 -->
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+</Project>
