@@ -5,7 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Axinyp.Wpf.Hosting.Wpf.Internal;
 
 /// <summary>窗口管理器：统一执行 UI 线程调度、DataContext 绑定、Owner 校验和窗口 scope 清理。</summary>
-internal sealed class WindowManager(IViewLocator viewLocator, IServiceScopeFactory scopeFactory) : IWindowManager
+internal sealed class WindowManager(
+    IViewLocator viewLocator,
+    IServiceScopeFactory scopeFactory,
+    IUiDispatcher uiDispatcher) : IWindowManager
 {
     public Task<Window> ShowAsync<TViewModel>(Window? owner = null) where TViewModel : class
         => RunOnUiAsync(() => ShowFromScope(typeof(TViewModel), owner));
@@ -102,15 +105,8 @@ internal sealed class WindowManager(IViewLocator viewLocator, IServiceScopeFacto
         window.Owner = owner;
     }
 
-    private static async Task<T> RunOnUiAsync<T>(Func<T> action)
-    {
-        var dispatcher = Application.Current?.Dispatcher
-            ?? throw new InvalidOperationException("当前没有可用的 WPF Application Dispatcher。");
-        if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
-            throw new InvalidOperationException("WPF Application Dispatcher 正在关闭，无法显示窗口。");
-        if (dispatcher.CheckAccess()) return action();
-        return await dispatcher.InvokeAsync(action).Task.ConfigureAwait(false);
-    }
+    private Task<T> RunOnUiAsync<T>(Func<T> action)
+        => uiDispatcher.InvokeAsync(uiDispatcher.GetApplicationDispatcher(), action);
 }
 
 internal static class WindowExtensions

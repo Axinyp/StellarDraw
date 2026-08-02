@@ -74,6 +74,43 @@ public sealed class ThemeServiceTests
         });
     }
 
+    [Fact]
+    public async Task ApplyAsync_WhenDispatcherIsUnavailable_DoesNotPersistTheme()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var settings = new MemorySettingsStore();
+            var services = CreateServices(settings);
+            services.AddSingleton<IUiDispatcher>(new RejectingUiDispatcher(Application.Current.Dispatcher));
+            using var provider = services.BuildServiceProvider();
+            var themes = provider.GetRequiredService<IThemeService>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => themes.ApplyAsync("light").AsTask());
+
+            Assert.Null(await settings.GetAsync<string?>("ui.theme", null));
+        });
+    }
+
+    [Fact]
+    public async Task ApplyAsync_RaisesThemeChangedOnApplicationDispatcher()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var settings = new MemorySettingsStore();
+            using var provider = CreateServices(settings).BuildServiceProvider();
+            var themes = provider.GetRequiredService<IThemeService>();
+            var initialCount = Application.Current.Resources.MergedDictionaries.Count;
+            var eventWasOnDispatcher = false;
+            themes.ThemeChanged += (_, _) => eventWasOnDispatcher = Application.Current.Dispatcher.CheckAccess();
+
+            await themes.ApplyAsync("light");
+
+            Assert.True(eventWasOnDispatcher);
+            var dictionary = Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+            Application.Current.Resources.MergedDictionaries.Remove(dictionary);
+        });
+    }
+
     private static ServiceCollection CreateServices(MemorySettingsStore settings)
     {
         var services = new ServiceCollection();

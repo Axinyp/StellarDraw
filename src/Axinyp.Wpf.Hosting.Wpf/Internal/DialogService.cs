@@ -3,7 +3,7 @@ using System.Windows;
 
 namespace Axinyp.Wpf.Hosting.Wpf.Internal;
 
-internal sealed class DialogService(ViewCompositionFactory compositionFactory) : IDialogService
+internal sealed class DialogService(ViewCompositionFactory compositionFactory, IUiDispatcher uiDispatcher) : IDialogService
 {
     public Task<IDialogResult> ShowDialogAsync<TViewModel>(Window owner, DialogParameters? parameters = null,
         CancellationToken cancellationToken = default) where TViewModel : class
@@ -11,7 +11,7 @@ internal sealed class DialogService(ViewCompositionFactory compositionFactory) :
         ArgumentNullException.ThrowIfNull(owner);
         if (cancellationToken.IsCancellationRequested)
             return Task.FromCanceled<IDialogResult>(cancellationToken);
-        return owner.Dispatcher.InvokeAsync(() => Show(typeof(TViewModel), owner, parameters ?? [])).Task;
+        return uiDispatcher.InvokeAsync(owner.Dispatcher, () => Show(typeof(TViewModel), owner, parameters ?? []));
     }
 
     private IDialogResult Show(Type viewModelType, Window owner, DialogParameters parameters)
@@ -41,7 +41,7 @@ internal sealed class DialogService(ViewCompositionFactory compositionFactory) :
             RoutedEventHandler? loaded = (_, _) =>
             {
                 if (pendingClose is not null)
-                    window.Dispatcher.BeginInvoke(() => ApplyClose(pendingClose));
+                    ApplyClose(pendingClose);
             };
             CancelEventHandler? closing = (_, eventArgs) =>
             {

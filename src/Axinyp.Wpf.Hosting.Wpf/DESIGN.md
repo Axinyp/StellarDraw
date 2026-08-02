@@ -29,7 +29,11 @@
 
 ### 4. UI 线程操作集中化
 
-所有 WPF 对象创建、窗口显示、Owner 绑定和关闭相关逻辑，都应统一调度到 UI 线程，以便后续引入 `IUiDispatcher` 抽象做测试替身。
+所有 WPF 对象创建、窗口显示、Owner 绑定、资源字典变更和关闭相关逻辑，都通过 WPF 专属的 `IUiDispatcher` 调度。该契约属于 `Axinyp.Wpf.Hosting.Abstractions.Wpf`，不下沉到无 UI 依赖的 `Axinyp.Wpf.Hosting`。
+
+默认实现会在目标 Dispatcher 线程内联执行；跨线程时以可等待的任务切换到目标 Dispatcher。Dispatcher 已开始或完成关闭时，新的 UI 操作会被拒绝，调用方必须观察返回任务的异常，不能遗留未观察的调度任务。
+
+Region 的清理分为两个阶段：Dispatcher 可用时先从视觉树解除 View、清空 `DataContext`，再释放 scope；Dispatcher 关闭后不再访问 WPF 视觉属性，但仍无条件释放 scope。关闭期释放可能在调用方或任务线程执行，因此 scope 内服务必须将 UI 解绑置于 Dispatcher 仍可用的阶段，且不得在关闭期 `Dispose` 中访问 WPF 对象。`CanGoBack` 仅读取线程安全的后退栈快照，不需要从后台线程同步调用 Dispatcher。
 
 ### 5. 插件只承诺启动期接入
 
@@ -85,25 +89,15 @@
 
 这意味着当前更偏“基础设施”，还不是“现成应用骨架”。
 
-### 2. 线程调度抽象仍未独立
+### 2. WPF 边界测试还可继续增加
 
-当前大部分 UI 操作已经收敛到 Dispatcher 上，但缺少统一 `IUiDispatcher`。
-这会影响：
+当前已覆盖 Dispatcher 内联与跨线程调度、关闭期拒绝新的 Window / Dialog / Navigation / Theme 操作、Region 关闭期 scope 释放，以及后台读取后退栈快照。后续可继续增强：
 
-- 测试替身能力；
-- 更复杂 UI 时序的可控性；
-- 对线程切换行为的长期一致性约束。
-
-### 3. WPF 边界测试还可继续增加
-
-当前主链路测试已经可用，但复杂边界仍可加强：
-
-- Dispatcher 关闭中的窗口/导航/主题切换；
 - Dialog 竞态关闭与异常回收；
 - Region 快速切换与回退；
 - 本地化和主题资源缺失时的降级行为。
 
-### 4. 插件 UI Contribution 仍停留在“声明聚合”，没有 Shell 侧标准落点
+### 3. 插件 UI Contribution 仍停留在“声明聚合”，没有 Shell 侧标准落点
 
 当前这层已经能可靠收集元数据，但业务方仍需要自己决定：
 
@@ -116,12 +110,11 @@
 
 后续建议优先补齐：
 
-1. `IUiDispatcher` 抽象；
+1. 文档中的线程模型与资源释放时序图；
 2. 更完整的窗口 / 对话框 / 主题切换测试；
-3. 文档中的线程模型与资源释放时序图；
-4. 插件 compatibility 与 UI Contribution 示例；
-5. 一个可选 Shell 参考实现或更完整 Shell 样例；
-6. 基于真实业务回接结果继续修正当前 API 粒度与默认行为。
+3. 插件 compatibility 与 UI Contribution 示例；
+4. 一个可选 Shell 参考实现或更完整 Shell 样例；
+5. 基于真实业务回接结果继续修正当前 API 粒度与默认行为。
 
 ## 与真实业务回接的关系
 

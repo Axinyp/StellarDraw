@@ -1,9 +1,10 @@
+using System.Diagnostics;
 using System.Windows.Controls;
 
 namespace Axinyp.Wpf.Hosting.Wpf.Internal;
 
 /// <summary>显式内容区域注册表。区域名在整个宿主范围内唯一。</summary>
-internal sealed class RegionManager : IRegionManager
+internal sealed class RegionManager(IUiDispatcher uiDispatcher) : IRegionManager
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, RegionHost> _regions = new(StringComparer.Ordinal);
@@ -48,10 +49,63 @@ internal sealed class RegionManager : IRegionManager
                 _regions.Remove(name);
             else return;
         }
-        if (region.Dispatcher.HasShutdownStarted || region.Dispatcher.HasShutdownFinished)
+
+        if (uiDispatcher.IsShutdown(region.Dispatcher))
+        {
+            DisposeAfterShutdown(region);
             return;
-        if (region.Dispatcher.CheckAccess()) region.Dispose();
-        else region.Dispatcher.Invoke(region.Dispose);
+        }
+
+        if (uiDispatcher.CheckAccess(region.Dispatcher))
+        {
+            region.Dispose();
+            return;
+        }
+
+        try
+        {
+            ObserveScheduledDisposal(region, uiDispatcher.InvokeAsync(region.Dispatcher, region.Dispose));
+        }
+        catch (InvalidOperationException) when (uiDispatcher.IsShutdown(region.Dispatcher))
+        {
+            DisposeAfterShutdown(region);
+        }
+    }
+
+    private void ObserveScheduledDisposal(RegionHost region, Task disposal)
+    {
+        _ = disposal.ContinueWith(
+            completed =>
+            {
+                if (completed.IsCompletedSuccessfully)
+                    return;
+
+                if (uiDispatcher.IsShutdown(region.Dispatcher))
+                {
+                    DisposeAfterShutdown(region);
+                    return;
+                }
+
+                Trace.TraceError(
+                    "区域 '{0}' 的 Dispatcher 清理失败：{1}",
+                    region.Name,
+                    completed.Exception);
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static void DisposeAfterShutdown(RegionHost region)
+    {
+        try
+        {
+            region.Dispose(detachVisual: false);
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("区域 '{0}' 的关闭期资源释放失败：{1}", region.Name, exception);
+        }
     }
 
     private sealed class RegionRegistration(RegionManager manager, string name, RegionHost region) : IDisposable

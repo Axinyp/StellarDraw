@@ -14,9 +14,11 @@ internal sealed class ViewHandle(IServiceScope scope, object viewModel, Framewor
 
     public Type ViewModelType => ViewModel.GetType();
 
-    public void Dispose()
+    public void Dispose() => Dispose(detachVisual: true);
+
+    public void Dispose(bool detachVisual)
     {
-        if (ReferenceEquals(View.DataContext, ViewModel))
+        if (detachVisual && ReferenceEquals(View.DataContext, ViewModel))
             View.DataContext = null;
         Interlocked.Exchange(ref _scope, null)?.Dispose();
     }

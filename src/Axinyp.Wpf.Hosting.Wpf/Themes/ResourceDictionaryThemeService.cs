@@ -3,7 +3,10 @@ using Axinyp.Wpf.Hosting.Abstractions.Settings;
 
 namespace Axinyp.Wpf.Hosting.Wpf.Themes;
 
-internal sealed class ResourceDictionaryThemeService(ThemeOptions options, ISettingsStore settings) : IThemeService
+internal sealed class ResourceDictionaryThemeService(
+    ThemeOptions options,
+    ISettingsStore settings,
+    IUiDispatcher uiDispatcher) : IThemeService
 {
     private ResourceDictionary? _appliedDictionary;
     private ThemeDescriptor? _current;
@@ -15,11 +18,8 @@ internal sealed class ResourceDictionaryThemeService(ThemeOptions options, ISett
     {
         var descriptor = options.Themes.FirstOrDefault(theme => string.Equals(theme.Id, themeId, StringComparison.OrdinalIgnoreCase))
             ?? throw new ArgumentException($"未注册主题 '{themeId}'。", nameof(themeId));
-        var dispatcher = Application.Current?.Dispatcher ?? throw new InvalidOperationException("没有可用的 WPF Application。");
-        if (dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
-            throw new InvalidOperationException("WPF Dispatcher 正在关闭。");
-
-        await dispatcher.InvokeAsync(() =>
+        var dispatcher = uiDispatcher.GetApplicationDispatcher();
+        await uiDispatcher.InvokeAsync(dispatcher, () =>
         {
             var dictionary = new ResourceDictionary { Source = descriptor.ResourceUri };
             var merged = Application.Current.Resources.MergedDictionaries;
@@ -27,9 +27,9 @@ internal sealed class ResourceDictionaryThemeService(ThemeOptions options, ISett
             merged.Add(dictionary);
             _appliedDictionary = dictionary;
             _current = descriptor;
-        }).Task.ConfigureAwait(false);
+        }).ConfigureAwait(false);
 
         await settings.SetAsync(options.SettingsKey, descriptor.Id, cancellationToken).ConfigureAwait(false);
-        ThemeChanged?.Invoke(this, EventArgs.Empty);
+        await uiDispatcher.InvokeAsync(dispatcher, () => ThemeChanged?.Invoke(this, EventArgs.Empty)).ConfigureAwait(false);
     }
 }

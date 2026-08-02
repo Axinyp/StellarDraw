@@ -1,8 +1,10 @@
 namespace Axinyp.Wpf.Hosting.Wpf.Internal;
 
 /// <summary>区域导航实现：仅保存轻量 journal，替换内容时立即释放旧 View/VM scope。</summary>
-internal sealed class NavigationService(RegionManager regionManager, ViewCompositionFactory compositionFactory)
-    : INavigationService
+internal sealed class NavigationService(
+    RegionManager regionManager,
+    ViewCompositionFactory compositionFactory,
+    IUiDispatcher uiDispatcher) : INavigationService
 {
     public Task<NavigationResult> NavigateAsync<TViewModel>(string regionName, object? parameter = null,
         CancellationToken cancellationToken = default) where TViewModel : class
@@ -33,7 +35,7 @@ internal sealed class NavigationService(RegionManager regionManager, ViewComposi
                         viewModelType, parameter, NavigationKind.Forward), cancellationToken).ConfigureAwait(true);
 
                 if (region.ActiveViewModelType is not null)
-                    region.BackStack.Push(new NavigationJournalEntry(region.ActiveViewModelType, region.ActiveParameter));
+                    region.PushBack(new NavigationJournalEntry(region.ActiveViewModelType, region.ActiveParameter));
                 region.Replace(next, parameter);
                 return NavigationResult.Success;
             }
@@ -45,25 +47,19 @@ internal sealed class NavigationService(RegionManager regionManager, ViewComposi
         });
     }
 
-    public bool CanGoBack(string regionName)
-    {
-        var region = regionManager.GetHost(regionName);
-        if (!region.Dispatcher.CheckAccess())
-            return region.Dispatcher.Invoke(() => region.BackStack.Count > 0);
-        return region.BackStack.Count > 0;
-    }
+    public bool CanGoBack(string regionName) => regionManager.GetHost(regionName).CanGoBack;
 
     public Task<NavigationResult> GoBackAsync(string regionName, CancellationToken cancellationToken = default)
     {
         var region = regionManager.GetHost(regionName);
         return OnRegionDispatcherAsync(region, async () =>
         {
-            if (region.BackStack.Count == 0)
+            if (!region.CanGoBack)
                 return NavigationResult.Failed("当前区域没有可返回的导航记录。");
             if (cancellationToken.IsCancellationRequested)
                 return NavigationResult.Failed("导航已取消。");
 
-            var target = region.BackStack.Peek();
+            var target = region.PeekBack();
             if (!await CanLeaveAsync(region, target.ViewModelType, target.Parameter, NavigationKind.Back, cancellationToken)
                     .ConfigureAwait(true))
                 return NavigationResult.CancelledByViewModel;
@@ -79,7 +75,7 @@ internal sealed class NavigationService(RegionManager regionManager, ViewComposi
                     await leaving.OnNavigatedFromAsync(new NavigationContext(region.Name, region.ActiveViewModel,
                         target.ViewModelType, target.Parameter, NavigationKind.Back), cancellationToken).ConfigureAwait(true);
 
-                region.BackStack.Pop();
+                region.PopBack();
                 region.Replace(next, target.Parameter);
                 return NavigationResult.Success;
             }
@@ -99,11 +95,6 @@ internal sealed class NavigationService(RegionManager regionManager, ViewComposi
         return await confirmation.ConfirmNavigationAsync(context, cancellationToken).ConfigureAwait(true);
     }
 
-    private static Task<T> OnRegionDispatcherAsync<T>(RegionHost region, Func<Task<T>> action)
-    {
-        if (region.Dispatcher.HasShutdownStarted || region.Dispatcher.HasShutdownFinished)
-            return Task.FromException<T>(new InvalidOperationException($"区域 '{region.Name}' 的 Dispatcher 正在关闭。"));
-        if (region.Dispatcher.CheckAccess()) return action();
-        return region.Dispatcher.InvokeAsync(action).Task.Unwrap();
-    }
+    private Task<T> OnRegionDispatcherAsync<T>(RegionHost region, Func<Task<T>> action)
+        => uiDispatcher.InvokeAsync(region.Dispatcher, action);
 }

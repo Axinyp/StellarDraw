@@ -70,6 +70,61 @@ public sealed class WpfLocalizationTests
         });
     }
 
+    [Fact]
+    public async Task NotifyCultureChangedAsync_WhenDispatcherIsUnavailable_DoesNotRaiseNotification()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var localization = new TestLocalizationService();
+            var services = new ServiceCollection();
+            services.AddSingleton<ILocalizationService>(localization);
+            services.AddSingleton<IUiDispatcher>(new RejectingUiDispatcher(Application.Current.Dispatcher));
+            services.AddWpfLocalizationBindings();
+            using var provider = services.BuildServiceProvider();
+            var source = provider.GetRequiredService<WpfLocalizationBindingSource>();
+            var notifications = 0;
+            source.PropertyChanged += (_, _) => notifications++;
+
+            await source.NotifyCultureChangedAsync();
+
+            Assert.Equal(0, notifications);
+        });
+    }
+
+    [Fact]
+    public async Task CultureChangeFromBackgroundThread_RefreshesBindingsOnApplicationDispatcher()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var localization = new TestLocalizationService();
+            var services = new ServiceCollection();
+            services.AddSingleton<ILocalizationService>(localization);
+            services.AddWpfLocalizationBindings();
+            using var provider = services.BuildServiceProvider();
+            var source = provider.GetRequiredService<WpfLocalizationBindingSource>();
+            var notificationsOnDispatcher = new List<bool>();
+            source.PropertyChanged += (_, _) => notificationsOnDispatcher.Add(Application.Current.Dispatcher.CheckAccess());
+
+            var startup = Assert.Single(provider.GetServices<IStartupTask>());
+            await startup.ExecuteAsync(CancellationToken.None);
+            notificationsOnDispatcher.Clear();
+
+            await Task.Run(async () => await localization.SetCultureAsync(CultureInfo.GetCultureInfo("zh-CN")));
+            await WaitForAsync(() => notificationsOnDispatcher.Count == 1);
+
+            Assert.All(notificationsOnDispatcher, Assert.True);
+            Assert.Equal("你好", source["Greeting"]);
+            Application.Current.Resources.Remove(WpfLocalizationBindingSource.ResourceKey);
+        });
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 50 && !condition(); attempt++)
+            await Task.Delay(10);
+        Assert.True(condition());
+    }
+
     private sealed class TestLocalizationService : ILocalizationService
     {
         private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _strings = new(StringComparer.Ordinal)

@@ -9,6 +9,7 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
 {
     private ViewHandle? _active;
     private bool _disposed;
+    private int _backStackCount;
 
     public string Name { get; } = name;
 
@@ -24,7 +25,23 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
 
     public object? ActiveParameter { get; private set; }
 
-    public Stack<NavigationJournalEntry> BackStack { get; } = [];
+    private Stack<NavigationJournalEntry> BackStack { get; } = [];
+
+    public bool CanGoBack => Volatile.Read(ref _backStackCount) > 0;
+
+    public void PushBack(NavigationJournalEntry entry)
+    {
+        BackStack.Push(entry);
+        Volatile.Write(ref _backStackCount, BackStack.Count);
+    }
+
+    public NavigationJournalEntry PeekBack() => BackStack.Peek();
+
+    public void PopBack()
+    {
+        BackStack.Pop();
+        Volatile.Write(ref _backStackCount, BackStack.Count);
+    }
 
     public void Replace(ViewHandle next, object? parameter)
     {
@@ -39,15 +56,18 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
         previous?.Dispose();
     }
 
-    public void Dispose()
+    public void Dispose() => Dispose(detachVisual: true);
+
+    public void Dispose(bool detachVisual)
     {
         if (_disposed) return;
         _disposed = true;
-        if (_active is not null && ReferenceEquals(Host.Content, _active.View))
+        if (detachVisual && _active is not null && ReferenceEquals(Host.Content, _active.View))
             Host.Content = null;
-        _active?.Dispose();
+        _active?.Dispose(detachVisual);
         _active = null;
         BackStack.Clear();
+        Volatile.Write(ref _backStackCount, 0);
     }
 
     private void ThrowIfDisposed()

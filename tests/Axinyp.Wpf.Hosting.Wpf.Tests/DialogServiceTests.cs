@@ -75,6 +75,27 @@ public sealed class DialogServiceTests
     }
 
     [Fact]
+    public async Task ShowDialogAsync_WhenOwnerDispatcherIsUnavailable_DoesNotCreateScopeOrDialog()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            NeverCreatedDialogViewModel.Reset();
+            var services = new ServiceCollection();
+            services.AddSingleton<IUiDispatcher>(new RejectingUiDispatcher(Application.Current.Dispatcher));
+            services.AddWpfPresentation();
+            services.AddTransient<NeverCreatedDialogViewModel>();
+            services.AddView<NeverCreatedDialogViewModel, NeverCreatedDialog>();
+            using var provider = services.BuildServiceProvider();
+            var dialogs = provider.GetRequiredService<IDialogService>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => dialogs.ShowDialogAsync<NeverCreatedDialogViewModel>(new Window()));
+
+            Assert.Equal(0, NeverCreatedDialogViewModel.CreatedCount);
+        });
+    }
+
+    [Fact]
     public async Task ShowDialogAsync_PreCancelledTokenDoesNotCreateDialog()
     {
         await Sta.RunAsync(async () =>
@@ -201,6 +222,8 @@ public sealed class DialogServiceTests
         public NeverCreatedDialogViewModel() => CreatedCount++;
 
         public static int CreatedCount { get; private set; }
+
+        public static void Reset() => CreatedCount = 0;
     }
 
     private sealed class DeferredCloseDialog : Window;

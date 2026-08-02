@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Axinyp.Wpf.Hosting.Abstractions.Startup;
+using Axinyp.Wpf.Hosting.Abstractions.Wpf;
 using Axinyp.Wpf.Hosting.Abstractions.Wpf.Themes;
+using Axinyp.Wpf.Hosting.Wpf.Internal;
 using Axinyp.Wpf.Hosting.Wpf.Themes;
 
 namespace Axinyp.Wpf.Hosting.Wpf.Extensions;
@@ -40,6 +42,7 @@ public static class ThemeServiceCollectionExtensions
             throw new ArgumentException("主题 Id 不可重复。", nameof(configure));
 
         services.TryAddSingleton(options);
+        services.TryAddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.TryAddSingleton<IThemeService, ResourceDictionaryThemeService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupTask, ThemeStartupTask>());
         return services;

@@ -57,6 +57,27 @@ public sealed class WindowManagerTests
     }
 
     [Fact]
+    public async Task ShowAsync_WhenDispatcherIsUnavailable_DoesNotCreateScopeOrWindow()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            RejectingWindowViewModel.Reset();
+            var services = new ServiceCollection();
+            services.AddSingleton<IUiDispatcher>(new RejectingUiDispatcher(Application.Current.Dispatcher));
+            services.AddWpfPresentation();
+            services.AddScoped<RejectingWindowViewModel>();
+            services.AddView<RejectingWindowViewModel, RejectingWindow>();
+            using var provider = services.BuildServiceProvider();
+            var windows = provider.GetRequiredService<IWindowManager>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => windows.ShowAsync<RejectingWindowViewModel>());
+
+            Assert.Equal(0, RejectingWindowViewModel.CreatedCount);
+        });
+    }
+
+    [Fact]
     public async Task ShowAsync_RejectsOwnerThatIsNotVisible()
     {
         await Sta.RunAsync(async () =>
@@ -88,7 +109,17 @@ public sealed class WindowManagerTests
 
     private sealed class WindowViewModel;
 
+    private sealed class RejectingWindowViewModel
+    {
+        public RejectingWindowViewModel() => CreatedCount++;
+
+        public static int CreatedCount { get; private set; }
+
+        public static void Reset() => CreatedCount = 0;
+    }
+
     private sealed class ScopedWindow : Window;
+    private sealed class RejectingWindow : Window;
     private sealed class NonWindowView : UserControl;
 
     private sealed class DisposalProbe

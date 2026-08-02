@@ -57,6 +57,47 @@ public sealed class NavigationServiceTests
         });
     }
 
+    [Fact]
+    public async Task NavigateAsync_WhenRegionDispatcherIsUnavailable_DoesNotCreateCandidateViewModel()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            UnavailableViewModel.Reset();
+            var services = CreateServices();
+            services.AddSingleton<IUiDispatcher>(new RejectingUiDispatcher(Application.Current.Dispatcher));
+            services.AddTransient<UnavailableViewModel>();
+            services.AddView<UnavailableViewModel, UnavailableView>();
+            using var provider = services.BuildServiceProvider();
+            var regions = provider.GetRequiredService<IRegionManager>();
+            var navigation = provider.GetRequiredService<INavigationService>();
+            using var registration = regions.RegisterRegion("Main", new ContentControl());
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => navigation.NavigateAsync<UnavailableViewModel>("Main"));
+
+            Assert.Equal(0, UnavailableViewModel.CreatedCount);
+        });
+    }
+
+    [Fact]
+    public async Task CanGoBack_ReadsBackStackSnapshotFromBackgroundThread()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var services = CreateServices();
+            using var provider = services.BuildServiceProvider();
+            var regions = provider.GetRequiredService<IRegionManager>();
+            var navigation = provider.GetRequiredService<INavigationService>();
+            var host = new ContentControl();
+            using var registration = regions.RegisterRegion("Main", host);
+
+            await navigation.NavigateAsync<FirstViewModel>("Main");
+            await navigation.NavigateAsync<SecondViewModel>("Main");
+
+            Assert.True(await Task.Run(() => navigation.CanGoBack("Main")));
+        });
+    }
+
     private static ServiceCollection CreateServices()
     {
         var services = new ServiceCollection();
@@ -95,48 +136,17 @@ public sealed class NavigationServiceTests
             => ValueTask.FromResult(false);
     }
 
+    private sealed class UnavailableViewModel
+    {
+        public UnavailableViewModel() => CreatedCount++;
+
+        public static int CreatedCount { get; private set; }
+
+        public static void Reset() => CreatedCount = 0;
+    }
+
     private sealed class FirstView : UserControl;
     private sealed class SecondView : UserControl;
     private sealed class GuardedView : UserControl;
-}
-
-internal static class Sta
-{
-    private static readonly Lazy<StaDispatcher> SharedDispatcher = new(() => new StaDispatcher());
-
-    public static Task RunAsync(Func<Task> action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
-        return SharedDispatcher.Value.RunAsync(action);
-    }
-
-    private sealed class StaDispatcher
-    {
-        private readonly TaskCompletionSource<System.Windows.Threading.Dispatcher> _ready =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public StaDispatcher()
-        {
-            var thread = new Thread(() =>
-            {
-                var application = new Application
-                {
-                    ShutdownMode = ShutdownMode.OnExplicitShutdown
-                };
-                _ready.TrySetResult(application.Dispatcher);
-                System.Windows.Threading.Dispatcher.Run();
-            })
-            {
-                IsBackground = true
-            };
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-        }
-
-        public async Task RunAsync(Func<Task> action)
-        {
-            var dispatcher = await _ready.Task.ConfigureAwait(false);
-            await dispatcher.InvokeAsync(action).Task.Unwrap().ConfigureAwait(false);
-        }
-    }
+    private sealed class UnavailableView : UserControl;
 }

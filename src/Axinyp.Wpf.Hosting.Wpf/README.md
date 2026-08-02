@@ -7,7 +7,8 @@ WPF 宿主适配层：在不污染 `Axinyp.Wpf.Hosting`（`net10.0`、无 UI 依
 - **显式 View 映射**：通过 `AddView<TViewModel, TView>()` 注册精确的一对一 ViewModel → View 映射；不使用命名约定、反射扫描或基类回退。
 - **VM-first 窗口显示**：`IWindowManager` 从 DI 解析 ViewModel、定位并创建 View，统一设置 `DataContext`。
 - **窗口级作用域**：泛型显示 API 为每个窗口创建独立 `IServiceScope`，窗口关闭或显示失败时释放。
-- **UI 线程安全**：所有 WPF 对象创建、Owner 设置与 `Show` / `ShowDialog` 均调度到应用 `Dispatcher`。
+- **UI Dispatcher 边界**：`IUiDispatcher` 是 WPF 包专属、可替换的调度边界；Dispatcher 关闭后拒绝新的 UI 调度，所有调用方均应等待并观察其返回任务。
+- **关闭期资源释放**：Region 注销在 Dispatcher 可用时解除视觉树并释放 scope；关闭期不触碰视觉属性，但仍保证释放 ViewModel 与 DI scope。`CanGoBack` 可从后台线程读取。
 - **原生模态支持**：保留 WPF `ShowDialog()` 语义，模态窗口必须显式提供 Owner。
 - **区域导航**：`IRegionManager` 显式托管 `ContentControl`，`INavigationService` 提供 VM-first 前进/返回、参数传递和离开确认；后退栈只保存轻量导航记录，不缓存视觉树。
 - **Dialog 协议**：`IDialogService`、`IDialogAware` 与 `IDialogResult` 支持窗口级参数、请求关闭和关闭拦截。
@@ -66,7 +67,7 @@ await navigation.NavigateAsync<HomeViewModel>("Main", parameter: lessonId);
 await navigation.GoBackAsync("Main");
 ```
 
-目标 ViewModel 实现 `INavigationAware` 可接收参数并响应进入/离开；实现 `IConfirmNavigation` 可以拒绝离开当前页。区域替换会清除旧 `DataContext` 并释放旧 DI scope，历史视觉树不会被缓存。
+区域替换会清除旧 `DataContext` 并释放旧 DI scope，历史视觉树不会被缓存。注销 Region 时，Dispatcher 仍可用则先解除视觉树；若 Dispatcher 已关闭，则跳过视觉树访问但仍释放 scope。关闭期释放可能在调用方或任务线程执行，因此 scope 内服务必须在 Dispatcher 可用时完成 UI 解绑，关闭期 `Dispose` 不得访问 WPF 对象。
 
 ## Dialog 协议
 
@@ -85,7 +86,7 @@ await themes.ApplyAsync("dark");
 await localization.SetCultureAsync(CultureInfo.GetCultureInfo("en-US"));
 ```
 
-主题只接受应用内受信任的 `pack://application` 资源字典；主题与文化都会写入 `ISettingsStore` 的用户偏好 JSON。该存储显式拒绝包含 `token`、`password`、`secret` 等敏感键，不能替代凭据管理器。
+主题只接受应用内受信任的 `pack://application` 资源字典；主题与文化都会写入 `ISettingsStore` 的用户偏好 JSON。`ThemeChanged` 总在应用 UI Dispatcher 上触发。该存储显式拒绝包含 `token`、`password`、`secret` 等敏感键，不能替代凭据管理器。
 
 XAML 中用 `DynamicResource` 取得可切换颜色，使用 `LocExtension` 取得动态本地化文本：
 
@@ -94,6 +95,8 @@ XAML 中用 `DynamicResource` 取得可切换颜色，使用 `LocExtension` 取�
     <TextBlock Text="{loc:Loc MainWindow.Title}" />
 </Grid>
 ```
+
+Application 启动完成后若后续初始化失败，consumer 应先调用 `StopModularHostAsync()`，再释放 host 与 WPF 资源，确保模块生命周期按反向顺序结束。
 
 ## 本地包消费说明
 

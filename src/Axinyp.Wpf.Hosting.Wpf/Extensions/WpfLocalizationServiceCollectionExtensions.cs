@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Axinyp.Wpf.Hosting.Abstractions.Startup;
+using Axinyp.Wpf.Hosting.Abstractions.Wpf;
+using Axinyp.Wpf.Hosting.Wpf.Internal;
 using Axinyp.Wpf.Hosting.Wpf.Localization;
 
 namespace Axinyp.Wpf.Hosting.Wpf.Extensions;
@@ -16,6 +18,7 @@ public static class WpfLocalizationServiceCollectionExtensions
     public static IServiceCollection AddWpfLocalizationBindings(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.TryAddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.TryAddSingleton<WpfLocalizationBindingSource>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IStartupTask, WpfLocalizationStartupTask>());
         return services;
