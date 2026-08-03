@@ -33,9 +33,9 @@ public static class HostApplicationBuilderPluginExtensions
 
         var options = new PluginDiscoveryOptions();
         configure(options);
-        var (catalog, runtime) = StartupPluginDiscoverer.Discover(options);
+        var (catalog, runtime, diagnostics) = StartupPluginDiscoverer.Discover(options);
         var state = StartupPluginStateStore.GetOrCreate(builder);
-        state.Add(catalog, runtime);
+        state.Add(catalog, runtime, diagnostics);
         foreach (var module in runtime.Modules)
             builder.AddModule(module);
         return builder;

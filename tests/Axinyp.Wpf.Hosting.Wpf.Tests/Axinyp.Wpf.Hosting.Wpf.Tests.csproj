@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\TestSupport\RecordingLoggerProvider.cs" Link="TestSupport\RecordingLoggerProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Axinyp.Wpf.Hosting.Wpf\Axinyp.Wpf.Hosting.Wpf.csproj" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">

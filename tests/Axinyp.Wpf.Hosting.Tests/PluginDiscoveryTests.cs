@@ -1,5 +1,3 @@
-using Axinyp.Wpf.Hosting.Abstractions.Plugins;
-
 namespace Axinyp.Wpf.Hosting.Tests;
 
 public sealed class PluginDiscoveryTests : IDisposable
@@ -16,11 +14,13 @@ public sealed class PluginDiscoveryTests : IDisposable
         builder.AddModularHosting().AddStartupPluginsFromDirectory(_root);
 
         using var host = builder.BuildModularHost();
-        var catalog = host.Services.GetRequiredService<IPluginCatalog>();
+        var failure = Assert.Single(host.Services.GetRequiredService<IPluginCatalog>().Failures);
 
-        var failure = Assert.Single(catalog.Failures);
         Assert.Equal(PluginLoadFailureKind.ManifestInvalid, failure.Kind);
-        Assert.Empty(catalog.Plugins);
+        Assert.Equal("plugin.discovery.ManifestInvalid", failure.Metadata?.DiagnosticCode);
+        Assert.Equal(1040, failure.Metadata?.EventId);
+        Assert.Equal(typeof(System.Text.Json.JsonException).FullName, failure.Metadata?.ExceptionType);
+        Assert.Empty(host.Services.GetRequiredService<IPluginCatalog>().Plugins);
     }
 
     [Fact]
@@ -39,6 +39,8 @@ public sealed class PluginDiscoveryTests : IDisposable
 
         Assert.Equal("sample.missing", failure.Id);
         Assert.Equal(PluginLoadFailureKind.MissingDependency, failure.Kind);
+        Assert.Equal("not.installed", failure.Metadata?.DependencyId);
+        Assert.Equal("sample.dll", failure.Metadata?.EntryAssembly);
     }
 
     [Fact]
@@ -55,6 +57,39 @@ public sealed class PluginDiscoveryTests : IDisposable
 
         Assert.Equal(2, failures.Count);
         Assert.All(failures, failure => Assert.Equal(PluginLoadFailureKind.DuplicatePluginId, failure.Kind));
+    }
+
+    [Fact]
+    public void Build_LogsSafeStructuredPluginDiscoveryFailure()
+    {
+        var directory = CreatePluginDirectory("missing-entry-assembly");
+        WriteManifest(directory, "sample.missing-entry");
+        var loggerProvider = new RecordingLoggerProvider();
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(loggerProvider);
+        builder.AddModularHosting().AddStartupPluginsFromDirectory(_root);
+
+        using var host = builder.BuildModularHost();
+
+        var entry = Assert.Single(loggerProvider.Entries, entry =>
+            entry.EventId.Id == 1040 && entry.EventId.Name == "DiscoveryFailure");
+        Assert.Equal(LogLevel.Warning, entry.LogLevel);
+        Assert.IsAssignableFrom<InvalidOperationException>(entry.Exception);
+        Assert.Equal(directory, entry.Properties["PluginDirectory"]);
+        Assert.Equal("sample.missing-entry", entry.Properties["PluginId"]);
+        Assert.Equal(PluginLoadFailureKind.EntryAssemblyMissing, entry.Properties["FailureKind"]);
+        Assert.Equal("sample.dll", entry.Properties["EntryAssembly"]);
+        Assert.EndsWith("PluginEntryAssemblyMissingException", entry.Properties["ExceptionType"]?.ToString());
+    }
+
+    [Fact]
+    public void FailureModels_DoNotExposeExceptionInstances()
+    {
+        Assert.DoesNotContain(typeof(PluginLoadFailure).GetProperties(), property =>
+            typeof(Exception).IsAssignableFrom(property.PropertyType));
+        Assert.DoesNotContain(typeof(PluginLoadFailureMetadata).GetProperties(), property =>
+            typeof(Exception).IsAssignableFrom(property.PropertyType));
     }
 
     private string CreatePluginDirectory(string name)

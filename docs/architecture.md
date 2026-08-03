@@ -70,7 +70,6 @@
 - 运行时调度；
 - JSON 序列化实现；
 - WPF 视觉树操作；
-- Dispatcher 访问；
 - ALC 生命周期管理；
 - 默认主题应用、默认导航、默认对话框等具体行为。
 
@@ -127,7 +126,8 @@
 2. `IWindowManager` / `INavigationService` / `IDialogService` 根据映射创建 View；
 3. `ViewCompositionFactory` 统一生成 `View + ViewModel + Scope` 组合；
 4. 区域切换、窗口关闭、对话框结束时统一释放 scope；
-5. UI Contribution 只返回元数据，最终如何渲染交给具体 Shell 决定。
+5. 所有 WPF UI 调度通过可替换的 `IUiDispatcher` 边界，关闭后拒绝新工作；
+6. UI Contribution 只返回元数据，最终如何渲染交给具体 Shell 决定；每个 Provider 在独立 scope 中执行，snapshot 不保留 Provider 实例。
 
 ## 本地包验证策略
 
@@ -147,7 +147,22 @@
 
 下面这些内容不是“现在不能用”，而是“开始真实业务回接后大概率会持续暴露并需要迭代补强”的部分。
 
-### 1. Shell 层仍然偏薄
+### 2. 失败诊断的公共安全边界
+
+框架对“可恢复失败”同时提供两层信息：
+
+- `IPluginCatalog.Failures`、`IWpfUiContributionCatalog.Failures` 和 `NavigationResult` 只包含稳定的失败分类、诊断代码、异常类型名与安全上下文，可由 consumer 用于显示、重试策略或支持请求关联；
+- 原始 `Exception` 只写入框架的 `ILogger` 事件，绝不保存在公共 failure 结果、导航结果或冻结 catalog 中。
+
+此边界既避免将异常文本、导航参数或 Provider 返回对象泄露给 UI，也避免公共失败对象强引用可收集插件 ALC 中的异常图。当前稳定事件编号范围为：
+
+- 插件发现：`1040`；
+- WPF 导航：`1100–1104`；
+- WPF UI Contribution：`1140–1145`。
+
+Consumer 应向用户展示 public result 的安全消息和诊断代码；日志系统则可借由同一代码、EventId 和结构化属性定位根因。导航日志明确不会记录 `NavigationContext.Parameter`。
+
+### 3. Shell 层仍然偏薄
 
 当前基础设施已经具备 Window / Region / Navigation / Dialog / Theme / Localization 的底座，
 但还没有形成一个真正标准化的 Shell 组织模型，例如：
@@ -183,21 +198,15 @@
 3. 必要时增加诊断快照或调试辅助 API；
 4. 为最常见失败路径补充“面向使用者”的错误提示文案。
 
-### 3. WPF 线程模型抽象仍可继续提升
+### 4. WPF 线程模型已收敛，仍需扩大边界验证
 
-当前实现已经尽量把 UI 操作集中到 Dispatcher，但还缺少统一的线程调度抽象。
-这会影响：
+当前 `IUiDispatcher` 已将 Window / Navigation / Dialog / Theme / Localization 的 Dispatcher 访问收敛为可替换、可等待的统一入口。Dispatcher 关闭后，框架拒绝新的 UI 工作；Region 则遵循“可用时脱离视觉树、关闭期仍释放 scope”的双阶段清理规则。
 
-- 单元测试替身能力；
+后续仍应继续增加：
+
 - 更复杂 UI 生命周期场景的可控性；
-- 后续对后台线程与 UI 线程切换的统一规范。
-
-**长期优化建议：**
-
-1. 引入 `IUiDispatcher` 抽象；
-2. 让 Window / Navigation / Dialog / Theme / Localization 尽量依赖统一调度入口；
-3. 为线程切换失败场景增加更清晰测试；
-4. 在文档中补线程模型与时序图。
+- Dispatcher 的检查后、执行前关闭竞态覆盖；
+- 线程模型与资源释放时序图。
 
 ### 4. 测试覆盖已经可用，但还不算“框架级充分”
 

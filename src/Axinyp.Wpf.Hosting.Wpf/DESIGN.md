@@ -62,7 +62,13 @@ Region 的清理分为两个阶段：Dispatcher 可用时先从视觉树解除 V
 - 负责区域内容替换；
 - 进入新页面前可询问旧页面是否允许离开；
 - 历史记录只保存导航信息，不缓存 View；
-- 区域切换时必须清理旧 `DataContext` 并释放相关资源。
+- 区域切换时必须清理旧 `DataContext` 并释放相关资源；
+- `NavigationResult` 为 consumer 提供稳定失败分类、诊断代码和异常类型名；原始异常只随 `1100–1104` 日志事件写入 `ILogger`，不会包含导航参数。
+
+### UI Contribution Catalog
+
+- 每个 Provider 在独立 DI scope 中激活和执行，构建后的 catalog 只保留不可变元数据；
+- `WpfUiContributionFailure` 只公开安全消息、失败分类和安全上下文；Provider 原始异常只记录在 `1140–1145` 日志事件中。
 
 ### DialogService
 

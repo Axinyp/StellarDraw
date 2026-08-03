@@ -30,6 +30,40 @@ public sealed class WpfUiContributionCatalogTests
             command => Assert.Equal("dependent.command", command.Id));
         Assert.Single(catalog.Failures);
         Assert.Equal(WpfUiContributionFailureKind.ProviderExecutionFailed, catalog.Failures[0].Kind);
+        Assert.Equal("UI 贡献 Provider 执行失败。", catalog.Failures[0].Message);
+        Assert.Equal(WpfHostingEventIds.UiContributionProviderExecutionFailed.Id, catalog.Failures[0].EventId);
+        Assert.Equal(typeof(InvalidOperationException).FullName, catalog.Failures[0].ExceptionType);
+    }
+
+    [Fact]
+    public void Catalog_LogsProviderFailureAndDisposesProviderScope()
+    {
+        var probe = new DisposalProbe();
+        var loggerProvider = new RecordingLoggerProvider();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(loggerProvider);
+        builder.Services.AddWpfPresentation();
+        builder.AddModularHosting().AddModule(new ScopedBrokenModule(probe));
+
+        using var host = builder.BuildModularHost();
+        _ = host.Services.GetRequiredService<IWpfUiContributionCatalog>().Failures;
+
+        Assert.True(probe.Disposed);
+        var failure = Assert.Single(loggerProvider.Entries, entry =>
+            entry.EventId == WpfHostingEventIds.UiContributionProviderExecutionFailed);
+        Assert.Equal(LogLevel.Warning, failure.LogLevel);
+        Assert.IsType<InvalidOperationException>(failure.Exception);
+        Assert.Equal(typeof(ScopedBrokenModule).FullName, failure.Properties["SourceModuleId"]);
+        Assert.Equal(typeof(ScopedBrokenProvider).FullName, failure.Properties["ProviderType"]);
+        Assert.Equal(WpfUiContributionFailureKind.ProviderExecutionFailed, failure.Properties["FailureKind"]);
+    }
+
+    [Fact]
+    public void FailureModel_DoesNotExposeExceptionInstance()
+    {
+        Assert.DoesNotContain(typeof(WpfUiContributionFailure).GetProperties(), property =>
+            typeof(Exception).IsAssignableFrom(property.PropertyType));
     }
 
     private sealed class FoundationModule : IModule
@@ -58,6 +92,16 @@ public sealed class WpfUiContributionCatalogTests
             => services.AddWpfUiContributions<BrokenModule, BrokenProvider>();
     }
 
+    private sealed class ScopedBrokenModule(DisposalProbe probe) : IModule
+    {
+        public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+        {
+            services.AddScoped(_ => probe);
+            services.AddScoped<ScopedBrokenProvider>();
+            services.AddWpfUiContributions<ScopedBrokenModule, ScopedBrokenProvider>();
+        }
+    }
+
     private sealed class FoundationProvider : IWpfUiContributionProvider
     {
         public WpfUiContributions GetContributions() => new()
@@ -79,6 +123,20 @@ public sealed class WpfUiContributionCatalogTests
     private sealed class BrokenProvider : IWpfUiContributionProvider
     {
         public WpfUiContributions GetContributions() => throw new InvalidOperationException("Expected provider failure.");
+    }
+
+    private sealed class ScopedBrokenProvider : IWpfUiContributionProvider
+    {
+        public ScopedBrokenProvider(DisposalProbe probe) => _ = probe;
+
+        public WpfUiContributions GetContributions() => throw new InvalidOperationException("Expected scoped provider failure.");
+    }
+
+    private sealed class DisposalProbe : IDisposable
+    {
+        public bool Disposed { get; private set; }
+
+        public void Dispose() => Disposed = true;
     }
 
     private sealed class FoundationViewModel;

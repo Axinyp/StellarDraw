@@ -83,7 +83,10 @@ public static class HostApplicationBuilderExtensions
         if (StartupPluginStateStore.TryGet(builder, out var pluginState) && pluginState is not null)
         {
             builder.Services.Replace(ServiceDescriptor.Singleton<IPluginCatalog>(pluginState.CreateCatalog()));
-            return new PluginAwareHost(builder.Build(), pluginState);
+            var host = builder.Build();
+            pluginState.LogFailures(host.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Axinyp.Wpf.Hosting.PluginDiscovery"));
+            return new PluginAwareHost(host, pluginState);
         }
 
         return builder.Build();

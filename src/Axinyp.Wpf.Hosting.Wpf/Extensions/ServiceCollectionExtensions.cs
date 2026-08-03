@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddWpfPresentation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddLogging();
         services.TryAddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.TryAddSingleton<IViewLocator, ViewLocator>();
         services.TryAddSingleton<ViewCompositionFactory>();

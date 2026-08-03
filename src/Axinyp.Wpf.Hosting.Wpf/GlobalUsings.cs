@@ -1,3 +1,4 @@
+global using Microsoft.Extensions.Logging;
 global using Axinyp.Wpf.Hosting.Abstractions.Localization;
 global using Axinyp.Wpf.Hosting.Abstractions.Modules;
 global using Axinyp.Wpf.Hosting.Abstractions.Plugins;

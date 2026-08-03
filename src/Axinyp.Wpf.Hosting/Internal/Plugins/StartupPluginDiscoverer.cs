@@ -11,9 +11,11 @@ internal static class StartupPluginDiscoverer
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static (PluginCatalog Catalog, StartupPluginRuntime Runtime) Discover(PluginDiscoveryOptions options)
+    public static (PluginCatalog Catalog, StartupPluginRuntime Runtime, IReadOnlyList<StartupPluginDiagnostic> Diagnostics)
+        Discover(PluginDiscoveryOptions options)
     {
-        var candidates = ReadCandidates(options.PluginDirectories);
+        var diagnostics = new List<StartupPluginDiagnostic>();
+        var candidates = ReadCandidates(options.PluginDirectories, diagnostics);
         var failures = new List<PluginLoadFailure>();
         var valid = candidates.Where(candidate => candidate.Manifest is not null).ToList();
         failures.AddRange(candidates.Where(candidate => candidate.Failure is not null).Select(candidate => candidate.Failure!));
@@ -24,40 +26,50 @@ internal static class StartupPluginDiscoverer
 
         foreach (var candidate in ordered)
         {
-            if (candidate.Manifest!.Dependencies.Any(dependency =>
-                failures.Any(failure => string.Equals(failure.Id, dependency, StringComparison.OrdinalIgnoreCase))))
+            var failedDependency = candidate.Manifest!.Dependencies.FirstOrDefault(dependency =>
+                failures.Any(failure => string.Equals(failure.Id, dependency, StringComparison.OrdinalIgnoreCase)));
+            if (failedDependency is not null)
             {
-                failures.Add(new PluginLoadFailure(candidate.Directory, candidate.Manifest.Id,
-                    PluginLoadFailureKind.DependencyFailed, "插件的依赖项未能成功加载。"));
+                failures.Add(CreateFailure(candidate.Directory, candidate.Manifest.Id,
+                    PluginLoadFailureKind.DependencyFailed, "插件的依赖项未能成功加载。",
+                    entryAssembly: candidate.Manifest.EntryAssembly, dependencyId: failedDependency));
                 continue;
             }
 
             try { handles.Add(Load(candidate, options.AdditionalSharedAssemblies)); }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                var kind = ex is PluginEntryAssemblyMissingException
+                var kind = exception is PluginEntryAssemblyMissingException
                     ? PluginLoadFailureKind.EntryAssemblyMissing
                     : PluginLoadFailureKind.AssemblyLoadFailed;
-                failures.Add(new PluginLoadFailure(candidate.Directory, candidate.Manifest.Id, kind, ex.Message));
+                var failure = CreateFailure(candidate.Directory, candidate.Manifest.Id, kind,
+                    "插件入口程序集无法加载。", candidate.Manifest.EntryAssembly, exception: exception);
+                failures.Add(failure);
+                diagnostics.Add(new StartupPluginDiagnostic(failure, exception));
             }
         }
 
         var descriptors = handles.Select(handle => handle.Descriptor).ToList();
-        return (new PluginCatalog(descriptors, failures), new StartupPluginRuntime(handles));
+        return (
+            new PluginCatalog(descriptors, failures),
+            new StartupPluginRuntime(handles),
+            diagnostics);
     }
 
-    private static List<Candidate> ReadCandidates(IEnumerable<string> roots)
+    private static List<Candidate> ReadCandidates(
+        IEnumerable<string> roots,
+        ICollection<StartupPluginDiagnostic> diagnostics)
     {
         var result = new List<Candidate>();
         foreach (var root in roots.Where(Directory.Exists).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
             foreach (var directory in Directory.EnumerateDirectories(root).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
-                result.Add(ReadCandidate(directory));
+                result.Add(ReadCandidate(directory, diagnostics));
         }
         return result;
     }
 
-    private static Candidate ReadCandidate(string directory)
+    private static Candidate ReadCandidate(string directory, ICollection<StartupPluginDiagnostic> diagnostics)
     {
         var manifestPath = Path.Combine(directory, "plugin.json");
         if (!File.Exists(manifestPath))
@@ -71,18 +83,24 @@ internal static class StartupPluginDiscoverer
                 return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "plugin.json 缺少 Id、Version 或 EntryAssembly。");
             if (Path.IsPathRooted(manifest.EntryAssembly) || manifest.EntryAssembly.Contains("..")
                 || !string.Equals(Path.GetExtension(manifest.EntryAssembly), ".dll", StringComparison.OrdinalIgnoreCase))
-                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "EntryAssembly 必须是插件目录内的 .dll 文件。", manifest.Id);
+                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "EntryAssembly 必须是插件目录内的 .dll 文件。", manifest.Id, manifest.EntryAssembly);
 
             var assemblyPath = Path.GetFullPath(Path.Combine(directory, manifest.EntryAssembly));
             var root = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
             if (!assemblyPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "EntryAssembly 越出了插件目录。", manifest.Id);
+                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "EntryAssembly 越出了插件目录。", manifest.Id, manifest.EntryAssembly);
             if (manifest.Dependencies.Any(string.IsNullOrWhiteSpace) || manifest.Dependencies.Contains(manifest.Id, StringComparer.OrdinalIgnoreCase))
-                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "Dependencies 包含空值或自依赖。", manifest.Id);
+                return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, "Dependencies 包含空值或自依赖。", manifest.Id, manifest.EntryAssembly);
 
             return new Candidate(directory, assemblyPath, manifest, null);
         }
-        catch (JsonException ex) { return Candidate.Fail(directory, PluginLoadFailureKind.ManifestInvalid, ex.Message); }
+        catch (JsonException exception)
+        {
+            var failure = CreateFailure(directory, null, PluginLoadFailureKind.ManifestInvalid,
+                "plugin.json 格式无效。", exception: exception);
+            diagnostics.Add(new StartupPluginDiagnostic(failure, exception));
+            return new Candidate(directory, "", null, failure);
+        }
     }
 
     private static void RemoveDuplicateIds(List<Candidate> candidates, List<PluginLoadFailure> failures)
@@ -90,34 +108,47 @@ internal static class StartupPluginDiscoverer
         foreach (var group in candidates.GroupBy(c => c.Manifest!.Id, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
         {
             foreach (var candidate in group)
-                failures.Add(new PluginLoadFailure(candidate.Directory, candidate.Manifest!.Id, PluginLoadFailureKind.DuplicatePluginId, "插件 Id 重复。"));
-            candidates.RemoveAll(c => group.Contains(c));
+                failures.Add(CreateFailure(candidate.Directory, candidate.Manifest!.Id,
+                    PluginLoadFailureKind.DuplicatePluginId, "插件 Id 重复。", candidate.Manifest.EntryAssembly));
+            candidates.RemoveAll(candidate => group.Contains(candidate));
         }
     }
 
     private static IReadOnlyList<Candidate> SortValidCandidates(List<Candidate> candidates, List<PluginLoadFailure> failures)
     {
-        var byId = candidates.ToDictionary(c => c.Manifest!.Id, StringComparer.OrdinalIgnoreCase);
+        var byId = candidates.ToDictionary(candidate => candidate.Manifest!.Id, StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates.ToList())
         {
             var missing = candidate.Manifest!.Dependencies.FirstOrDefault(dependency => !byId.ContainsKey(dependency));
             if (missing is null) continue;
-            failures.Add(new PluginLoadFailure(candidate.Directory, candidate.Manifest.Id, PluginLoadFailureKind.MissingDependency, $"缺少插件依赖 '{missing}'。"));
+            failures.Add(CreateFailure(candidate.Directory, candidate.Manifest.Id,
+                PluginLoadFailureKind.MissingDependency, $"缺少插件依赖 '{missing}'。",
+                candidate.Manifest.EntryAssembly, missing));
             candidates.Remove(candidate);
         }
-        // 简洁的稳定 DFS；循环候选记录失败并剔除，非相关插件照常加载。
-        var result = new List<Candidate>(); var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<Candidate>();
+        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidates.ToList()) Visit(candidate);
         return result;
+
         void Visit(Candidate candidate)
         {
             var id = candidate.Manifest!.Id;
             if (done.Contains(id)) return;
-            if (!visiting.Add(id)) { failures.Add(new PluginLoadFailure(candidate.Directory, id, PluginLoadFailureKind.DependencyCycle, "检测到插件依赖循环。")); return; }
+            if (!visiting.Add(id))
+            {
+                failures.Add(CreateFailure(candidate.Directory, id, PluginLoadFailureKind.DependencyCycle,
+                    "检测到插件依赖循环。", candidate.Manifest.EntryAssembly));
+                return;
+            }
+
             foreach (var dependency in candidate.Manifest.Dependencies)
                 if (byId.TryGetValue(dependency, out var dependencyCandidate)) Visit(dependencyCandidate);
-            visiting.Remove(id); done.Add(id);
-            if (!failures.Any(f => string.Equals(f.Id, id, StringComparison.OrdinalIgnoreCase))) result.Add(candidate);
+            visiting.Remove(id);
+            done.Add(id);
+            if (!failures.Any(failure => string.Equals(failure.Id, id, StringComparison.OrdinalIgnoreCase))) result.Add(candidate);
         }
     }
 
@@ -134,17 +165,40 @@ internal static class StartupPluginDiscoverer
                 .Select(type => (IModule)(Activator.CreateInstance(type) ?? throw new InvalidOperationException($"无法创建模块 {type.FullName}。"))).ToList();
             if (modules.Count == 0) throw new InvalidOperationException("入口程序集没有公开 IModule 实现。");
             var descriptor = new PluginDescriptor(candidate.Manifest!.Id, candidate.Manifest.Version, candidate.Directory,
-                candidate.Manifest.EntryAssembly, candidate.Manifest.Dependencies, modules.Select(m => m.GetType().FullName ?? m.GetType().Name).ToList());
+                candidate.Manifest.EntryAssembly, candidate.Manifest.Dependencies, modules.Select(module => module.GetType().FullName ?? module.GetType().Name).ToList());
             return new StartupPluginLoadHandle(descriptor, context, modules);
         }
         catch { context.Unload(); throw; }
     }
 
+    private static PluginLoadFailure CreateFailure(
+        string directory,
+        string? id,
+        PluginLoadFailureKind kind,
+        string message,
+        string? entryAssembly = null,
+        string? dependencyId = null,
+        Exception? exception = null)
+        => new PluginLoadFailure(directory, id, kind, message)
+        {
+            Metadata = new PluginLoadFailureMetadata(
+                $"plugin.discovery.{kind}",
+                PluginDiscoveryEventIds.DiscoveryFailure.Id,
+                entryAssembly,
+                dependencyId,
+                exception?.GetType().FullName)
+        };
+
     private sealed class PluginEntryAssemblyMissingException(string message) : InvalidOperationException(message);
 
     private sealed record Candidate(string Directory, string AssemblyPath, PluginManifest? Manifest, PluginLoadFailure? Failure)
     {
-        public static Candidate Fail(string directory, PluginLoadFailureKind kind, string message, string? id = null)
-            => new(directory, "", null, new PluginLoadFailure(directory, id, kind, message));
+        public static Candidate Fail(
+            string directory,
+            PluginLoadFailureKind kind,
+            string message,
+            string? id = null,
+            string? entryAssembly = null)
+            => new(directory, "", null, CreateFailure(directory, id, kind, message, entryAssembly));
     }
 }

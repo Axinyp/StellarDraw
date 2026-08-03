@@ -43,7 +43,7 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
         Volatile.Write(ref _backStackCount, BackStack.Count);
     }
 
-    public void Replace(ViewHandle next, object? parameter)
+    public Exception? Replace(ViewHandle next, object? parameter)
     {
         ThrowIfDisposed();
         var previous = _active;
@@ -53,7 +53,16 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
         _active = next;
         ActiveParameter = parameter;
         Host.Content = next.View;
-        previous?.Dispose();
+
+        try
+        {
+            previous?.Dispose();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 
     public void Dispose() => Dispose(detachVisual: true);
