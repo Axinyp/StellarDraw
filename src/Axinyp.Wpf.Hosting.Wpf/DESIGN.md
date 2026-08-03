@@ -39,6 +39,10 @@ Region 的清理分为两个阶段：Dispatcher 可用时先从视觉树解除 V
 
 当前版本的插件 UI 贡献仅承诺“宿主构建前发现并在启动后聚合”，不承诺运行时热插拔 UI 组件。
 
+插件代码被视为受信任代码；collectible `AssemblyLoadContext` 只用于依赖隔离和宿主关闭时的资源回收，不是安全沙箱。WPF catalog 在启动前完成 Provider scope 激活、贡献校验和不可变 snapshot 构造，运行期间不持有 Provider 实例。
+
+任何未来 runtime refresh 都必须先停止新的贡献入口，取消并等待插件任务，在 Dispatcher 可用时脱离 View、ResourceDictionary、binding、command、event 和 navigation journal 引用，再释放 scope/module 并清空旧 snapshot；新 snapshot 校验失败时必须保留旧状态。Dispatcher 关闭后不得排队新的 UI refresh 工作。
+
 ## 非目标
 
 以下能力不属于本层直接职责：
@@ -111,6 +115,8 @@ Region 的清理分为两个阶段：Dispatcher 可用时先从视觉树解除 V
 - 命令如何落到菜单或工具栏；
 - 设置页如何组织与分组；
 - 不同贡献之间冲突时如何呈现。
+
+当前 catalog snapshot 只应保留宿主可理解的不可变元数据，不得长期保存 Provider、插件 `Type`/assembly、delegate、原始 `Exception`、`ResourceDictionary`、binding、`ICommand`、事件处理器、Dispatcher callback 或带插件实例的 navigation journal。完整的 WPF ALC hygiene、catalog freeze 时机和未来 refresh 前置条件见 [`docs/plugin-system-design.md`](../../docs/plugin-system-design.md)。
 
 ## 后续演进建议
 

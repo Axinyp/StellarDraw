@@ -79,8 +79,11 @@ consumer-smoke/                        本地 NuGet 包消费验证项目（临�
 - 使用显式 ViewModel → View 注册，不默认依赖命名约定扫描；
 - 模块在构建前收集、排序、校验，并在启动时统一初始化、启动、停止；
 - 启动期插件只承诺“构建前发现与加载”，不误导为运行时热插拔；
+- 插件代码被视为受信任代码，`AssemblyLoadContext` 只提供依赖隔离，不是安全沙箱；
 - 公共类型身份统一收敛到 `Axinyp.Wpf.Hosting.Abstractions`；
 - 线程、生命周期、资源释放等关键逻辑必须写清楚中文注释。
+
+插件系统当前边界与未来演进设计见 [`docs/plugin-system-design.md`](docs/plugin-system-design.md)。当前设计评审完成前，不新增 runtime load/unload、hot-reload 或 WPF catalog runtime refresh API。
 
 ## 最小使用方式
 
@@ -157,7 +160,7 @@ consumer-smoke/
    - 当前已经集中到 Dispatcher，但还没有独立 `IUiDispatcher` 这类统一抽象。
 
 4. **测试还属于“主链路可用”，未到“边角压透”**
-   - 还需要继续补复杂插件依赖、UI 线程边界、Dialog 竞态、Region 快速切换等测试。
+   - 还需要继续补复杂插件依赖、程序集解析与共享身份、真实 DLL/ALC 回收、UI 线程边界、Dialog 竞态、Region 快速切换等测试。
 
 5. **真实业务回接后一定还会暴露第二轮问题**
    - 包括 API 粒度、默认实现刚性、Shell 边界和插件落点等。
@@ -166,6 +169,7 @@ consumer-smoke/
 
 - `docs/architecture.md`
 - `src/Axinyp.Wpf.Hosting.Wpf/DESIGN.md`
+- `docs/plugin-system-design.md`
 
 后续应当采用“业务回接 -> 暴露问题 -> 文档记录 -> 回归修正”的节奏，而不是继续脱离业务做空转式抽象。
 

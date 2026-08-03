@@ -234,21 +234,36 @@ Consumer 应向用户展示 public result 的安全消息和诊断代码；日�
 
 - 构建前发现；
 - 启动期加载；
-- 共享公共契约；
-- 生命周期跟随宿主释放。
+- 每个插件使用 collectible `AssemblyLoadContext` 做依赖隔离；
+- 共享经过身份约束的公共契约；
+- 生命周期跟随宿主释放，并在 Host Dispose 时反向清理后调用 `Unload()`。
+
+插件代码被视为受信任代码。`AssemblyLoadContext` 不是安全边界，也不能阻止插件访问宿主进程允许访问的资源。
 
 当前**不承诺**：
 
-- 运行时热插拔；
-- 插件商店；
+- 运行时热插拔或无重启 reload；
+- 插件商店、插件停用 / 重新加载管理界面；
 - 运行时 UI 动态增删；
-- 插件停用 / 重新加载管理界面。
+- 以完整性元数据或 allowlist 代替沙箱、权限隔离或代码信任决策。
+
+当前入口程序集、assembly resolution、exported type discovery、module activation 和 module lifecycle 的错误仍需要进一步拆分为稳定 failure taxonomy；不能把所有 `GetExportedTypes()` / `Activator.CreateInstance()` 失败都理解为同一类 assembly load 错误。
+
+未来运行时插件系统必须单独完成：
+
+1. 版本化 `plugin.json` schema、依赖版本范围和 host API compatibility；
+2. shared assembly 的版本/public key 身份校验与 managed/native resolver tracing；
+3. stop work、取消并等待任务、WPF detach、scope/module dispose、引用清理、ALC unload 的状态机；
+4. WPF catalog snapshot、refresh rollback 和 navigation/resource/event 引用卫生；
+5. 真实 DLL fixture、WeakReference GC、Dispatcher closing 与卸载后 reload 隔离测试。
+
+完整设计和审批边界见 [`docs/plugin-system-design.md`](plugin-system-design.md)。
 
 **长期优化建议：**
 
 1. 先把启动期插件打磨稳定；
-2. 再评估是否需要运行时插件系统；
-3. 若真的要做，需单独设计插件状态机、UI 热更新策略和资源回收模型；
+2. 先完成设计评审和真实 fixture 测试，再决定是否需要运行时插件系统；
+3. 若真的要做，必须单独设计插件状态机、UI 热更新策略和资源回收模型；
 4. 不建议在当前阶段直接把启动期插件强行演化为热插拔系统。
 
 ### 6. 真实业务回接后很可能还会暴露 API 语义细节问题
