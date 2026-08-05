@@ -1,24 +1,13 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/WhiteBoard.AI/WhiteBoard.AI.csproj" />
-    <Project Path="src/WhiteBoard.Contracts.Wpf/WhiteBoard.Contracts.Wpf.csproj" />
-    <Project Path="src/WhiteBoard.Contracts/WhiteBoard.Contracts.csproj" />
-    <Project Path="src/WhiteBoard.Client/WhiteBoard.Client.csproj" />
-    <Project Path="src/WhiteBoard.Core/WhiteBoard.Core.csproj" />
-    <Project Path="src/WhiteBoard.Framework.Hosting/WhiteBoard.Framework.Hosting.csproj" />
-    <Project Path="src/WhiteBoard.Framework.Hosting.Wpf/WhiteBoard.Framework.Hosting.Wpf.csproj" />
-    <Project Path="src/WhiteBoard.Host.Demo/WhiteBoard.Host.Demo.csproj" />
-    <Project Path="src/WhiteBoard.Mcp.Core/WhiteBoard.Mcp.Core.csproj" />
-    <Project Path="src/WhiteBoard.McpHost/WhiteBoard.McpHost.csproj" />
-    <Project Path="src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj" />
-    <Project Path="src/WhiteBoard.Protocol/WhiteBoard.Protocol.csproj" />
-    <Project Path="src/WhiteBoard.UI/WhiteBoard.UI.csproj" />
+    <Project Path="src/Axinyp.Wpf.Hosting/Axinyp.Wpf.Hosting.csproj" />
+    <Project Path="src/Axinyp.Wpf.Hosting.Wpf/Axinyp.Wpf.Hosting.Wpf.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/BasicHost/BasicHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/WhiteBoard.AI.Tests/WhiteBoard.AI.Tests.csproj" />
-    <Project Path="tests/WhiteBoard.Core.Tests/WhiteBoard.Core.Tests.csproj" />
-    <Project Path="tests/WhiteBoard.Framework.Hosting.Tests/WhiteBoard.Framework.Hosting.Tests.csproj" />
-    <Project Path="tests/WhiteBoard.Framework.Hosting.Wpf.Tests/WhiteBoard.Framework.Hosting.Wpf.Tests.csproj" />
-    <Project Path="tests/WhiteBoard.Protocol.Tests/WhiteBoard.Protocol.Tests.csproj" />
+    <Project Path="tests/Axinyp.Wpf.Hosting.Tests/Axinyp.Wpf.Hosting.Tests.csproj" />
+    <Project Path="tests/Axinyp.Wpf.Hosting.Wpf.Tests/Axinyp.Wpf.Hosting.Wpf.Tests.csproj" />
   </Folder>
 </Solution>

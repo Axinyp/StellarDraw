@@ -1,308 +1,191 @@
-# StellarDraw — AI-Powered Whiteboard System
+# Axinyp.Wpf.Hosting
 
-<p align="center">
-  <img src="docs/banner.png" alt="StellarDraw" width="600"/>
-</p>
+基于 **Microsoft Generic Host + Microsoft DI + CommunityToolkit.Mvvm** 的通用 WPF 应用基础设施。
 
-<p align="center">
-  <a href="#english">English</a> ·
-  <a href="#中文">中文</a>
-</p>
+它的定位不是“另一个大而全的 UI 框架”，而是提供一套足够稳定、足够透明、足够易于调试的宿主底座，让业务项目可以在不引入额外 IoC 容器和隐式约定的前提下，获得模块化、导航、对话框、主题、本地化与启动期插件能力。
 
----
+## 设计目标
 
-<a name="english"></a>
+- 提供模块化、生命周期、启动期插件、设置、日志、配置能力；
+- 提供 Window、Region、Navigation、Dialog、Theme、Localization 等 WPF 基础设施；
+- 保持 API、关键实现与对外文档拥有完整中文注释；
+- 先以独立框架演进，再由业务项目以“消费者”身份回接；
+- 优先保证可诊断性、可维护性和类型边界清晰，而不是追求大量隐式魔法。
 
-## English
+## 解决方案结构
 
-StellarDraw is a WPF/.NET 10 intelligent whiteboard system with a plugin-based architecture and full AI integration. It supports natural-language-driven content creation via text or voice, exposes whiteboard tools to external AI clients (Claude Desktop, etc.) through the **Model Context Protocol (MCP)**, and can consume tools from external MCP servers.
-
-### ✨ Features
-
-| Category | Capability |
-|----------|-----------|
-| **AI Interaction** | Multi-turn conversation with automatic tool calling |
-| **Drawing** | Natural-language shape/text/image insertion, flow chart generation |
-| **Voice** | Push-to-Talk (PTT) and Wake-Word modes |
-| **Multi-LLM** | Claude · GPT-4o · Gemini · Ollama (local) · Azure OpenAI · custom endpoints |
-| **MCP Server** | Expose all whiteboard tools to Claude Desktop (stdio) or web clients (HTTP/SSE) |
-| **MCP Client** | Import tools from any external MCP server into the AI agent |
-| **Math** | LaTeX rendering, step-by-step equation solving, chart drawing |
-| **Image Gen** | DALL-E 3 / Stable Diffusion integration via `generate_and_insert_image` |
-| **Plugin Isolation** | `AssemblyLoadContext` hot-reload, no app restart required |
-
-### 🏗 Architecture
-
-```
+```text
 src/
-├── WhiteBoard.Contracts/       Shared plugin interfaces (IWhiteboardWpfPlugin)
-├── WhiteBoard.Contracts.Wpf/   WPF-specific plugin contracts
-├── WhiteBoard.Protocol/        Collaborative event definitions
-├── WhiteBoard.Core/            Domain: WhiteboardSession, Commands, SelectionModel
-├── WhiteBoard.Plugin/          Default plugin: ink surface + Kalman predictor
-├── WhiteBoard.UI/              WPF views + ViewModels (AI chat sidebar, settings)
-├── WhiteBoard.AI/              AI engine: AgentLoop, tools, voice, LLM providers
-│   ├── Abstractions/           ILlmProvider, ISttProvider, IWakeWordDetector, IMcpTokenFactory
-│   ├── Providers/              LlmProviderFactory (ollama/openai/anthropic/azure/custom)
-│   ├── Services/               IWhiteboardAiActions — service layer isolating AI from Session
-│   ├── Session/                WhiteboardAISession, AgentLoop, ProgressiveContextBuilder
-│   ├── Tools/                  Drawing/Editing/Query/Navigation/Content/Math/ImageGen catalogs
-│   ├── Voice/                  VoicePipeline, WhisperSttProvider, WindowsSpeechWakeWordDetector
-│   └── Settings/               AIWhiteboardSettings (JSON-serializable)
-├── WhiteBoard.Mcp.Core/        MCP infrastructure
-│   ├── Registry/               McpSessionRegistry — token lifecycle, SHA-256 hashing
-│   ├── Server/                 McpToolBridge, WhiteboardMcpServerTool
-│   ├── IPC/                    Named-pipe contract (NDJSON) — WPF ↔ McpHost
-│   ├── Hosting/                EmbeddedMcpServerHost (Kestrel), Bearer-token auth
-│   └── Client/                 McpClientProvider — import tools from external MCP servers
-├── WhiteBoard.McpHost/         Standalone stdio MCP proxy process for Claude Desktop
-└── WhiteBoard.Host.Demo/       Demo host: plugin loader + AI sidebar wiring
+├── Axinyp.Wpf.Hosting.Abstractions/   稳定公共契约层
+├── Axinyp.Wpf.Hosting/                Generic Host / 模块 / 生命周期 / 插件 / 设置 / 本地化实现
+└── Axinyp.Wpf.Hosting.Wpf/            Window / Region / Navigation / Dialog / Theme / WPF 本地化实现
+
+samples/
+└── BasicHost/                         最小可运行样例
+
+tests/
+├── Axinyp.Wpf.Hosting.Tests/          核心宿主测试
+└── Axinyp.Wpf.Hosting.Wpf.Tests/      WPF 基础设施测试
+
+consumer-smoke/                        本地 NuGet 包消费验证项目（临时验证用）
 ```
 
-### 🚀 Quick Start
+## 分层说明
 
-#### Prerequisites
+### 1. Axinyp.Wpf.Hosting.Abstractions
 
-- Windows 10/11 x64
-- .NET 10 SDK
-- Visual Studio 2022 17.10+
-- (Optional) Ollama for local LLM: `winget install Ollama.Ollama`
+这是整个框架的“稳定类型身份边界”。
 
-#### Build & Run
+适合放在这里的内容：
 
-```bash
-git clone https://github.com/Axinyp/StellarDraw.git
-cd StellarDraw
-dotnet build WhiteBoard.sln -c Release
-```
+- 模块契约：`IModule`、`IModuleCatalog`、`ModuleDescriptor` 等；
+- 生命周期契约：`IApplicationLifetime`、`ApplicationState`；
+- 启动任务契约：`IStartupTask`；
+- 插件发现结果契约：`IPluginCatalog`、`PluginManifest`、`PluginLoadFailure`；
+- 设置与本地化抽象：`ISettingsStore`、`ILocalizationService`；
+- WPF 公共契约：`IWindowManager`、`IRegionManager`、`INavigationService`、`IDialogService`、`IThemeService`、`IWpfUiContributionProvider` 等。
 
-Run the demo host:
+不放在这里的内容：
 
-```bash
-# Minimal config — local Ollama
-set WHITEBOARD_LLM_PROVIDER=ollama
-set WHITEBOARD_LLM_ENDPOINT=http://localhost:11434
-set WHITEBOARD_LLM_MODEL=qwen2.5
-dotnet run --project src/WhiteBoard.Host.Demo -c Release
-```
+- Generic Host 运行时实现；
+- JSON 设置存储实现；
+- WPF Region / Navigation / Dialog / Theme 的默认实现；
+- 各种“只对当前实现有意义”的内部辅助类型。
 
-Use any LLM provider:
+### 2. Axinyp.Wpf.Hosting
 
-```bash
-# OpenAI
-set WHITEBOARD_LLM_PROVIDER=openai
-set WHITEBOARD_LLM_MODEL=gpt-4o
-set WHITEBOARD_LLM_APIKEY_REF=sk-...
+负责非 WPF 宿主能力的默认实现，包括：
 
-# Anthropic Claude
-set WHITEBOARD_LLM_PROVIDER=anthropic
-set WHITEBOARD_LLM_MODEL=claude-opus-4-7
-set WHITEBOARD_LLM_APIKEY_REF=sk-ant-...
-```
+- 模块收集、依赖排序与生命周期执行；
+- 启动期插件扫描、依赖校验与 ALC 隔离加载；
+- JSON 设置存储；
+- 基于 `ResourceManager` 的本地化服务。
 
-Click **🤖 AI** in the top-right corner to open the AI sidebar.
+### 3. Axinyp.Wpf.Hosting.Wpf
 
-### 🔌 Claude Desktop Integration
+负责 WPF 表示层默认实现，包括：
 
-Generate a token in the AI Settings panel (MCP Server tab), then add to `claude_desktop_config.json`:
+- 显式 ViewModel → View 映射；
+- Window 管理；
+- Region 注册与区域导航；
+- ViewModel-first 对话框；
+- 主题切换；
+- XAML 动态本地化绑定；
+- 插件 UI Contribution 聚合目录。
 
-```json
+## 核心原则
+
+- 基于原生 `HostApplicationBuilder` / `IHost` / `IConfiguration` / `ILogger<T>` / `IOptions<T>`；
+- 使用显式 ViewModel → View 注册，不默认依赖命名约定扫描；
+- 模块在构建前收集、排序、校验，并在启动时统一初始化、启动、停止；
+- 启动期插件只承诺“构建前发现与加载”，不误导为运行时热插拔；
+- 插件代码被视为受信任代码，`AssemblyLoadContext` 只提供依赖隔离，不是安全沙箱；
+- 公共类型身份统一收敛到 `Axinyp.Wpf.Hosting.Abstractions`；
+- 线程、生命周期、资源释放等关键逻辑必须写清楚中文注释。
+
+插件系统当前边界与未来演进设计见 [`docs/plugin-system-design.md`](docs/plugin-system-design.md)。当前设计评审完成前，不新增 runtime load/unload、hot-reload 或 WPF catalog runtime refresh API。
+
+## 最小使用方式
+
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.AddModularHosting();
+builder.Services.AddJsonSettings();
+builder.Services.AddResxLocalization(options =>
 {
-  "mcpServers": {
-    "whiteboard": {
-      "command": "C:\\Path\\To\\WhiteBoard.McpHost.exe",
-      "env": {
-        "WHITEBOARD_MCP_TOKEN": "<token from settings>",
-        "WHITEBOARD_MCP_PIPE_NAME": "whiteboard-mcp"
-      }
-    }
-  }
-}
-```
-
-### 🛠 Tool Catalog
-
-| Category | Tools |
-|----------|-------|
-| Drawing | `draw_stroke` `insert_shape` `set_pen_color` `set_pen_thickness` |
-| Editing | `undo` `redo` `select_objects` `move_selected` `delete_objects` `clear_page` |
-| Content | `insert_text` `insert_image` |
-| Query | `get_canvas_size` `list_objects` `get_object_details` `get_ocr_text` |
-| Navigation | `add_page` `navigate_page` `zoom_in` `zoom_out` `reset_view` |
-| Math | `render_latex` `solve_and_show` `draw_chart` |
-| Image Gen | `generate_and_insert_image` |
-| External | `{prefix}__{tool}` — any tool imported from an external MCP server |
-
-### 🔑 Key Design Decisions
-
-| ADR | Decision | Reason |
-|-----|----------|--------|
-| ADR-023 | `Microsoft.Extensions.AI` as LLM abstraction | Provider-agnostic, one-line switch |
-| ADR-024 | 4-level progressive context | Avoid token waste |
-| ADR-025 | `IWhiteboardAiActions` service layer | AgentLoop never directly touches Session |
-| ADR-026 | `CompositeCommand` batch undo | Multi-step AI operations must undo atomically |
-| ADR-029 | Whisper.net in subprocess | Native DLL blocks `ALC.Unload()` |
-| ADR-035 | Custom `WhiteboardMcpServerTool` subclass | SDK 1.4.0 `AIFunctionMcpServerTool` is `internal` |
-| ADR-041 | `IMcpTokenFactory` in Abstractions | Break AI ↔ Mcp.Core circular dependency |
-
-### 📦 Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| `Microsoft.Extensions.AI` | LLM provider abstraction |
-| `ModelContextProtocol` | MCP C# SDK |
-| `Microsoft.AspNetCore` | Kestrel embedded HTTP server |
-| `System.Speech` | Wake-word detection (Windows built-in) |
-
-### 📄 License
-
-MIT
-
----
-
-<a name="中文"></a>
-
-## 中文
-
-StellarDraw 是一套基于 WPF / .NET 10 的 **AI 智能白板系统**，采用插件式架构，内置完整 AI 集成能力。用户可通过自然语言对话或语音驱动所有白板功能，并通过 **Model Context Protocol (MCP)** 将白板工具暴露给外部 AI 客户端（Claude Desktop 等），同时支持从外部 MCP 服务导入工具扩展能力。
-
-### ✨ 核心功能
-
-| 分类 | 能力 |
-|------|------|
-| **AI 交互** | 多轮对话 + 自动工具调用 |
-| **绘图** | 自然语言生成形状/文字/图片，流程图一键生成 |
-| **语音** | Push-to-Talk（按键说话）和 Wake-Word（唤醒词）两种模式 |
-| **多 LLM** | Claude · GPT-4o · Gemini · Ollama（本地）· Azure OpenAI · 自定义端点 |
-| **MCP 服务端** | 将所有白板工具暴露给 Claude Desktop（stdio）或 Web 客户端（HTTP/SSE） |
-| **MCP 客户端** | 从任意外部 MCP 服务器导入工具到 AI 代理 |
-| **数学** | LaTeX 渲染、方程逐步求解、图表绘制 |
-| **AI 生图** | DALL-E 3 / Stable Diffusion 集成 |
-| **插件隔离** | `AssemblyLoadContext` 热重载，无需重启应用 |
-
-### 🏗 架构概览
-
-```
-src/
-├── WhiteBoard.Contracts/       插件接口契约（IWhiteboardWpfPlugin）
-├── WhiteBoard.Contracts.Wpf/   WPF 专用插件契约
-├── WhiteBoard.Protocol/        协同事件定义
-├── WhiteBoard.Core/            领域层：WhiteboardSession、命令、SelectionModel
-├── WhiteBoard.Plugin/          默认插件：墨迹画布 + Kalman 预测器
-├── WhiteBoard.UI/              WPF 视图 + ViewModel（AI 对话侧边栏、设置面板）
-├── WhiteBoard.AI/              AI 引擎：代理循环、工具集、语音、LLM 提供商
-│   ├── Abstractions/           ILlmProvider、ISttProvider、IWakeWordDetector、IMcpTokenFactory
-│   ├── Providers/              LlmProviderFactory（5 种提供商）
-│   ├── Services/               IWhiteboardAiActions — 服务层隔离 AI 与 Session
-│   ├── Session/                WhiteboardAISession、AgentLoop、渐进式上下文构建器
-│   ├── Tools/                  绘图/编辑/查询/导航/内容/数学/图像生成工具集
-│   ├── Voice/                  语音管道、Whisper STT、Windows 唤醒词检测器
-│   └── Settings/               AIWhiteboardSettings（JSON 可序列化）
-├── WhiteBoard.Mcp.Core/        MCP 基础设施
-│   ├── Registry/               McpSessionRegistry — Token 生命周期管理（SHA-256）
-│   ├── Server/                 McpToolBridge、WhiteboardMcpServerTool
-│   ├── IPC/                    命名管道契约（NDJSON）— WPF ↔ McpHost 进程通信
-│   ├── Hosting/                EmbeddedMcpServerHost（Kestrel 内嵌）+ Bearer Token 认证
-│   └── Client/                 McpClientProvider — 从外部 MCP 服务导入工具
-├── WhiteBoard.McpHost/         独立 stdio MCP 代理进程（供 Claude Desktop 使用）
-└── WhiteBoard.Host.Demo/       演示宿主：插件加载 + AI 侧边栏接线
-```
-
-### 🚀 快速开始
-
-#### 环境要求
-
-- Windows 10/11 x64
-- .NET 10 SDK
-- Visual Studio 2022 17.10+
-- （可选）本地 LLM：`winget install Ollama.Ollama`
-
-#### 构建与运行
-
-```bash
-git clone https://github.com/Axinyp/StellarDraw.git
-cd StellarDraw
-dotnet build WhiteBoard.sln -c Release
-```
-
-启动演示宿主：
-
-```bash
-# 最小配置 — 使用本地 Ollama
-set WHITEBOARD_LLM_PROVIDER=ollama
-set WHITEBOARD_LLM_ENDPOINT=http://localhost:11434
-set WHITEBOARD_LLM_MODEL=qwen2.5
-dotnet run --project src/WhiteBoard.Host.Demo -c Release
-```
-
-使用其他 LLM 提供商：
-
-```bash
-# OpenAI
-set WHITEBOARD_LLM_PROVIDER=openai
-set WHITEBOARD_LLM_MODEL=gpt-4o
-set WHITEBOARD_LLM_APIKEY_REF=sk-...
-
-# Anthropic Claude
-set WHITEBOARD_LLM_PROVIDER=anthropic
-set WHITEBOARD_LLM_MODEL=claude-opus-4-7
-set WHITEBOARD_LLM_APIKEY_REF=sk-ant-...
-```
-
-点击主窗口右上角 **🤖 AI** 按钮展开 AI 侧边栏。
-
-### 🔌 接入 Claude Desktop
-
-在 AI 设置面板（MCP 服务端标签页）生成 Token，然后添加到 `claude_desktop_config.json`：
-
-```json
+    options.SupportedCultures.Add(CultureInfo.GetCultureInfo("zh-CN"));
+    options.ResourceManagers.Add(new ResourceManager("YourApp.Resources.Strings", typeof(App).Assembly));
+});
+builder.Services.AddWpfPresentation();
+builder.Services.AddWpfLocalizationBindings();
+builder.Services.AddWpfThemes(options =>
 {
-  "mcpServers": {
-    "whiteboard": {
-      "command": "C:\\Path\\To\\WhiteBoard.McpHost.exe",
-      "env": {
-        "WHITEBOARD_MCP_TOKEN": "<从设置页面复制>",
-        "WHITEBOARD_MCP_PIPE_NAME": "whiteboard-mcp"
-      }
-    }
-  }
-}
+    options.Themes.Add(new ThemeDescriptor("light", "Light", new Uri("pack://application:,,,/..."), true));
+});
+
+builder.Services.AddSingleton<MainWindowViewModel>();
+builder.Services.AddView<MainWindowViewModel, MainWindow>();
+
+using var host = builder.BuildModularHost();
+await host.StartModularHostAsync();
 ```
 
-### 🛠 工具清单
+## 本地包使用说明
 
-| 分类 | 工具 |
-|------|------|
-| 绘图 | `draw_stroke` `insert_shape` `set_pen_color` `set_pen_thickness` |
-| 编辑 | `undo` `redo` `select_objects` `move_selected` `delete_objects` `clear_page` |
-| 内容 | `insert_text` `insert_image` |
-| 查询 | `get_canvas_size` `list_objects` `get_object_details` `get_ocr_text` |
-| 导航 | `add_page` `navigate_page` `zoom_in` `zoom_out` `reset_view` |
-| 数学 | `render_latex` `solve_and_show` `draw_chart` |
-| 图像生成 | `generate_and_insert_image` |
-| 外部工具 | `{前缀}__{工具名}` — 从外部 MCP 服务器导入 |
+当前仓库已经完成本地 `dotnet pack` 与消费者恢复验证，但**不包含任何线上发布动作**。
 
-### 🔑 关键技术决策
+也就是说，当前支持的是：
 
-| ADR | 决策 | 原因 |
-|-----|------|------|
-| ADR-023 | `Microsoft.Extensions.AI` 作为 LLM 抽象层 | 提供商无关，一行切换 |
-| ADR-024 | 4 级渐进式上下文 | 避免 token 浪费 |
-| ADR-025 | `IWhiteboardAiActions` 服务层 | AgentLoop 不直接操作 Session |
-| ADR-026 | `CompositeCommand` 批量撤销 | AI 多步操作必须整体撤销 |
-| ADR-029 | Whisper.net 子进程隔离 | Native DLL 阻止 `ALC.Unload()` |
-| ADR-035 | 自定义 `WhiteboardMcpServerTool` 子类 | SDK 1.4.0 `AIFunctionMcpServerTool` 为 internal |
-| ADR-041 | `IMcpTokenFactory` 在 Abstractions 层 | 打破 AI ↔ Mcp.Core 循环依赖 |
+- 在本地生成 `.nupkg`；
+- 将本地目录作为 NuGet 源进行恢复；
+- 由消费者项目通过 `PackageReference` 接入；
+- 验证分层、依赖与最小启动链路是否成立。
 
-### 📦 主要依赖
+当前不做的事情：
 
-| 包 | 用途 |
-|----|------|
-| `Microsoft.Extensions.AI` | LLM 提供商抽象 |
-| `ModelContextProtocol` | MCP C# SDK |
-| `Microsoft.AspNetCore` | Kestrel 内嵌 HTTP 服务器 |
-| `System.Speech` | 唤醒词检测（Windows 内置） |
+- 不推送到 `nuget.org`；
+- 不推送到 GitHub Packages；
+- 不把 CI 配置为自动发布；
+- 不承诺任何公网包版本管理策略。
 
-### 📄 许可证
+本地验证产物目录：
 
-MIT
+```text
+artifacts/packages/
+```
+
+本地消费者验证项目：
+
+```text
+consumer-smoke/
+```
+
+该项目的意义是模拟“外部消费者只拿到 nupkg，不依赖源码”的场景，用来提前发现包依赖、TFM、README 打包、公共抽象引用等问题。
+
+## 当前短板与长期优化点
+
+当前基础设施已经具备进入真实业务回接阶段的条件，但还不能把它视为“已经彻底完善”。
+
+比较明确的短板包括：
+
+1. **Shell 层偏薄**
+   - 还没有形成标准化的菜单、工具栏、状态栏、设置页与工作区组织模型；
+   - 更像底座，不是现成完整壳层。
+
+2. **诊断能力还可增强**
+   - 模块装配、插件发现、导航失败、主题切换等还可以继续补结构化日志与诊断信息。
+
+3. **线程调度抽象仍可继续收敛**
+   - 当前已经集中到 Dispatcher，但还没有独立 `IUiDispatcher` 这类统一抽象。
+
+4. **测试还属于“主链路可用”，未到“边角压透”**
+   - 还需要继续补复杂插件依赖、程序集解析与共享身份、真实 DLL/ALC 回收、UI 线程边界、Dialog 竞态、Region 快速切换等测试。
+
+5. **真实业务回接后一定还会暴露第二轮问题**
+   - 包括 API 粒度、默认实现刚性、Shell 边界和插件落点等。
+
+这些内容已经进一步写入：
+
+- `docs/architecture.md`
+- `src/Axinyp.Wpf.Hosting.Wpf/DESIGN.md`
+- `docs/plugin-system-design.md`
+
+后续应当采用“业务回接 -> 暴露问题 -> 文档记录 -> 回归修正”的节奏，而不是继续脱离业务做空转式抽象。
+
+## 当前阶段
+
+当前阶段已经完成：
+
+1. 从原始业务项目中的 Hosting 原型中性化；
+2. 建立独立解决方案、样例、测试、文档与 CI 骨架；
+3. 将公共契约真正下沉到 `Axinyp.Wpf.Hosting.Abstractions`，消除实现层重复定义；
+4. 验证独立构建、测试、打包通过；
+5. 验证本地 NuGet 包消费者可恢复、可编译；
+6. 把当前短板、长期优化点与迭代验证策略写入文档。
+
+接下来更适合推进的方向是：
+
+- 开始最小真实业务回接；
+- 每轮回接后补回归测试和文档；
+- 根据业务证据继续修正抽象与默认实现。

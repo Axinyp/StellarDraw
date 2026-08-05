@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WhiteBoard.Contracts</RootNamespace>
+    <AssemblyName>WhiteBoard.Contracts</AssemblyName>
+    <!-- 与 WhiteBoard 业务项目其余部分保持一致，继续使用显式 Version 风格；
+         但 System.Text.Json 在 net10.0 中已由共享框架提供，保留额外 PackageReference 只会制造无意义告警。 -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- 首轮业务回接的重点是打通宿主与真实白板链路；
+         当前 Contracts 中仍有若干历史 XML cref 未完全收敛，因此先局部放宽 XML 文档告警，
+         避免把本轮范围扩大为“为旧业务契约全集补全文档注释”。 -->
+    <NoWarn>$(NoWarn);1591;1574</NoWarn>
+  </PropertyGroup>
+</Project>

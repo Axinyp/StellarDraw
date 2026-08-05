@@ -1,0 +1,7 @@
+<UserControl x:Class="StellarDraw.Axinyp.Spike.StatusRegionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <TextBlock Foreground="{DynamicResource App.ForegroundBrush}"
+               Opacity="0.82"
+               Text="{Binding Message}" />
+</UserControl>

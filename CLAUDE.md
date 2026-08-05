@@ -17,23 +17,27 @@
 
 ## 目录结构
 
+> 2026-08 重组：冻结代码物理隔离到 `legacy/`，`src/` 只保留活跃演进代码。
+> 详细边界规则见 `docs/development-boundaries.md`（权威文档）。
+
 ```
 StellarDraw/
-├── src/
-│   ├── WhiteBoard.Core/          领域层：对象模型、命令、空间索引、Session
-│   ├── WhiteBoard.UI/            WPF 渲染层：InkSurface、选择系统、ViewModel
-│   ├── WhiteBoard.AI/            AI 层：AgentLoop、工具注册、语音管道
-│   ├── WhiteBoard.Mcp.Core/      MCP Server + Client 核心
-│   ├── WhiteBoard.McpHost/       MCP 独立控制台进程（stdio 传输）
-│   ├── WhiteBoard.Plugin/        协同插件（SignalR 适配器、笔迹预测）
-│   ├── WhiteBoard.Protocol/      序列化协议（操作 DTO）
-│   ├── WhiteBoard.Contracts/     跨层接口契约
-│   ├── WhiteBoard.Contracts.Wpf/ WPF 插件接口
-│   └── WhiteBoard.Host.Demo/     演示宿主（可直接运行）
-└── tests/
-    ├── WhiteBoard.Core.Tests/    领域层单元测试（xUnit）
-    ├── WhiteBoard.AI.Tests/      AI 层单元测试
-    └── WhiteBoard.Protocol.Tests/ 协议序列化测试
+├── src/                              活跃演进代码
+│   ├── Axinyp.Wpf.Hosting.Abstractions/  框架稳定契约层
+│   ├── Axinyp.Wpf.Hosting/               框架：Generic Host/模块/插件/设置/本地化
+│   ├── Axinyp.Wpf.Hosting.Wpf/           框架：窗口/导航/对话框/主题/WPF 本地化
+│   └── WhiteBoard.Client/                正式 Client Shell（业务回接进行中）
+├── legacy/                           冻结的白板基线（只读参考，CI 持续验证）
+│   ├── src/WhiteBoard.*/                 领域/渲染/AI/MCP/插件/Demo 宿主
+│   ├── tests/WhiteBoard.*/               基线行为验证测试
+│   └── StellarDraw.Legacy.slnx
+├── consumers/StellarDraw.Axinyp.Spike/   包边界消费者验证
+├── samples/BasicHost/                    框架样例
+└── tests/                            活跃代码测试
+    ├── Axinyp.Wpf.Hosting(.Wpf).Tests/
+    ├── WhiteBoard.Client.Tests/
+    ├── StellarDraw.Axinyp.Spike.Tests/
+    └── TestSupport/
 ```
 
 ---
@@ -54,27 +58,38 @@ StellarDraw/
 
 | 文件 | 职责 |
 |------|------|
-| `src/WhiteBoard.Core/Domain/WhiteboardSession.cs` | Session 主入口，所有操作通过 `PostOperationAsync` 串行化 |
-| `src/WhiteBoard.Core/Domain/SpatialIndex.cs` | R\*Tree 空间索引，HitTest / LassoSelect |
-| `src/WhiteBoard.UI/Controls/InkSurface.cs` | WPF 画布，事件路由，分层 DrawingVisual |
-| `src/WhiteBoard.UI/Controls/SelectionController.cs` | 选择系统：橡皮筋、移动、缩放、旋转手柄 |
-| `src/WhiteBoard.UI/Rendering/InkRenderer.cs` | 所有对象类型的 DrawingContext 渲染 |
-| `src/WhiteBoard.AI/Session/AgentLoop.cs` | LLM 多轮工具调用主循环 |
-| `src/WhiteBoard.Mcp.Core/Hosting/EmbeddedMcpServerHost.cs` | MCP Server 嵌入宿主 |
+| `src/Axinyp.Wpf.Hosting/Extensions/HostApplicationBuilderExtensions.cs` | 框架入口：AddModule / AddStartupPlugins / BuildModularHost |
+| `src/Axinyp.Wpf.Hosting.Wpf/Internal/NavigationService.cs` | 区域导航（门闩串行化 + 重入检测） |
+| `src/Axinyp.Wpf.Hosting.Wpf/Internal/WindowManager.cs` | 窗口生命周期与 DI scope 管理 |
+| `src/WhiteBoard.Client/App.xaml.cs` | Client 宿主入口（协调停机模式） |
+| `legacy/src/WhiteBoard.Core/Domain/WhiteboardSession.cs` | Session 主入口，操作经执行器串行化 |
+| `legacy/src/WhiteBoard.Core/Domain/SpatialIndex.cs` | R\*Tree 空间索引，HitTest / LassoSelect |
+| `legacy/src/WhiteBoard.UI/Controls/InkSurface.cs` | WPF 画布，事件路由，分层 DrawingVisual |
+| `legacy/src/WhiteBoard.UI/Rendering/InkRenderer.cs` | 所有对象类型的 DrawingContext 渲染 |
+| `legacy/src/WhiteBoard.AI/Session/AgentLoop.cs` | LLM 多轮工具调用主循环 |
+| `legacy/src/WhiteBoard.Mcp.Core/Hosting/EmbeddedMcpServerHost.cs` | MCP Server 嵌入宿主 |
 
 ---
 
 ## 构建 & 运行
 
 ```bash
-# 构建全量
+# 框架（Axinyp 三层 + 样例 + 框架测试）
 dotnet build WhiteBoard.slnx
+dotnet test WhiteBoard.slnx
 
-# 运行演示宿主
-dotnet run --project src/WhiteBoard.Host.Demo
+# 应用（Client Shell + 其测试；会联动构建 legacy 依赖链）
+dotnet build StellarDraw.slnx
+dotnet test StellarDraw.slnx
 
-# 运行测试
-dotnet test
+# 冻结基线验证
+dotnet test legacy/StellarDraw.Legacy.slnx
+
+# 运行 Client Shell
+dotnet run --project src/WhiteBoard.Client
+
+# 运行旧演示宿主（冻结参考）
+dotnet run --project legacy/src/WhiteBoard.Host.Demo
 ```
 
 ---

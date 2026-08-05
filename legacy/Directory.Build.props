@@ -1,0 +1,11 @@
+<Project>
+  <!-- 继承仓库根 Directory.Build.props；legacy 冻结基线整体沿用显式 PackageReference 版本，
+       与根目录的中央包管理（Directory.Packages.props）解耦，避免为冻结代码维护双份版本清单。 -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- 冻结基线按其原有质量基线构建：不强制 XML 文档，也不把警告升级为错误。 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

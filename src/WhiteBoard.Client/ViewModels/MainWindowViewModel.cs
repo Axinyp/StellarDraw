@@ -1,74 +1,63 @@
-using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using WhiteBoard.Client.Storage;
-using WhiteBoard.UI.ViewModels;
 
 namespace WhiteBoard.Client.ViewModels;
 
-/// <summary>Client 主窗口的业务状态和白板文档命令。</summary>
-public sealed partial class MainWindowViewModel : ObservableObject
+/// <summary>
+/// WhiteBoard.Client 的主窗口状态。
+/// 它只承载 Shell 的安全初始化状态，不保存导航参数、异常实例或 legacy 插件状态。
+/// </summary>
+public partial class MainWindowViewModel : ObservableObject
 {
-    private readonly ILocalWhiteboardDocumentStore _documentStore;
-
-    public MainWindowViewModel(WhiteboardViewModel board, ILocalWhiteboardDocumentStore documentStore)
-    {
-        Board = board;
-        _documentStore = documentStore;
-        Board.PropertyChanged += OnBoardPropertyChanged;
-    }
-
-    public WhiteboardViewModel Board { get; }
-
-    public string Title => "StellarDraw · 白板";
+    [ObservableProperty]
+    private string _title = "StellarDraw · Client — Axinyp Host 已接入";
 
     [ObservableProperty]
-    private bool _isBusy;
+    private bool _isInitializing = true;
 
     [ObservableProperty]
-    private string _statusMessage = "就绪";
+    private bool _hasShellError;
 
-    [RelayCommand(CanExecute = nameof(CanOperateDocument))]
-    private async Task SaveAsAsync()
+    [ObservableProperty]
+    private string _shellMessage = "正在初始化 Shell…";
+
+    [ObservableProperty]
+    private string? _shellDiagnosticCode;
+
+    /// <summary>
+    /// 更新 Shell 的普通状态，不改变已记录的导航失败信息。
+    /// </summary>
+    /// <param name="message">已脱敏的用户可见状态。</param>
+    public void ReportShellStatus(string message)
     {
-        await ExecuteDocumentOperationAsync(() => _documentStore.SaveAsAsync(Board));
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        if (!HasShellError)
+            ShellMessage = message;
     }
 
-    [RelayCommand(CanExecute = nameof(CanOperateDocument))]
-    private async Task OpenAsync()
+    /// <summary>
+    /// 记录 Shell 初始化完成状态。
+    /// </summary>
+    /// <param name="message">已本地化的成功状态。</param>
+    public void ReportShellReady(string message)
     {
-        await ExecuteDocumentOperationAsync(() => _documentStore.OpenAsync(Board));
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        IsInitializing = false;
+        HasShellError = false;
+        ShellDiagnosticCode = null;
+        ShellMessage = message;
     }
 
-    private bool CanOperateDocument() => !IsBusy;
-
-    private void OnBoardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <summary>
+    /// 记录可安全展示的 Shell 失败结果。
+    /// </summary>
+    /// <param name="message">不含原始异常或敏感参数的失败说明。</param>
+    /// <param name="diagnosticCode">可用于关联日志的稳定诊断代码。</param>
+    public void ReportShellFailure(string message, string? diagnosticCode = null)
     {
-        if (e.PropertyName == nameof(WhiteboardViewModel.LastImageInsertResult) &&
-            Board.LastImageInsertResult is { } result)
-            StatusMessage = result.Message;
-    }
-
-    private async Task ExecuteDocumentOperationAsync(Func<Task<DocumentOperationResult>> operation)
-    {
-        IsBusy = true;
-        SaveAsCommand.NotifyCanExecuteChanged();
-        OpenCommand.NotifyCanExecuteChanged();
-        try
-        {
-            var result = await operation();
-            StatusMessage = result.Message;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[Client] Document command failed: {ex.GetType().Name}");
-            StatusMessage = "文档操作失败，请重试。";
-        }
-        finally
-        {
-            IsBusy = false;
-            SaveAsCommand.NotifyCanExecuteChanged();
-            OpenCommand.NotifyCanExecuteChanged();
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        IsInitializing = false;
+        HasShellError = true;
+        ShellMessage = message;
+        ShellDiagnosticCode = diagnosticCode;
     }
 }

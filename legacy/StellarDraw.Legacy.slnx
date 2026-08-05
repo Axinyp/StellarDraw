@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WhiteBoard.AI/WhiteBoard.AI.csproj" />
+    <Project Path="src/WhiteBoard.Contracts/WhiteBoard.Contracts.csproj" />
+    <Project Path="src/WhiteBoard.Contracts.Wpf/WhiteBoard.Contracts.Wpf.csproj" />
+    <Project Path="src/WhiteBoard.Core/WhiteBoard.Core.csproj" />
+    <Project Path="src/WhiteBoard.Host.Demo/WhiteBoard.Host.Demo.csproj" />
+    <Project Path="src/WhiteBoard.Mcp.Core/WhiteBoard.Mcp.Core.csproj" />
+    <Project Path="src/WhiteBoard.McpHost/WhiteBoard.McpHost.csproj" />
+    <Project Path="src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj" />
+    <Project Path="src/WhiteBoard.Protocol/WhiteBoard.Protocol.csproj" />
+    <Project Path="src/WhiteBoard.UI/WhiteBoard.UI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WhiteBoard.AI.Tests/WhiteBoard.AI.Tests.csproj" />
+    <Project Path="tests/WhiteBoard.Core.Tests/WhiteBoard.Core.Tests.csproj" />
+    <Project Path="tests/WhiteBoard.Host.Demo.Tests/WhiteBoard.Host.Demo.Tests.csproj" />
+    <Project Path="tests/WhiteBoard.Protocol.Tests/WhiteBoard.Protocol.Tests.csproj" />
+    <Project Path="tests/WhiteBoard.UI.Tests/WhiteBoard.UI.Tests.csproj" />
+  </Folder>
+</Solution>

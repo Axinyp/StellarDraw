@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ConsumerSmoke</RootNamespace>
+    <AssemblyName>ConsumerSmoke</AssemblyName>
+    <StartupObject>ConsumerSmoke.App</StartupObject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Axinyp.Wpf.Hosting" Version="1.0.0" />
+    <PackageReference Include="Axinyp.Wpf.Hosting.Wpf" Version="1.0.0" />
+  </ItemGroup>
+</Project>

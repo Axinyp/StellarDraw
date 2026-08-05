@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WhiteBoard.Core</RootNamespace>
+    <AssemblyName>WhiteBoard.Core</AssemblyName>
+    <!-- 业务项目仍保留显式 PackageReference Version 写法；
+         为了不把首轮业务回接范围扩大成“全仓库依赖声明重构”，这里先关闭中央包管理。 -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- WhiteBoard.Core 中已有一批历史 XML 注释，当前首轮回接重点不是全面清洗旧注释语法，
+         而是先打通宿主与真实白板链路，因此先局部放宽文档告警，避免无关问题阻塞主链路验证。 -->
+    <NoWarn>$(NoWarn);1591;1574;1734;0419</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Protocol\WhiteBoard.Protocol.csproj" />
+    <PackageReference Include="RBush" Version="3.1.0" />
+    <PackageReference Include="System.IO.Hashing" Version="9.0.5" />
+  </ItemGroup>
+</Project>
