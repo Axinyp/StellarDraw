@@ -1,3 +1,5 @@
+using System.Windows.Threading;
+
 namespace WhiteBoard.Framework.Hosting.Wpf.Tests;
 
 public sealed class NavigationServiceTests
@@ -105,10 +107,33 @@ internal static class Sta
     public static Task RunAsync(Func<Task> action)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(async () =>
+        var thread = new Thread(() =>
         {
-            try { await action(); completion.SetResult(); }
-            catch (Exception ex) { completion.SetException(ex); }
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            Exception? failure = null;
+
+            _ = dispatcher.BeginInvoke(async () =>
+            {
+                try
+                {
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+                finally
+                {
+                    dispatcher.BeginInvokeShutdown(DispatcherPriority.Send);
+                }
+            });
+
+            Dispatcher.Run();
+            if (failure is null)
+                completion.TrySetResult();
+            else
+                completion.TrySetException(failure);
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WhiteBoard.Client.Storage;
@@ -14,6 +15,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         Board = board;
         _documentStore = documentStore;
+        Board.PropertyChanged += OnBoardPropertyChanged;
     }
 
     public WhiteboardViewModel Board { get; }
@@ -39,6 +41,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     private bool CanOperateDocument() => !IsBusy;
+
+    private void OnBoardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WhiteboardViewModel.LastImageInsertResult) &&
+            Board.LastImageInsertResult is { } result)
+            StatusMessage = result.Message;
+    }
 
     private async Task ExecuteDocumentOperationAsync(Func<Task<DocumentOperationResult>> operation)
     {

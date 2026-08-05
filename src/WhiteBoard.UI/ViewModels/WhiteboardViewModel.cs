@@ -25,6 +25,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     private long _appliedRevision = -1;
     private long _requestedRevision;
     private int _refreshQueued;
+    private ImageInsertResult? _lastImageInsertResult;
     private bool _disposed;
 
     public ToolbarViewModel Toolbar { get; }
@@ -78,6 +79,13 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
     public bool HasSelection => _selectedObjectIds.Count > 0;
 
     public CanvasSizeSnapshot CanvasSize => _canvasSize;
+
+    /// <summary>最近一次本地图片插入的非敏感结果，供宿主显示状态提示。</summary>
+    public ImageInsertResult? LastImageInsertResult
+    {
+        get => _lastImageInsertResult;
+        private set => Set(ref _lastImageInsertResult, value);
+    }
 
     public IStrokePredictor? Predictor => _session.Predictor;
 
@@ -255,37 +263,64 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         {
             var fileInfo = new System.IO.FileInfo(dialog.FileName);
             if (fileInfo.Length <= 0 || fileInfo.Length > ImageAssetValidator.MaxCompressedBytes)
+            {
+                LastImageInsertResult = ImageInsertResult.Rejected("图片文件为空或超过允许大小。");
                 return;
+            }
 
             var raw = await System.IO.File.ReadAllBytesAsync(dialog.FileName);
-            if (!ImageAssetValidator.TryValidate(raw, out _))
-                return;
-
-            var bitmap = InkRenderer.DecodeBitmap(raw);
-            if (bitmap is null)
-                return;
-
-            var assetId = RawImageAssetStore.ComputeAssetId(raw);
-            if (!RawImageAssetStore.TryStore(assetId, raw))
-                return;
-            ImageAssetStore.Store(assetId, bitmap);
-
-            var maxWidth = Math.Min(bitmap.PixelWidth, 600f);
-            var scale = maxWidth / bitmap.PixelWidth;
-            var imageWidth = (float)(bitmap.PixelWidth * scale);
-            var imageHeight = (float)(bitmap.PixelHeight * scale);
-            var size = _canvasSize;
-            await _session.AddImageAsync(new ImageObject(assetId,
-                (size.Width - imageWidth) / 2,
-                (size.Height - imageHeight) / 2,
-                imageWidth,
-                imageHeight));
-            await RefreshUiSnapshotAsync();
+            LastImageInsertResult = await InsertImageFromBytesAsync(raw);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.GetType().Name}");
+            LastImageInsertResult = ImageInsertResult.Failed("图片插入失败，请重试。");
         }
+    }
+
+    internal async Task<ImageInsertResult> InsertImageFromBytesAsync(
+        byte[]? raw,
+        CancellationToken ct = default)
+    {
+        if (!ImageAssetValidator.TryValidate(raw, out _))
+            return ImageInsertResult.Rejected("图片格式或内容无效。");
+
+        var bitmap = InkRenderer.DecodeBitmap(raw!);
+        if (bitmap is null)
+            return ImageInsertResult.Rejected("图片无法解码显示。");
+
+        var assetId = RawImageAssetStore.ComputeAssetId(raw!);
+        if (!RawImageAssetStore.TryStore(assetId, raw))
+            return ImageInsertResult.Rejected("图片无法加入当前白板。");
+
+        ImageAssetStore.Store(assetId, bitmap);
+        var maxWidth = Math.Min(bitmap.PixelWidth, 600f);
+        var scale = maxWidth / bitmap.PixelWidth;
+        var imageWidth = (float)(bitmap.PixelWidth * scale);
+        var imageHeight = (float)(bitmap.PixelHeight * scale);
+        var size = _canvasSize;
+        var image = new ImageObject(assetId,
+            (size.Width - imageWidth) / 2,
+            (size.Height - imageHeight) / 2,
+            imageWidth,
+            imageHeight);
+
+        try
+        {
+            await _session.AddImageAsync(image, ct: ct);
+            await RefreshUiSnapshotAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[InsertImage] {ex.GetType().Name}");
+            return ImageInsertResult.Failed("图片插入失败，请重试。");
+        }
+
+        return ImageInsertResult.Inserted(image.Id, assetId);
     }
 
     private StrokeStyle BuildStyle()
