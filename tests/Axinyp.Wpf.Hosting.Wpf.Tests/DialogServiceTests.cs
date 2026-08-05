@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Axinyp.Wpf.Hosting.Abstractions.Wpf;
@@ -75,6 +76,41 @@ public sealed class DialogServiceTests
     }
 
     [Fact]
+    public async Task ShowDialogAsync_WhenViewModelRequestsCloseFromBackgroundThread_ClosesOnOwnerDispatcher()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var probe = new DisposalProbe();
+            var services = new ServiceCollection();
+            services.AddWpfPresentation();
+            services.AddScoped(_ => probe);
+            services.AddScoped<BackgroundCloseDialogViewModel>();
+            services.AddView<BackgroundCloseDialogViewModel, BackgroundCloseDialog>();
+            using var provider = services.BuildServiceProvider();
+            var dialogs = provider.GetRequiredService<IDialogService>();
+            var owner = CreateVisibleOwner();
+
+            try
+            {
+                var result = await dialogs.ShowDialogAsync<BackgroundCloseDialogViewModel>(owner);
+                var viewModel = Assert.IsType<BackgroundCloseDialogViewModel>(probe.ViewModel);
+
+                Assert.True(result.Result);
+                Assert.True(viewModel.RequestRaisedOnBackground);
+                Assert.NotEmpty(viewModel.CanCloseDispatcherAccesses);
+                Assert.All(viewModel.CanCloseDispatcherAccesses, Assert.True);
+                Assert.True(viewModel.ClosedOnOwnerDispatcher);
+                Assert.Equal(0, viewModel.RequestCloseSubscriberCount);
+                Assert.True(probe.Disposed);
+            }
+            finally
+            {
+                owner.Close();
+            }
+        });
+    }
+
+    [Fact]
     public async Task ShowDialogAsync_WhenOwnerDispatcherIsUnavailable_DoesNotCreateScopeOrDialog()
     {
         await Sta.RunAsync(async () =>
@@ -113,6 +149,37 @@ public sealed class DialogServiceTests
                 () => dialogs.ShowDialogAsync<NeverCreatedDialogViewModel>(new Window(), cancellationToken: cancellation.Token));
 
             Assert.Equal(0, NeverCreatedDialogViewModel.CreatedCount);
+        });
+    }
+
+    [Fact]
+    public async Task ShowDialogAsync_WhenCanCloseDialogThrowsDuringWindowClosing_ClosesWithCancelInsteadOfCrashing()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var services = new ServiceCollection();
+            services.AddWpfPresentation();
+            services.AddScoped<ThrowingGuardDialogViewModel>();
+            services.AddView<ThrowingGuardDialogViewModel, SelfClosingDialog>();
+            using var provider = services.BuildServiceProvider();
+            var dialogs = provider.GetRequiredService<IDialogService>();
+            var owner = CreateVisibleOwner();
+
+            try
+            {
+                var result = await dialogs.ShowDialogAsync<ThrowingGuardDialogViewModel>(owner)
+                    .WaitAsync(TimeSpan.FromSeconds(10));
+                var viewModel = Assert.IsType<ThrowingGuardDialogViewModel>(ThrowingGuardDialogViewModel.LastCreated);
+
+                // 守卫抛异常时按取消结果放行关闭，而不是让异常沿 Closing 冒泡成进程级未处理异常。
+                Assert.NotEqual(true, result.Result);
+                Assert.Equal(1, viewModel.ClosedCount);
+                Assert.True(viewModel.GuardThrown);
+            }
+            finally
+            {
+                owner.Close();
+            }
         });
     }
 
@@ -167,6 +234,50 @@ public sealed class DialogServiceTests
         }
 
         public void OnDialogClosed() => ClosedCount++;
+
+        public void Dispose() => probe.Disposed = true;
+    }
+
+    private sealed class BackgroundCloseDialogViewModel(DisposalProbe probe) : IDialogAware, IDisposable
+    {
+        private EventHandler<IDialogResult>? _requestClose;
+
+        public event EventHandler<IDialogResult>? RequestClose
+        {
+            add
+            {
+                _requestClose += value;
+                RequestCloseSubscriberCount++;
+            }
+            remove
+            {
+                _requestClose -= value;
+                RequestCloseSubscriberCount--;
+            }
+        }
+
+        public int RequestCloseSubscriberCount { get; private set; }
+        public bool RequestRaisedOnBackground { get; private set; }
+        public ConcurrentQueue<bool> CanCloseDispatcherAccesses { get; } = [];
+        public bool ClosedOnOwnerDispatcher { get; private set; }
+
+        public void OnDialogOpened(DialogParameters parameters)
+        {
+            probe.ViewModel = this;
+            _ = Task.Run(() =>
+            {
+                RequestRaisedOnBackground = !Application.Current.Dispatcher.CheckAccess();
+                _requestClose?.Invoke(this, DialogResult.Ok());
+            });
+        }
+
+        public bool CanCloseDialog()
+        {
+            CanCloseDispatcherAccesses.Enqueue(Application.Current.Dispatcher.CheckAccess());
+            return true;
+        }
+
+        public void OnDialogClosed() => ClosedOnOwnerDispatcher = Application.Current.Dispatcher.CheckAccess();
 
         public void Dispose() => probe.Disposed = true;
     }
@@ -226,13 +337,47 @@ public sealed class DialogServiceTests
         public static void Reset() => CreatedCount = 0;
     }
 
+    private sealed class ThrowingGuardDialogViewModel : IDialogAware
+    {
+        public ThrowingGuardDialogViewModel() => LastCreated = this;
+
+        public static ThrowingGuardDialogViewModel? LastCreated { get; private set; }
+
+        public event EventHandler<IDialogResult>? RequestClose
+        {
+            add { }
+            remove { }
+        }
+
+        public bool GuardThrown { get; private set; }
+        public int ClosedCount { get; private set; }
+
+        public void OnDialogOpened(DialogParameters parameters)
+        {
+        }
+
+        public bool CanCloseDialog()
+        {
+            GuardThrown = true;
+            throw new InvalidOperationException("Expected guard failure.");
+        }
+
+        public void OnDialogClosed() => ClosedCount++;
+    }
+
     private sealed class DeferredCloseDialog : Window;
+    private sealed class BackgroundCloseDialog : Window;
     private sealed class GuardedDialog : Window;
     private sealed class NeverCreatedDialog : Window;
 
+    private sealed class SelfClosingDialog : Window
+    {
+        public SelfClosingDialog() => Loaded += (_, _) => Dispatcher.BeginInvoke(Close);
+    }
+
     private sealed class DisposalProbe
     {
-        public DeferredCloseDialogViewModel? ViewModel { get; set; }
+        public object? ViewModel { get; set; }
         public bool Disposed { get; set; }
     }
 }

@@ -195,6 +195,36 @@ public sealed class NavigationServiceTests
     }
 
     [Fact]
+    public async Task NavigateAndGoBack_WhenForwardLifecycleIsPending_SerializesOperationsInCallOrder()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            BlockingEnteringViewModel.Reset();
+            var services = CreateServices();
+            services.AddTransient<BlockingEnteringViewModel>();
+            services.AddView<BlockingEnteringViewModel, BlockingEnteringView>();
+            using var provider = services.BuildServiceProvider();
+            var regions = provider.GetRequiredService<IRegionManager>();
+            var navigation = provider.GetRequiredService<INavigationService>();
+            var host = new ContentControl();
+            using var registration = regions.RegisterRegion("Main", host);
+
+            Assert.True((await navigation.NavigateAsync<FirstViewModel>("Main")).Succeeded);
+            var forward = navigation.NavigateAsync<BlockingEnteringViewModel>("Main");
+            await BlockingEnteringViewModel.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var back = navigation.GoBackAsync("Main");
+            Assert.False(back.IsCompleted);
+
+            BlockingEnteringViewModel.AllowEntering();
+
+            Assert.True((await forward).Succeeded);
+            Assert.True((await back).Succeeded);
+            Assert.IsType<FirstView>(host.Content);
+        });
+    }
+
+    [Fact]
     public async Task CanGoBack_ReadsBackStackSnapshotFromBackgroundThread()
     {
         await Sta.RunAsync(async () =>
@@ -210,6 +240,34 @@ public sealed class NavigationServiceTests
             await navigation.NavigateAsync<SecondViewModel>("Main");
 
             Assert.True(await Task.Run(() => navigation.CanGoBack("Main")));
+        });
+    }
+
+    [Fact]
+    public async Task Navigate_WhenLifecycleCallbackAwaitsSameRegionNavigation_FailsFastInsteadOfDeadlocking()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            ReentrantViewModel.Reset();
+            var services = CreateServices();
+            services.AddTransient<ReentrantViewModel>();
+            services.AddView<ReentrantViewModel, ReentrantView>();
+            using var provider = services.BuildServiceProvider();
+            var regions = provider.GetRequiredService<IRegionManager>();
+            var navigation = provider.GetRequiredService<INavigationService>();
+            var host = new ContentControl();
+            using var registration = regions.RegisterRegion("Main", host);
+
+            ReentrantViewModel.Navigation = navigation;
+            var outer = await navigation.NavigateAsync<ReentrantViewModel>("Main")
+                .WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.True(outer.Succeeded);
+            Assert.IsType<ReentrantView>(host.Content);
+            var inner = Assert.IsType<NavigationResult>(ReentrantViewModel.InnerResult);
+            Assert.False(inner.Succeeded);
+            Assert.Equal(NavigationFailureKind.Reentrant, inner.FailureKind);
+            Assert.Equal("navigation.reentrant", inner.DiagnosticCode);
         });
     }
 
@@ -285,10 +343,59 @@ public sealed class NavigationServiceTests
         public void Dispose() => throw new InvalidOperationException("Expected disposal failure.");
     }
 
+    private sealed class BlockingEnteringViewModel : INavigationAware
+    {
+        private static TaskCompletionSource _entered = CreateCompletionSource();
+        private static TaskCompletionSource _allowEntering = CreateCompletionSource();
+
+        public static Task Entered => _entered.Task;
+
+        public static void Reset()
+        {
+            _entered = CreateCompletionSource();
+            _allowEntering = CreateCompletionSource();
+        }
+
+        public static void AllowEntering() => _allowEntering.TrySetResult();
+
+        public async Task OnNavigatedToAsync(NavigationContext context, CancellationToken cancellationToken = default)
+        {
+            _entered.TrySetResult();
+            await _allowEntering.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task OnNavigatedFromAsync(NavigationContext context, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        private static TaskCompletionSource CreateCompletionSource()
+            => new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class ReentrantViewModel : INavigationAware
+    {
+        public static INavigationService? Navigation { get; set; }
+
+        public static NavigationResult? InnerResult { get; private set; }
+
+        public static void Reset()
+        {
+            Navigation = null;
+            InnerResult = null;
+        }
+
+        public async Task OnNavigatedToAsync(NavigationContext context, CancellationToken cancellationToken = default)
+            => InnerResult = await Navigation!.NavigateAsync<SecondViewModel>("Main", cancellationToken: cancellationToken);
+
+        public Task OnNavigatedFromAsync(NavigationContext context, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
     private sealed class FirstView : UserControl;
     private sealed class SecondView : UserControl;
     private sealed class GuardedView : UserControl;
     private sealed class FailingEnteringView : UserControl;
     private sealed class UnavailableView : UserControl;
     private sealed class ThrowingDisposeView : UserControl;
+    private sealed class BlockingEnteringView : UserControl;
+    private sealed class ReentrantView : UserControl;
 }

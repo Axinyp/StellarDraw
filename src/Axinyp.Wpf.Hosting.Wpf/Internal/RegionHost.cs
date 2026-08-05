@@ -27,6 +27,8 @@ internal sealed class RegionHost(string name, ContentControl host) : IRegion, ID
 
     private Stack<NavigationJournalEntry> BackStack { get; } = [];
 
+    internal SemaphoreSlim NavigationGate { get; } = new(1, 1);
+
     public bool CanGoBack => Volatile.Read(ref _backStackCount) > 0;
 
     public void PushBack(NavigationJournalEntry entry)

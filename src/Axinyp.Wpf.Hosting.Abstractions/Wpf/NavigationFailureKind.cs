@@ -25,5 +25,8 @@ public enum NavigationFailureKind
     LeavingLifecycle,
 
     /// <summary>未能归入其他稳定类别的框架失败。</summary>
-    Unexpected
+    Unexpected,
+
+    /// <summary>在同一区域的导航生命周期回调内又发起并等待了新的导航（会形成自死锁，被立即拒绝）。</summary>
+    Reentrant
 }

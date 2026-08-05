@@ -111,7 +111,98 @@ public sealed class ThemeServiceTests
         });
     }
 
-    private static ServiceCollection CreateServices(MemorySettingsStore settings)
+    [Fact]
+    public async Task ApplyAsync_WhenThemeResourceCannotLoad_KeepsPreviouslyAppliedThemeAndSetting()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var settings = new MemorySettingsStore();
+            var services = new ServiceCollection();
+            services.AddSingleton<ISettingsStore>(settings);
+            services.AddWpfThemes(options =>
+            {
+                options.Themes.Add(new ThemeDescriptor("light", "Light", LightThemeUri, true));
+                options.Themes.Add(new ThemeDescriptor("missing", "Missing", new Uri(
+                    "pack://application:,,,/Axinyp.Wpf.Hosting.Wpf.Tests;component/Themes/Missing.xaml")));
+            });
+            using var provider = services.BuildServiceProvider();
+            var themes = provider.GetRequiredService<IThemeService>();
+            var initialCount = Application.Current.Resources.MergedDictionaries.Count;
+
+            await themes.ApplyAsync("light");
+            var applied = Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+
+            await Assert.ThrowsAnyAsync<Exception>(() => themes.ApplyAsync("missing").AsTask());
+
+            Assert.Same(applied, Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount)));
+            Assert.Equal("light", themes.CurrentTheme.Id);
+            Assert.Equal("light", await settings.GetAsync<string?>("ui.theme", null));
+            Application.Current.Resources.MergedDictionaries.Remove(applied);
+        });
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenPersistingThemeFails_RollsBackAppliedDictionaryAndCurrentTheme()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var settings = new FailingSettingsStore();
+            var services = CreateServices(settings);
+            using var provider = services.BuildServiceProvider();
+            var themes = provider.GetRequiredService<IThemeService>();
+            var initialCount = Application.Current.Resources.MergedDictionaries.Count;
+
+            settings.AllowWrites = true;
+            await themes.ApplyAsync("light");
+            var lightDictionary = Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+            settings.AllowWrites = false;
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => themes.ApplyAsync("dark").AsTask());
+
+            Assert.Same(lightDictionary, Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount)));
+            Assert.Equal("light", themes.CurrentTheme.Id);
+            Application.Current.Resources.MergedDictionaries.Remove(lightDictionary);
+        });
+    }
+
+    [Fact]
+    public async Task ApplyAsync_ConcurrentApplications_SerializeInsteadOfInterleaving()
+    {
+        await Sta.RunAsync(async () =>
+        {
+            var settings = new BlockingSettingsStore();
+            var services = CreateServices(settings);
+            using var provider = services.BuildServiceProvider();
+            var themes = provider.GetRequiredService<IThemeService>();
+            var initialCount = Application.Current.Resources.MergedDictionaries.Count;
+
+            var light = themes.ApplyAsync("light").AsTask();
+            await settings.WriteStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var dark = themes.ApplyAsync("dark").AsTask();
+            for (var i = 0; i < 5; i++)
+                await Application.Current.Dispatcher.InvokeAsync(
+                    static () => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+            // 第二次切换必须在第一次的「应用 + 持久化」临界区结束前保持排队：
+            // 否则它会移除 light 字典，light 的失败回滚将留下双主题字典与错误的 CurrentTheme。
+            Assert.False(dark.IsCompleted);
+            var pending = Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+            Assert.Equal("Light", pending["TestTheme"]);
+            Assert.Equal("light", themes.CurrentTheme.Id);
+
+            settings.ReleaseWrites();
+            await light.WaitAsync(TimeSpan.FromSeconds(5));
+            await dark.WaitAsync(TimeSpan.FromSeconds(5));
+
+            var final = Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+            Assert.Equal("Dark", final["TestTheme"]);
+            Assert.Equal("dark", themes.CurrentTheme.Id);
+            Application.Current.Resources.MergedDictionaries.Remove(final);
+        });
+    }
+
+    private static ServiceCollection CreateServices(ISettingsStore settings)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ISettingsStore>(settings);
@@ -129,6 +220,45 @@ public sealed class ThemeServiceTests
         var startup = Assert.Single(provider.GetServices<IStartupTask>());
         await startup.ExecuteAsync(CancellationToken.None);
         return Assert.Single(Application.Current.Resources.MergedDictionaries.Skip(initialCount));
+    }
+
+    private sealed class FailingSettingsStore : ISettingsStore
+    {
+        public bool AllowWrites { get; set; }
+
+        public ValueTask<T> GetAsync<T>(string key, T defaultValue, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(defaultValue);
+
+        public ValueTask SetAsync<T>(string key, T value, CancellationToken cancellationToken = default)
+        {
+            if (!AllowWrites)
+                throw new InvalidOperationException("Expected settings persistence failure.");
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> RemoveAsync(string key, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(false);
+    }
+
+    private sealed class BlockingSettingsStore : ISettingsStore
+    {
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource WriteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<T> GetAsync<T>(string key, T defaultValue, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(defaultValue);
+
+        public async ValueTask SetAsync<T>(string key, T value, CancellationToken cancellationToken = default)
+        {
+            WriteStarted.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
+        }
+
+        public ValueTask<bool> RemoveAsync(string key, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(false);
+
+        public void ReleaseWrites() => _release.TrySetResult();
     }
 
     private sealed class MemorySettingsStore : ISettingsStore

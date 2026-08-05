@@ -17,15 +17,19 @@ internal static class ServiceLifetimeValidator
 
     public static IReadOnlyList<CaptiveDependency> Validate(IServiceCollection services)
     {
-        // 服务类型 → 生命周期（后注册覆盖先注册，与 MS DI 解析一致）
+        // 服务类型 → 生命周期（后注册覆盖先注册，与 MS DI 解析一致）。
+        // keyed 注册整体跳过：其 ImplementationType 属性会抛异常，且按裸类型解析不到它们。
         var lifetimes = new Dictionary<Type, ServiceLifetime>();
         foreach (var d in services)
+        {
+            if (d.IsKeyedService) continue;
             lifetimes[d.ServiceType] = d.Lifetime;
+        }
 
         var issues = new List<CaptiveDependency>();
         foreach (var d in services)
         {
-            if (d.Lifetime != ServiceLifetime.Singleton) continue;
+            if (d.IsKeyedService || d.Lifetime != ServiceLifetime.Singleton) continue;
             var implType = d.ImplementationType;
             if (implType is null || implType.IsAbstract || implType.ContainsGenericParameters) continue;
 

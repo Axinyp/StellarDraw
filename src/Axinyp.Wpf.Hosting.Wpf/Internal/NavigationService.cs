@@ -141,13 +141,48 @@ internal sealed class NavigationService(
     {
         try
         {
-            return await uiDispatcher.InvokeAsync(region.Dispatcher, action).ConfigureAwait(false);
+            return await uiDispatcher.InvokeAsync(
+                    region.Dispatcher,
+                    () => ExecuteSerializedAsync(region, kind, targetType, action))
+                .ConfigureAwait(false);
         }
         catch (Exception exception)
         {
             return LogFailure(region, kind, targetType,
                 NavigationFailureKind.DispatcherUnavailable, "navigation.dispatcher-unavailable",
                 "导航无法在 UI 线程执行。", exception);
+        }
+    }
+
+    /// <summary>
+    /// 标记当前异步流正处于哪个区域的导航临界区内。
+    /// NavigationGate 不可重入：生命周期回调内再等待同区域导航会与外层互等形成永久挂起，
+    /// 因此借助 AsyncLocal 沿 await 链传播的特性在入口直接拒绝；
+    /// 消息泵新发起的导航不携带该标记，仍按序排队。
+    /// </summary>
+    private static readonly AsyncLocal<RegionHost?> ActiveNavigationRegion = new();
+
+    private async Task<NavigationResult> ExecuteSerializedAsync(
+        RegionHost region,
+        NavigationKind kind,
+        Type? targetType,
+        Func<Task<NavigationResult>> action)
+    {
+        if (ReferenceEquals(ActiveNavigationRegion.Value, region))
+            return LogFailure(region, kind, targetType,
+                NavigationFailureKind.Reentrant, "navigation.reentrant",
+                "导航生命周期回调内不能等待对同一区域的新导航；请在导航完成后再发起（例如经 Dispatcher 重新调度）。");
+
+        await region.NavigationGate.WaitAsync().ConfigureAwait(true);
+        ActiveNavigationRegion.Value = region;
+        try
+        {
+            return await action().ConfigureAwait(true);
+        }
+        finally
+        {
+            ActiveNavigationRegion.Value = null;
+            region.NavigationGate.Release();
         }
     }
 
