@@ -13,7 +13,7 @@ namespace WhiteBoard.UI.Controls;
 /// 水平工具栏：绘图工具选择 + 颜色/粗细 + 撤销/重做/清空/形状/图片操作按钮。
 /// 通过 ViewModel（ToolbarViewModel）和 Board（WhiteboardViewModel）两个 DP 绑定。
 /// </summary>
-public sealed class InkToolbar : UserControl
+public sealed class InkToolbar : UserControl, IDisposable
 {
     // ── DependencyProperty: ViewModel ────────────────────────────────────────
 
@@ -42,6 +42,11 @@ public sealed class InkToolbar : UserControl
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly Dictionary<ToolType, Button> _toolButtons = new();
+    private readonly List<Button> _colorButtons = [];
+    private readonly List<MenuItem> _shapeMenuItems = [];
+    private Button? _shapeButton;
+    private ContextMenu? _shapeMenu;
+    private readonly List<Button> _actionButtons = [];
     private readonly Border _colorSwatch;
     private readonly Slider _thicknessSlider;
     private readonly TextBlock _thicknessText;
@@ -131,7 +136,8 @@ public sealed class InkToolbar : UserControl
                 Cursor = Cursors.Hand,
                 ToolTip = $"#{captured & 0xFFFFFF:X6}",
             };
-            colorBtn.Click += (_, _) => { if (ViewModel is { } vm) vm.PenColor = captured; };
+            colorBtn.Click += OnColorButtonClick;
+            _colorButtons.Add(colorBtn);
             panel.Children.Add(colorBtn);
         }
 
@@ -184,12 +190,7 @@ public sealed class InkToolbar : UserControl
         };
         panel.Children.Add(thickText);
 
-        slider.ValueChanged += (_, e) =>
-        {
-            thickText.Text = $"{e.NewValue:F0}px";
-            if (!_suppressSlider && ViewModel is { } vm)
-                vm.Thickness = (float)e.NewValue;
-        };
+        slider.ValueChanged += OnThicknessSliderValueChanged;
 
         panel.Children.Add(MakeSep());
 
@@ -212,8 +213,9 @@ public sealed class InkToolbar : UserControl
         foreach (var (type, label) in ShapeDefs)
         {
             var captured = type;
-            var item = new MenuItem { Header = label };
-            item.Click += (_, _) => Board?.Toolbar.SetShapeTool(captured);
+            var item = new MenuItem { Header = label, Tag = captured };
+            item.Click += OnShapeMenuItemClick;
+            _shapeMenuItems.Add(item);
             shapeMenu.Items.Add(item);
         }
 
@@ -229,12 +231,9 @@ public sealed class InkToolbar : UserControl
             Background = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
         };
-        shapeBtn.Click += (_, _) =>
-        {
-            shapeMenu.PlacementTarget = shapeBtn;
-            shapeMenu.Placement = PlacementMode.Bottom;
-            shapeMenu.IsOpen = true;
-        };
+        shapeBtn.Click += OnShapeButtonClick;
+        _shapeMenu = shapeMenu;
+        _shapeButton = shapeBtn;
         panel.Children.Add(shapeBtn);
 
         // 插入图片
@@ -304,6 +303,70 @@ public sealed class InkToolbar : UserControl
         }
     }
 
+    private void OnColorButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Background is not SolidColorBrush brush || ViewModel is not { } vm)
+            return;
+
+        var color = brush.Color;
+        vm.PenColor = ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+    }
+
+    private void OnThicknessSliderValueChanged(object? sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        _thicknessText.Text = $"{e.NewValue:F0}px";
+        if (!_suppressSlider && ViewModel is { } vm)
+            vm.Thickness = (float)e.NewValue;
+    }
+
+    private void OnShapeMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string shapeType })
+            Board?.Toolbar.SetShapeTool(shapeType);
+    }
+
+    private void OnShapeButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (_shapeMenu is null || _shapeButton is null)
+            return;
+
+        _shapeMenu.PlacementTarget = _shapeButton;
+        _shapeMenu.Placement = PlacementMode.Bottom;
+        _shapeMenu.IsOpen = true;
+    }
+
+    private void OnActionButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Action onClick })
+            onClick();
+    }
+
+    public void Dispose()
+    {
+        if (ViewModel is { } vm)
+            vm.PropertyChanged -= OnVmPropertyChanged;
+
+        foreach (var button in _toolButtons.Values)
+            button.Click -= OnToolClicked;
+
+        foreach (var button in _colorButtons)
+            button.Click -= OnColorButtonClick;
+
+        foreach (var menuItem in _shapeMenuItems)
+            menuItem.Click -= OnShapeMenuItemClick;
+
+        if (_shapeButton is not null)
+            _shapeButton.Click -= OnShapeButtonClick;
+
+        if (_shapeMenu is not null)
+            _shapeMenu.IsOpen = false;
+
+        _thicknessSlider.ValueChanged -= OnThicknessSliderValueChanged;
+
+        foreach (var button in _actionButtons)
+            button.Click -= OnActionButtonClick;
+    }
+
     private void SyncAll(ToolbarViewModel vm)
     {
         SyncToolButtons(vm.CurrentTool);
@@ -330,7 +393,7 @@ public sealed class InkToolbar : UserControl
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static Button MakeActionBtn(string icon, string tip, Action onClick)
+    private Button MakeActionBtn(string icon, string tip, Action onClick)
     {
         var btn = new Button
         {
@@ -343,8 +406,10 @@ public sealed class InkToolbar : UserControl
             BorderThickness = new Thickness(1),
             Background = new SolidColorBrush(Color.FromRgb(0xEB, 0xEB, 0xEB)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC)),
+            Tag = onClick,
         };
-        btn.Click += (_, _) => onClick();
+        btn.Click += OnActionButtonClick;
+        _actionButtons.Add(btn);
         return btn;
     }
 

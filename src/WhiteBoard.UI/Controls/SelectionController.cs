@@ -10,7 +10,7 @@ namespace WhiteBoard.UI.Controls;
 /// 选择工具交互控制器：管理橡皮筋圈选、选中框渲染、对象拖移、缩放手柄和旋转手柄。
 /// 所有渲染输出至屏幕空间 DrawingVisual（不带视图矩阵变换）。
 /// </summary>
-public sealed class SelectionController
+public sealed class SelectionController : IDisposable
 {
     private enum DragMode
     { None, RubberBand, MoveObjects, ResizeHandle, RotateHandle }
@@ -70,9 +70,9 @@ public sealed class SelectionController
         _toolbar = new SelectionToolbar();
         overlayCanvas.Children.Add(_toolbar);
 
-        _toolbar.DeleteClicked += () => _ = _vm.DeleteSelectedAsync();
-        _toolbar.CopyClicked += () => _ = _vm.CopySelectedAsync();
-        _toolbar.BringToFrontClicked += () => _ = _vm.BringToFrontSelectedAsync();
+        _toolbar.DeleteClicked += OnDeleteClicked;
+        _toolbar.CopyClicked += OnCopyClicked;
+        _toolbar.BringToFrontClicked += OnBringToFrontClicked;
     }
 
     // ── 事件入口（由 InkSurface 在 Select 工具模式下调用）───────────────────
@@ -256,6 +256,22 @@ public sealed class SelectionController
         using (_visual.RenderOpen()) { }
         _toolbar.Hide();
     }
+
+    public void Dispose()
+    {
+        _toolbar.DeleteClicked -= OnDeleteClicked;
+        _toolbar.CopyClicked -= OnCopyClicked;
+        _toolbar.BringToFrontClicked -= OnBringToFrontClicked;
+
+        if (_toolbar.Parent is Panel panel)
+            panel.Children.Remove(_toolbar);
+    }
+
+    private void OnDeleteClicked() => _ = _vm.DeleteSelectedAsync();
+
+    private void OnCopyClicked() => _ = _vm.CopySelectedAsync();
+
+    private void OnBringToFrontClicked() => _ = _vm.BringToFrontSelectedAsync();
 
     // ── 私有渲染 ─────────────────────────────────────────────────────────────
 

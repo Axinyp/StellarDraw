@@ -72,8 +72,12 @@ public sealed class McpSessionRegistry : IMcpSessionRegistry, IDisposable
             return Task.FromResult<McpSessionBinding?>(null);
 
         binding.LastUsedAt = DateTimeOffset.UtcNow;
-        if (string.IsNullOrEmpty(binding.Transport))
+        var opened = string.IsNullOrEmpty(binding.Transport);
+        if (opened)
             binding.Transport = transport;
+
+        if (opened)
+            ConnectionOpened?.Invoke(this, binding);
 
         return Task.FromResult<McpSessionBinding?>(binding);
     }

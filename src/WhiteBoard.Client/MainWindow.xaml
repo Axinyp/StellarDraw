@@ -4,18 +4,68 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:WhiteBoard.Client"
-    xmlns:loc="clr-namespace:WhiteBoard.Framework.Hosting.Wpf.Localization;assembly=WhiteBoard.Framework.Hosting.Wpf"
+    xmlns:loc="clr-namespace:Axinyp.Wpf.Hosting.Wpf.Localization;assembly=Axinyp.Wpf.Hosting.Wpf"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Title="{loc:Loc MainWindow.Title}"
-    Width="800"
-    Height="450"
+    Width="1280"
+    Height="800"
     mc:Ignorable="d">
-    <Grid Background="{DynamicResource App.BackgroundBrush}">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="18"
-            Foreground="{DynamicResource App.ForegroundBrush}"
-            Text="{loc:Loc MainWindow.Title}" />
-    </Grid>
+    <DockPanel Background="{DynamicResource App.BackgroundBrush}">
+        <Border DockPanel.Dock="Top"
+                Margin="12,12,12,8"
+                Padding="12"
+                Background="#14000000"
+                BorderBrush="#22000000"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource App.ForegroundBrush}"
+                           Text="{loc:Loc MainWindow.Title}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource App.ForegroundBrush}"
+                           Opacity="0.82"
+                           Text="{Binding ShellMessage}" />
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="#FFB3261E"
+                           Text="{Binding ShellDiagnosticCode}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasShellError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <Grid Margin="12,0,12,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="2*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Margin="0,0,0,8"
+                    Background="White"
+                    BorderBrush="#22000000"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <ContentControl x:Name="MainRegionHost" />
+            </Border>
+
+            <Border Grid.Row="1"
+                    Background="White"
+                    BorderBrush="#22000000"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <ContentControl x:Name="PluginHost" />
+            </Border>
+        </Grid>
+    </DockPanel>
 </Window>

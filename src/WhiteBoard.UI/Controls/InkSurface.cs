@@ -86,7 +86,8 @@ public sealed class InkSurface : FrameworkElement
         IsManipulationEnabled = true;           // 启用双指操作
         Stylus.SetIsFlicksEnabled(this, false); // 禁用划动手势，防止误触
 
-        Loaded += (_, _) => RenderCommitted();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     // ── ShowLatency DependencyProperty ───────────────────────────────────────
@@ -172,6 +173,8 @@ public sealed class InkSurface : FrameworkElement
         {
             old.RedrawRequested -= s.RenderCommitted;
             old.SelectionChanged -= s.OnSelectionChanged;
+            s._controller?.Dispose();
+            s._controller = null;
         }
         if (e.NewValue is WhiteboardViewModel vm)
         {
@@ -181,9 +184,29 @@ public sealed class InkSurface : FrameworkElement
             vm.SelectionChanged += s.OnSelectionChanged;
             s.RenderCommitted();
         }
+        else
+        {
+            s.SetHiddenObjects(null);
+            s.ClearOverlayCanvas();
+            s.ClearCommittedAndOverlay();
+        }
     }
 
     private void OnSelectionChanged() => _controller?.RenderOverlay();
+
+    private void OnLoaded(object? sender, RoutedEventArgs e) => RenderCommitted();
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        Unloaded -= OnUnloaded;
+        ViewModel = null;
+        CompositionTarget.Rendering -= OnRendering;
+        ShowLatency = false;
+        AbortCurrentStroke();
+        ClearOverlayCanvas();
+        ClearCommittedAndOverlay();
+    }
 
     // ── Visual tree ──────────────────────────────────────────────────────────
 
@@ -748,6 +771,20 @@ public sealed class InkSurface : FrameworkElement
         _viewMatrix = Matrix.Identity;
         _viewMatrixTransform.Matrix = _viewMatrix;
         _controller?.RenderOverlay();
+    }
+
+    private void ClearOverlayCanvas()
+    {
+        _overlayCanvas.Children.Clear();
+    }
+
+    private void ClearCommittedAndOverlay()
+    {
+        using (_committedVisual.RenderOpen()) { }
+        using (_wetInkVisual.RenderOpen()) { }
+        using (_predictedVisual.RenderOpen()) { }
+        using (_selectionVisual.RenderOpen()) { }
+        using (_latencyVisual.RenderOpen()) { }
     }
 
     protected override void OnRender(DrawingContext drawingContext)

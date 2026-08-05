@@ -97,9 +97,7 @@ public partial class MainWindow : Window
 
         try
         {
-            PluginHost.Child = null;
-            await DisposeAiSessionAsync();
-            await _manager.UnloadAsync();
+            await UnloadCurrentPluginAsync();
 
             var dll = FindPluginDll();
             if (dll is null)
@@ -499,9 +497,13 @@ public partial class MainWindow : Window
     }
 
     private async Task TearDownAsync()
+        => await UnloadCurrentPluginAsync();
+
+    private async Task UnloadCurrentPluginAsync()
     {
+        PluginHost.Child = null;
         await DisposeAiSessionAsync();
-        await _manager.DisposeAsync();
+        await _manager.UnloadAsync();
     }
 
     // ── 设置持久化 ────────────────────────────────────────────────────────────

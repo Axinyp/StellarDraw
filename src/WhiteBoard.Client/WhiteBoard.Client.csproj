@@ -9,6 +9,9 @@
     <RootNamespace>WhiteBoard.Client</RootNamespace>
     <AssemblyName>WhiteBoard.Client</AssemblyName>
     <StartupObject>WhiteBoard.Client.App</StartupObject>
+    <!-- 独立框架 worktree 在根目录启用了中央包管理，但 WhiteBoard 业务项目仍沿用显式 Version 写法。
+         这里先对 Client 及其回接链路关闭中央包管理，避免为首轮业务回接同时重构整套业务项目的依赖声明。 -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,8 +20,36 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WhiteBoard.Framework.Hosting\WhiteBoard.Framework.Hosting.csproj" />
-    <ProjectReference Include="..\WhiteBoard.Framework.Hosting.Wpf\WhiteBoard.Framework.Hosting.Wpf.csproj" />
+    <ProjectReference Include="..\Axinyp.Wpf.Hosting\Axinyp.Wpf.Hosting.csproj" />
+    <ProjectReference Include="..\Axinyp.Wpf.Hosting.Wpf\Axinyp.Wpf.Hosting.Wpf.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
+    <ProjectReference Include="..\WhiteBoard.Protocol\WhiteBoard.Protocol.csproj" />
+    <ProjectReference Include="..\WhiteBoard.UI\WhiteBoard.UI.csproj" />
+    <!-- 编译时不直接依赖 WhiteBoard.Plugin 类型，但必须确保插件在 Client 构建前先完成构建，
+         且其输出在生成后被复制到客户端的 plugins/whiteboard 目录，方便首轮宿主回接直接加载。 -->
+    <ProjectReference Include="..\WhiteBoard.Plugin\WhiteBoard.Plugin.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+    </ProjectReference>
   </ItemGroup>
+
+  <!-- 构建后把插件输出复制到客户端约定的 plugins/whiteboard 目录。
+       首轮真实业务回接的目标是验证“宿主 + 插件视图承载”链路，
+       因此这里优先复用 Demo 已验证过的目录布局，避免再额外引入插件发现配置复杂度。 -->
+  <Target Name="CopyPluginToPluginsDir" AfterTargets="Build">
+    <PropertyGroup>
+      <PluginSrcDir>$(MSBuildThisFileDirectory)..\WhiteBoard.Plugin\bin\$(Configuration)\net10.0-windows\</PluginSrcDir>
+      <PluginDestDir>$(OutputPath)plugins\whiteboard\</PluginDestDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <PluginFiles Include="$(PluginSrcDir)**\*.*" />
+    </ItemGroup>
+    <MakeDir Directories="$(PluginDestDir)" />
+    <Copy SourceFiles="@(PluginFiles)"
+          DestinationFiles="@(PluginFiles->'$(PluginDestDir)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

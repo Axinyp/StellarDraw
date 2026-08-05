@@ -13,7 +13,7 @@ namespace WhiteBoard.UI.Controls;
 /// 底部页面标签条：展示所有页面、支持切换、添加新页。
 /// 通过 ViewModel DependencyProperty 绑定 WhiteboardViewModel（包含 Pages + AddPageCommand）。
 /// </summary>
-public sealed class PageStrip : UserControl
+public sealed class PageStrip : UserControl, IDisposable
 {
     // ── DependencyProperty: ViewModel ────────────────────────────────────────
 
@@ -30,16 +30,17 @@ public sealed class PageStrip : UserControl
     // ── State ─────────────────────────────────────────────────────────────────
 
     private readonly StackPanel _pagePanel;
+    private readonly Button _addButton;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public PageStrip()
     {
         Height = 36;
-        _pagePanel = BuildContent();
+        (_pagePanel, _addButton) = BuildContent();
     }
 
-    private StackPanel BuildContent()
+    private (StackPanel PagePanel, Button AddButton) BuildContent()
     {
         var pagePanel = new StackPanel
         {
@@ -66,7 +67,7 @@ public sealed class PageStrip : UserControl
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        addBtn.Click += (_, _) => ViewModel?.AddPageCommand.Execute(null);
+        addBtn.Click += OnAddButtonClick;
 
         var dock = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(addBtn, Dock.Right);
@@ -80,7 +81,7 @@ public sealed class PageStrip : UserControl
             BorderThickness = new Thickness(0, 1, 0, 0),
             Child = dock,
         };
-        return pagePanel;
+        return (pagePanel, addBtn);
     }
 
     // ── ViewModel binding ─────────────────────────────────────────────────────
@@ -114,16 +115,42 @@ public sealed class PageStrip : UserControl
         if (ViewModel is { } vm) Rebuild(vm);
     }
 
+    private void OnAddButtonClick(object? sender, RoutedEventArgs e)
+        => ViewModel?.AddPageCommand.Execute(null);
+
+    private void OnPageButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PageModel page })
+            ViewModel?.Pages.GoToPage(page.Id);
+    }
+
+    public void Dispose()
+    {
+        _addButton.Click -= OnAddButtonClick;
+
+        foreach (var button in _pagePanel.Children.OfType<Button>().ToList())
+            button.Click -= OnPageButtonClick;
+
+        if (ViewModel is { } vm)
+        {
+            vm.Pages.PropertyChanged -= OnPagesPropertyChanged;
+            vm.Pages.Pages.CollectionChanged -= OnCollectionChanged;
+        }
+    }
+
     // ── Rendering ─────────────────────────────────────────────────────────────
 
     private void Rebuild(WhiteboardViewModel vm)
     {
+        foreach (var button in _pagePanel.Children.OfType<Button>().ToList())
+            button.Click -= OnPageButtonClick;
+
         _pagePanel.Children.Clear();
         int num = 1;
         foreach (var page in vm.Pages.Pages)
         {
             var p = page;
-            var btn = new Button
+            var button = new Button
             {
                 Height = 26,
                 Padding = new Thickness(10, 0, 10, 0),
@@ -134,11 +161,11 @@ public sealed class PageStrip : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 BorderThickness = new Thickness(1),
             };
-            btn.Content = (string.IsNullOrWhiteSpace(p.Title) || p.Title == "Page")
+            button.Content = (string.IsNullOrWhiteSpace(p.Title) || p.Title == "Page")
                 ? $"第 {num} 页"
                 : p.Title;
-            btn.Click += (_, _) => ViewModel?.Pages.GoToPage(p.Id);
-            _pagePanel.Children.Add(btn);
+            button.Click += OnPageButtonClick;
+            _pagePanel.Children.Add(button);
             num++;
         }
         UpdateActiveState(vm);

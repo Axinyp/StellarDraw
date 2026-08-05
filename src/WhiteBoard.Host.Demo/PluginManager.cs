@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using WhiteBoard.Contracts.Plugin;
 using WhiteBoard.Contracts.Wpf;
@@ -8,7 +10,6 @@ namespace WhiteBoard.Host.Demo;
 
 /// <summary>
 /// 管理单个插件的完整生命周期：加载 → 初始化 → 创建视图 → 启动 → 停止 → 卸载。
-/// 卸载后通过 WeakReference 验证 ALC 被 GC 回收（防止泄漏）。
 /// </summary>
 public sealed class PluginManager : IAsyncDisposable
 {
@@ -19,6 +20,8 @@ public sealed class PluginManager : IAsyncDisposable
     private CancellationTokenSource? _cts;
 
     public IPluginViewHandle? ViewHandle => _viewHandle;
+
+    internal WeakReference<AssemblyLoadContext>? LastUnloadedContext => _weakContext;
 
     /// <summary>
     /// 通过反射获取插件内部的 WhiteboardSession 实例。
@@ -42,80 +45,209 @@ public sealed class PluginManager : IAsyncDisposable
         IHostCapabilities host,
         CancellationToken ct = default)
     {
-        if (_plugin is not null)
+        if (_context is not null || _plugin is not null || _viewHandle is not null || _cts is not null)
             throw new InvalidOperationException("A plugin is already loaded. Call UnloadAsync first.");
 
-        _context = new WhiteboardPluginContext(pluginDllPath);
-        _weakContext = new WeakReference<AssemblyLoadContext>(_context);
+        var context = new WhiteboardPluginContext(pluginDllPath);
+        var weakContext = new WeakReference<AssemblyLoadContext>(context);
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        IWhiteboardWpfPlugin? plugin = null;
+        IPluginViewHandle? viewHandle = null;
 
-        var asm = _context.LoadFromAssemblyPath(pluginDllPath);
-        var plugin = FindPlugin(asm);
+        try
+        {
+            var assembly = context.LoadFromAssemblyPath(pluginDllPath);
+            plugin = FindPlugin(assembly);
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            await plugin.InitializeAsync(bus, host, cts.Token);
+            viewHandle = plugin.CreateView(); // UI thread
+            await plugin.StartAsync(cts.Token);
 
-        await plugin.InitializeAsync(bus, host, _cts.Token);
-        _viewHandle = plugin.CreateView(); // UI thread
-        await plugin.StartAsync(_cts.Token);
+            _context = context;
+            _weakContext = weakContext;
+            _cts = cts;
+            _plugin = plugin;
+            _viewHandle = viewHandle;
+        }
+        catch (Exception loadFailure)
+        {
+            _weakContext = weakContext;
+            try
+            {
+                await ReleaseAsync(plugin, viewHandle, cts, context, CancellationToken.None);
+            }
+            catch (Exception cleanupFailure)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[PluginManager] Plugin load cleanup failed: {cleanupFailure.Message}");
+            }
+            finally
+            {
+                ScheduleAlcVerification(weakContext);
+            }
 
-        _plugin = plugin;
+            ExceptionDispatchInfo.Capture(loadFailure).Throw();
+            throw;
+        }
     }
 
     /// <summary>
-    /// 安全卸载：停止 → UI线程分离视图 → 释放插件 → GC验证。
+    /// 安全卸载：停止 → UI线程分离视图 → 释放插件 → 请求 ALC 卸载。
     /// </summary>
     public async Task UnloadAsync()
     {
-        if (_plugin is null) return;
+        var context = _context;
+        var plugin = _plugin;
+        var viewHandle = _viewHandle;
+        var cts = _cts;
 
-        _cts?.Cancel();
-
-        await _plugin.StopAsync(CancellationToken.None);
-
-        if (_viewHandle is not null)
-        {
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
-                await _viewHandle.DetachAsync(CancellationToken.None));
-            await _viewHandle.DisposeAsync();
-            _viewHandle = null;
-        }
-
-        await _plugin.DisposeAsync();
-        _plugin = null;
-
-        _context?.Unload();
         _context = null;
+        _plugin = null;
+        _viewHandle = null;
+        _cts = null;
 
-        VerifyAlcUnloaded();
+        if (context is null && plugin is null && viewHandle is null && cts is null)
+            return;
+
+        await ReleaseAsync(plugin, viewHandle, cts, context, CancellationToken.None);
+
+        if (_weakContext is not null)
+            ScheduleAlcVerification(_weakContext);
     }
 
     public async ValueTask DisposeAsync() => await UnloadAsync();
 
-    private static IWhiteboardWpfPlugin FindPlugin(System.Reflection.Assembly asm)
+    internal static async Task DetachViewAsync(IPluginViewHandle viewHandle, CancellationToken ct)
     {
-        var pluginType = asm.GetExportedTypes()
-            .FirstOrDefault(t => !t.IsAbstract && typeof(IWhiteboardWpfPlugin).IsAssignableFrom(t))
+        var dispatcher = System.Windows.Application.Current?.Dispatcher
+            ?? throw new InvalidOperationException("无法在没有 WPF Application Dispatcher 的情况下分离插件视图。");
+
+        if (dispatcher.CheckAccess())
+        {
+            await viewHandle.DetachAsync(ct);
+            return;
+        }
+
+        var operation = dispatcher.InvokeAsync(() => viewHandle.DetachAsync(ct));
+        await operation.Task.Unwrap();
+    }
+
+    private static async Task ReleaseAsync(
+        IWhiteboardWpfPlugin? plugin,
+        IPluginViewHandle? viewHandle,
+        CancellationTokenSource? cts,
+        WhiteboardPluginContext? context,
+        CancellationToken ct)
+    {
+        Exception? failure = null;
+
+        try
+        {
+            cts?.Cancel();
+        }
+        catch (Exception ex)
+        {
+            CaptureFailure(ref failure, ex);
+        }
+
+        if (plugin is not null)
+        {
+            try
+            {
+                await plugin.StopAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                CaptureFailure(ref failure, ex);
+            }
+        }
+
+        if (viewHandle is not null)
+        {
+            try
+            {
+                await DetachViewAsync(viewHandle, ct);
+            }
+            catch (Exception ex)
+            {
+                CaptureFailure(ref failure, ex);
+            }
+
+            try
+            {
+                await viewHandle.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                CaptureFailure(ref failure, ex);
+            }
+        }
+
+        if (plugin is not null)
+        {
+            try
+            {
+                await plugin.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                CaptureFailure(ref failure, ex);
+            }
+        }
+
+        try
+        {
+            cts?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            CaptureFailure(ref failure, ex);
+        }
+
+        try
+        {
+            context?.Unload();
+        }
+        catch (Exception ex)
+        {
+            CaptureFailure(ref failure, ex);
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void CaptureFailure(ref Exception? failure, Exception exception)
+        => failure ??= exception;
+
+    private static IWhiteboardWpfPlugin FindPlugin(Assembly assembly)
+    {
+        var pluginType = assembly.GetExportedTypes()
+            .FirstOrDefault(type => !type.IsAbstract && typeof(IWhiteboardWpfPlugin).IsAssignableFrom(type))
             ?? throw new InvalidOperationException(
-                $"Assembly '{asm.GetName().Name}' does not export a type implementing IWhiteboardWpfPlugin.");
+                $"Assembly '{assembly.GetName().Name}' does not export a type implementing IWhiteboardWpfPlugin.");
 
         return (IWhiteboardWpfPlugin)(Activator.CreateInstance(pluginType)
             ?? throw new InvalidOperationException($"Could not instantiate {pluginType.FullName}."));
     }
 
-    private void VerifyAlcUnloaded()
+    private static void ScheduleAlcVerification(WeakReference<AssemblyLoadContext> weakContext)
+        => _ = Task.Run(() => VerifyAlcUnloaded(weakContext));
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void VerifyAlcUnloaded(WeakReference<AssemblyLoadContext> weakContext)
     {
-        if (_weakContext is null) return;
-
-        // 给 GC 两轮机会
-        for (int i = 0; i < 10; i++)
+        for (var attempt = 0; attempt < 10; attempt++)
         {
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            GC.Collect();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
 
-            if (!_weakContext.TryGetTarget(out _))
-                return; // 已释放
+            if (!weakContext.TryGetTarget(out _))
+                return;
         }
 
-        System.Diagnostics.Debug.WriteLine("[PluginManager] Warning: ALC WeakReference still alive after 10 GC rounds — possible leak.");
+        System.Diagnostics.Debug.WriteLine(
+            "[PluginManager] Warning: ALC WeakReference still alive after deferred GC verification — possible retained reference.");
     }
 }

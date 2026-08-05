@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -57,11 +58,7 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         BringToFrontCommand = new RelayCommand(() => _ = BringToFrontSelectedAsync());
 
         SubscribeToCurrentPage();
-        Pages.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(PageListViewModel.CurrentPage))
-                SubscribeToCurrentPage();
-        };
+        Pages.PropertyChanged += OnPagesPropertyChanged;
     }
 
     public PageModel CurrentPage => _session.Current;
@@ -204,6 +201,12 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void OnPagesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PageListViewModel.CurrentPage))
+            SubscribeToCurrentPage();
+    }
+
     private void OnObjectChanged(WhiteboardObject _)
         => _dispatcher.BeginInvoke(RequestRedraw, DispatcherPriority.Render);
 
@@ -310,6 +313,8 @@ public sealed class WhiteboardViewModel : ViewModelBase, IDisposable
             _subscribedPage.ObjectRemoved -= OnObjectChanged;
             _subscribedPage.Cleared -= OnPageCleared;
         }
+
+        Pages.PropertyChanged -= OnPagesPropertyChanged;
         Pages.Dispose();
     }
 }

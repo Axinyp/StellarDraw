@@ -908,6 +908,16 @@ public sealed class WhiteboardSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+
+        // 预测器实例可能来自插件 ALC（例如 WhiteBoard.Plugin 中的 KalmanPredictor）。
+        // 如果这里不主动断开引用，即便 Session 自己已停止，
+        // 共享在 Default Context 中的 Session 对象仍可能继续把插件程序集实例吊住，
+        // 从而让可回收 ALC 迟迟无法被 GC 真正卸载。
+        _predictor = null;
+        _executorTask = null;
+        _remoteTask = null;
+
         _cts?.Dispose();
+        _cts = null;
     }
 }

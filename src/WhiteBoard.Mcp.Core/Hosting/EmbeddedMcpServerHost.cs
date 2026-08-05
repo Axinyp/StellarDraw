@@ -44,7 +44,13 @@ public sealed class EmbeddedMcpServerHost : IAsyncDisposable
             .AddMcpServer()
             .WithHttpTransport(o =>
             {
-                o.EnableLegacySse = opts.EnableLegacySse;
+                if (opts.EnableLegacySse)
+                {
+#pragma warning disable MCP9004 // 兼容尚未迁移到 Streamable HTTP 的受信任旧客户端。
+                    o.EnableLegacySse = true;
+#pragma warning restore MCP9004
+                }
+
                 o.ConfigureSessionOptions = async (ctx, mcpOpts, sessionCt) =>
                 {
                     var token = ExtractBearerToken(ctx);

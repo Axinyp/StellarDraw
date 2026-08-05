@@ -8,6 +8,7 @@
     <RootNamespace>WhiteBoard.Host.Demo</RootNamespace>
     <AssemblyName>WhiteBoard.Host.Demo</AssemblyName>
     <StartupObject>WhiteBoard.Host.Demo.App</StartupObject>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

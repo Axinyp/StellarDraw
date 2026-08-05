@@ -7,13 +7,23 @@
     <AssemblyName>StellarDraw.Axinyp.Spike</AssemblyName>
     <StartupObject>StellarDraw.Axinyp.Spike.App</StartupObject>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <UseAxinypProjectReferences
+      Condition="'$(UseAxinypProjectReferences)' == ''">false</UseAxinypProjectReferences>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseAxinypProjectReferences)' != 'true'">
     <PackageReference Include="Axinyp.Wpf.Hosting" Version="1.0.0" />
     <PackageReference Include="Axinyp.Wpf.Hosting.Wpf" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseAxinypProjectReferences)' == 'true'">
+    <ProjectReference Include="..\..\src\Axinyp.Wpf.Hosting\Axinyp.Wpf.Hosting.csproj" />
+    <ProjectReference Include="..\..\src\Axinyp.Wpf.Hosting.Wpf\Axinyp.Wpf.Hosting.Wpf.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -41,6 +41,15 @@ jobs:
       - name: Test package-only Spike behavior
         run: dotnet test tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-build --no-restore --configuration Release --filter "Category!=LegacyCompatibility"
 
+      - name: Restore ProjectReference Spike
+        run: dotnet restore tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj -p:UseAxinypProjectReferences=true
+
+      - name: Build ProjectReference Spike
+        run: dotnet build tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-restore --configuration Release -p:UseAxinypProjectReferences=true
+
+      - name: Test ProjectReference Spike behavior
+        run: dotnet test tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-build --no-restore --configuration Release -p:UseAxinypProjectReferences=true --filter "Category!=LegacyCompatibility"
+
       - name: Restore trusted legacy compatibility artifact
         run: dotnet restore src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj
 

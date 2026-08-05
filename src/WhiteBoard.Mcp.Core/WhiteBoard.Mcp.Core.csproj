@@ -6,11 +6,12 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>WhiteBoard.Mcp.Core</RootNamespace>
     <AssemblyName>WhiteBoard.Mcp.Core</AssemblyName>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WhiteBoard.AI\WhiteBoard.AI.csproj" />
-    <PackageReference Include="ModelContextProtocol"            Version="1.4.0" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

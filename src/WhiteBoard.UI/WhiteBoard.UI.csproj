@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>WhiteBoard.UI</RootNamespace>
     <AssemblyName>WhiteBoard.UI</AssemblyName>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- WhiteBoard.UI 中已有较多历史 XML 注释与 WPF 临时生成文件组合，
+         首轮业务回接阶段先局部放宽文档类告警，避免把问题范围扩大成“旧 UI 全量文档修复”。 -->
+    <NoWarn>$(NoWarn);1591;1573;1574</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />

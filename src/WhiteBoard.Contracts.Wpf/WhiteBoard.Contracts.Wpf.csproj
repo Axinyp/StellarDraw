@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>WhiteBoard.Contracts.Wpf</RootNamespace>
     <AssemblyName>WhiteBoard.Contracts.Wpf</AssemblyName>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />

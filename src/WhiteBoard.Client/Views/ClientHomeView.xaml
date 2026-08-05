@@ -1,0 +1,12 @@
+<UserControl x:Class="WhiteBoard.Client.Views.ClientHomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Axinyp.Wpf.Hosting.Wpf.Localization;assembly=Axinyp.Wpf.Hosting.Wpf">
+    <Grid Margin="20">
+        <TextBlock HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="18"
+                   Foreground="{DynamicResource App.ForegroundBrush}"
+                   Text="{loc:Loc ClientHome.NavigationReady}" />
+    </Grid>
+</UserControl>
