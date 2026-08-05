@@ -171,21 +171,30 @@ public sealed class WhiteboardSession : IAsyncDisposable
                 .SelectMany(page => page.GetAllObjects())
                 .OfType<ImageObject>()
                 .ToArray();
-            foreach (var image in images)
-                image.SetAssetId(ToPersistedAssetId(image.AssetId));
+            var assetsToPersist = images
+                .Select(image => new
+                {
+                    SourceAssetId = image.AssetId,
+                    PersistedAssetId = ToPersistedAssetId(image.AssetId),
+                })
+                .GroupBy(asset => asset.PersistedAssetId, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToArray();
 
             var pages = _pages.AllPages
                 .Select(page => new WhiteboardDocumentPageSnapshot(
-                    page.Id, page.Title, page.Background, PageSerializer.Serialize(page)))
+                    page.Id,
+                    page.Title,
+                    page.Background,
+                    PageSerializer.Serialize(page, ToPersistedAssetId)))
                 .ToArray();
             var assets = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-            foreach (var assetId in images
-                .Select(image => image.AssetId)
-                .Distinct(StringComparer.Ordinal))
+            foreach (var asset in assetsToPersist)
             {
-                var data = RawImageAssetStore.Retrieve(assetId)
-                    ?? throw new InvalidDataException($"图片资产 '{assetId}' 不可用，无法保存文档。");
-                assets.Add(ToPersistedAssetId(assetId), (byte[])data.Clone());
+                var data = RawImageAssetStore.Retrieve(asset.SourceAssetId)
+                    ?? throw new InvalidDataException(
+                        $"图片资产 '{asset.SourceAssetId}' 不可用，无法保存文档。");
+                assets.Add(asset.PersistedAssetId, (byte[])data.Clone());
             }
 
             return new ValueTask<WhiteboardDocumentSnapshot>(

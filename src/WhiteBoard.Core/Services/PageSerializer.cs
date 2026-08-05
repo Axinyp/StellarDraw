@@ -73,8 +73,11 @@ public static class PageSerializer
 
     // ── Write ─────────────────────────────────────────────────────────────────
 
-    public static byte[] Serialize(PageModel page)
+    public static byte[] Serialize(
+        PageModel page,
+        Func<string, string>? imageAssetIdResolver = null)
     {
+        ArgumentNullException.ThrowIfNull(page);
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
 
@@ -92,7 +95,7 @@ public static class PageSerializer
 
         // Chunks
         foreach (var obj in objects)
-            WriteChunk(bw, obj);
+            WriteChunk(bw, obj, imageAssetIdResolver);
 
         bw.Flush();
 
@@ -137,13 +140,16 @@ public static class PageSerializer
         catch { return null; }
     }
 
-    private static void WriteChunk(BinaryWriter bw, WhiteboardObject obj)
+    private static void WriteChunk(
+        BinaryWriter bw,
+        WhiteboardObject obj,
+        Func<string, string>? imageAssetIdResolver = null)
     {
         using var chunkMs = new MemoryStream();
         using var cbw = new BinaryWriter(chunkMs, Encoding.UTF8, leaveOpen: true);
 
         var kind = GetKind(obj);
-        var payload = SerializePayload(obj);
+        var payload = SerializePayload(obj, imageAssetIdResolver);
 
         cbw.Write((ushort)kind);                   // ObjectKind  2
         cbw.Write((ushort)1);                      // SchemaVersion 2
@@ -167,10 +173,12 @@ public static class PageSerializer
         bw.Write(chunkCrc);
     }
 
-    private static byte[] SerializePayload(WhiteboardObject obj) => obj switch
+    private static byte[] SerializePayload(
+        WhiteboardObject obj,
+        Func<string, string>? imageAssetIdResolver) => obj switch
     {
         StrokeObject s => SerializeStroke(s),
-        ImageObject img => SerializeImage(img),
+        ImageObject img => SerializeImage(img, imageAssetIdResolver),
         TextObject t => SerializeText(t),
         ShapeObject sh => SerializeShape(sh),
         PathObject p => SerializePath(p),
@@ -195,9 +203,12 @@ public static class PageSerializer
         return ms.ToArray();
     }
 
-    private static byte[] SerializeImage(ImageObject img)
+    private static byte[] SerializeImage(
+        ImageObject img,
+        Func<string, string>? imageAssetIdResolver)
     {
-        var idBytes = Convert.FromHexString(img.AssetId.PadRight(32, '0')[..32]);
+        var assetId = imageAssetIdResolver?.Invoke(img.AssetId) ?? img.AssetId;
+        var idBytes = Convert.FromHexString(assetId.PadRight(32, '0')[..32]);
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
         bw.Write(idBytes);
@@ -293,6 +304,10 @@ public static class PageSerializer
 
         var version = BinaryPrimitives.ReadUInt16LittleEndian(span[4..]);
         if (version < ProtocolVersion.MinSupportedPageBin) return page;
+
+        var storedHeaderCrc = BinaryPrimitives.ReadUInt32LittleEndian(span[14..]);
+        var actualHeaderCrc = Crc32.HashToUInt32(span[..(HeaderSize - 8)]);
+        if (actualHeaderCrc != storedHeaderCrc) return page;
 
         var objectCount = BinaryPrimitives.ReadUInt32LittleEndian(span[10..]);
         if (objectCount > MaxObjectCount)

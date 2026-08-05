@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Hashing;
 using WhiteBoard.Contracts.Services;
 using WhiteBoard.Core.Domain;
 using WhiteBoard.Core.Domain.Objects;
@@ -141,6 +143,57 @@ public class PageSerializerTests
 
         Assert.Equal(42,  s2.ZIndex);
         Assert.True(s2.IsLocked);
+    }
+
+    [Fact]
+    public void Serialize_HeaderCrcCoversHeaderPrefix()
+    {
+        var page = new PageModel("p1", "T");
+        page.AddObject(MakeStroke());
+
+        var data = PageSerializer.Serialize(page);
+
+        var storedCrc = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(14));
+        var actualCrc = Crc32.HashToUInt32(data.AsSpan(0, 14));
+        Assert.Equal(actualCrc, storedCrc);
+        Assert.Single(PageSerializer.Deserialize(data, "p1").GetAllObjects());
+    }
+
+    [Theory]
+    [InlineData(14)]
+    [InlineData(6)]
+    public void Deserialize_CorruptedHeader_ReturnsEmptyPage(int offset)
+    {
+        var page = new PageModel("p1", "T");
+        page.AddObject(MakeStroke());
+        var data = PageSerializer.Serialize(page);
+        data[offset] ^= 0xFF;
+
+        var result = PageSerializer.Deserialize(data, "p1");
+
+        Assert.Empty(result.GetAllObjects());
+    }
+
+    [Fact]
+    public void RoundTrip_LegacyImageAssetId_UsesPaddedWireRepresentation()
+    {
+        const string legacyAssetId = "abcdef1234567890";
+        var page = new PageModel("p1", "T");
+        page.AddObject(new ImageObject(
+            Guid.NewGuid(),
+            legacyAssetId,
+            1920f,
+            1080f,
+            10f,
+            20f,
+            200f,
+            100f,
+            DefaultTransform()));
+
+        var result = PageSerializer.Deserialize(PageSerializer.Serialize(page), "p1");
+        var image = Assert.IsType<ImageObject>(Assert.Single(result.GetAllObjects()));
+
+        Assert.Equal(legacyAssetId.PadRight(32, '0'), image.AssetId);
     }
 
     // ── Robustness tests ─────────────────────────────────────────────────────

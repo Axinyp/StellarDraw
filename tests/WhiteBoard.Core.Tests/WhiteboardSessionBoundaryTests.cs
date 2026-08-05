@@ -78,13 +78,23 @@ public sealed class WhiteboardSessionBoundaryTests
 
         await using var session = new WhiteboardSession();
         await session.StartAsync();
-        await session.AddImageAsync(new ImageObject(legacyAssetId, 10f, 10f, 20f, 20f));
+        var liveImage = new ImageObject(legacyAssetId, 10f, 10f, 20f, 20f);
+        await session.AddImageAsync(liveImage);
 
         var document = await session.CaptureDocumentAsync();
         var page = PageSerializer.Deserialize(document.Pages[0].Data, document.Pages[0].Id);
-        var image = Assert.IsType<ImageObject>(Assert.Single(page.GetAllObjects()));
+        var persistedImage = Assert.IsType<ImageObject>(Assert.Single(page.GetAllObjects()));
+        var uiSnapshot = await session.CaptureUiSnapshotAsync();
+        var uiPage = PageSerializer.Deserialize(
+            uiSnapshot.CurrentPage.Data,
+            uiSnapshot.CurrentPage.PageId,
+            uiSnapshot.CurrentPage.Title);
+        var uiImage = Assert.IsType<ImageObject>(Assert.Single(uiPage.GetAllObjects()));
 
-        Assert.Equal(canonicalAssetId, image.AssetId);
+        Assert.Equal(legacyAssetId, liveImage.AssetId);
+        Assert.Equal(canonicalAssetId, persistedImage.AssetId);
+        Assert.Equal(legacyAssetId.PadRight(32, '0'), uiImage.AssetId);
+        Assert.NotNull(RawImageAssetStore.Retrieve(uiImage.AssetId));
         Assert.Contains(canonicalAssetId, document.Assets.Keys);
         Assert.NotNull(WhiteboardDocumentSerializer.Deserialize(WhiteboardDocumentSerializer.Serialize(document)));
     }
