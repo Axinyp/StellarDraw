@@ -22,13 +22,13 @@
   <ItemGroup>
     <ProjectReference Include="..\Axinyp.Wpf.Hosting\Axinyp.Wpf.Hosting.csproj" />
     <ProjectReference Include="..\Axinyp.Wpf.Hosting.Wpf\Axinyp.Wpf.Hosting.Wpf.csproj" />
-    <ProjectReference Include="..\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
-    <ProjectReference Include="..\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
-    <ProjectReference Include="..\WhiteBoard.Protocol\WhiteBoard.Protocol.csproj" />
-    <ProjectReference Include="..\WhiteBoard.UI\WhiteBoard.UI.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Protocol\WhiteBoard.Protocol.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.UI\WhiteBoard.UI.csproj" />
     <!-- 编译时不直接依赖 WhiteBoard.Plugin 类型，但必须确保插件在 Client 构建前先完成构建，
          且其输出在生成后被复制到客户端的 plugins/whiteboard 目录，方便首轮宿主回接直接加载。 -->
-    <ProjectReference Include="..\WhiteBoard.Plugin\WhiteBoard.Plugin.csproj">
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Plugin\WhiteBoard.Plugin.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
       <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
@@ -40,7 +40,7 @@
        因此这里优先复用 Demo 已验证过的目录布局，避免再额外引入插件发现配置复杂度。 -->
   <Target Name="CopyPluginToPluginsDir" AfterTargets="Build">
     <PropertyGroup>
-      <PluginSrcDir>$(MSBuildThisFileDirectory)..\WhiteBoard.Plugin\bin\$(Configuration)\net10.0-windows\</PluginSrcDir>
+      <PluginSrcDir>$(MSBuildThisFileDirectory)..\..\legacy\src\WhiteBoard.Plugin\bin\$(Configuration)\net10.0-windows\</PluginSrcDir>
       <PluginDestDir>$(OutputPath)plugins\whiteboard\</PluginDestDir>
     </PropertyGroup>
     <ItemGroup>

@@ -51,15 +51,15 @@ jobs:
         run: dotnet test tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-build --no-restore --configuration Release -p:UseAxinypProjectReferences=true --filter "Category!=LegacyCompatibility"
 
       - name: Restore trusted legacy compatibility artifact
-        run: dotnet restore src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj
+        run: dotnet restore legacy/src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj
 
       - name: Build trusted legacy compatibility artifact
-        run: dotnet build src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj --no-restore --configuration Release
+        run: dotnet build legacy/src/WhiteBoard.Plugin/WhiteBoard.Plugin.csproj --no-restore --configuration Release
 
       - name: Test trusted legacy compatibility lifecycle
         run: dotnet test tests/StellarDraw.Axinyp.Spike.Tests/StellarDraw.Axinyp.Spike.Tests.csproj --no-build --no-restore --configuration Release --filter "Category=LegacyCompatibility"
         env:
-          STELLARDRAW_TRUSTED_LEGACY_PLUGIN: ${{ github.workspace }}\src\WhiteBoard.Plugin\bin\Release\net10.0-windows\WhiteBoard.Plugin.dll
+          STELLARDRAW_TRUSTED_LEGACY_PLUGIN: ${{ github.workspace }}\legacy\src\WhiteBoard.Plugin\bin\Release\net10.0-windows\WhiteBoard.Plugin.dll
 
       - name: Restore WhiteBoard.Client integration graph
         run: dotnet restore src/WhiteBoard.Client/WhiteBoard.Client.csproj
@@ -67,11 +67,17 @@ jobs:
       - name: Build WhiteBoard.Client integration graph
         run: dotnet build src/WhiteBoard.Client/WhiteBoard.Client.csproj --no-restore --configuration Release
 
-      - name: Restore Demo plugin lifecycle tests
-        run: dotnet restore tests/WhiteBoard.Host.Demo.Tests/WhiteBoard.Host.Demo.Tests.csproj
+      - name: Test WhiteBoard.Client shell
+        run: dotnet test tests/WhiteBoard.Client.Tests/WhiteBoard.Client.Tests.csproj --configuration Release
 
-      - name: Test Demo plugin lifecycle
-        run: dotnet test tests/WhiteBoard.Host.Demo.Tests/WhiteBoard.Host.Demo.Tests.csproj --no-restore --configuration Release
+      - name: Restore legacy baseline
+        run: dotnet restore legacy/StellarDraw.Legacy.slnx
+
+      - name: Build legacy baseline
+        run: dotnet build legacy/StellarDraw.Legacy.slnx --no-restore --configuration Release
+
+      - name: Test legacy baseline
+        run: dotnet test legacy/StellarDraw.Legacy.slnx --no-build --configuration Release
 
       - name: Restore package-only consumer
         run: dotnet restore consumer-smoke/consumer-smoke.csproj --configfile consumer-smoke/NuGet.Config

@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
-    <ProjectReference Include="..\..\src\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Contracts\WhiteBoard.Contracts.csproj" />
+    <ProjectReference Include="..\..\legacy\src\WhiteBoard.Contracts.Wpf\WhiteBoard.Contracts.Wpf.csproj" />
   </ItemGroup>
 </Project>

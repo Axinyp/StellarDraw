@@ -6,12 +6,43 @@
 
 本策略防止在同一历史仓库和共享 worktree 中，将框架演进、旧白板功能迭代和临时迁移代码混入同一个提交。
 
+## 目录布局（2026-08 重组后）
+
+冻结与活跃代码已物理分离，防止在审计、检索或提交时误判：
+
+```text
+src/                     只包含活跃演进代码
+  Axinyp.Wpf.Hosting.Abstractions/
+  Axinyp.Wpf.Hosting/
+  Axinyp.Wpf.Hosting.Wpf/
+  WhiteBoard.Client/     正式 Client Shell（活跃：逐步回接白板业务）
+legacy/                  冻结的白板基线（物理隔离，整树退出中央包管理）
+  src/WhiteBoard.*/      冻结业务项目（AI/Contracts/Core/UI/Plugin/Mcp/Demo 等）
+  tests/WhiteBoard.*/    冻结基线的行为验证测试
+  StellarDraw.Legacy.slnx
+consumers/               包边界消费者验证（Spike）
+samples/                 框架样例
+```
+
+已删除 `src/WhiteBoard.Framework.Hosting(.Wpf)` 及其测试：它们是 Axinyp 更名前的
+同构旧拷贝，保留会造成"两套框架并存"的检索与审计误判。历史版本在 git 中可查。
+
+解决方案分工：
+
+```text
+Axinyp.Wpf.Hosting.slnx / WhiteBoard.slnx  框架（Axinyp 三层 + 样例 + 框架测试）
+StellarDraw.slnx                            应用（WhiteBoard.Client + Client.Tests）
+legacy/StellarDraw.Legacy.slnx              冻结基线及其全部测试
+```
+
 ## 可继续演进的路径
 
 以下路径可以承载 Axinyp 框架、样例、消费者验证、测试、文档和工程化改动：
 
 ```text
 Axinyp.Wpf.Hosting.slnx
+WhiteBoard.slnx
+StellarDraw.slnx
 Directory.Build.props
 Directory.Packages.props
 global.json
@@ -23,34 +54,42 @@ consumers/
 src/Axinyp.Wpf.Hosting.Abstractions/
 src/Axinyp.Wpf.Hosting/
 src/Axinyp.Wpf.Hosting.Wpf/
+src/WhiteBoard.Client/
 tests/Axinyp.Wpf.Hosting.Tests/
 tests/Axinyp.Wpf.Hosting.Wpf.Tests/
 tests/StellarDraw.Axinyp.Spike.Tests/
+tests/WhiteBoard.Client.Tests/
+tests/TestSupport/
 ```
 
 框架提交必须只包含上述路径，或包含为框架构建、打包与验证所必需的顶层元数据。提交前必须逐文件审查暂存区；禁止使用 `git add .`。
+
+说明：`src/WhiteBoard.Client` 由早期版本的冻结清单移入活跃路径——它是 Axinyp 的
+第一个正式应用宿主，承载业务回接；例外决策记录于 `.context` 决策日志。
+它对冻结基线使用 `ProjectReference`（而非包引用），因为它与基线同仓同版本演进，
+包边界验证由 `consumers/` 承担。
 
 ## 冻结的白板基线
 
 以下路径仍可被读取、构建和作为兼容性/行为验证参考，但不再承载新功能、框架演进或迁移临时补丁：
 
 ```text
-src/WhiteBoard.AI/
-src/WhiteBoard.Client/
-src/WhiteBoard.Contracts/
-src/WhiteBoard.Contracts.Wpf/
-src/WhiteBoard.Core/
-src/WhiteBoard.Framework.Hosting/
-src/WhiteBoard.Framework.Hosting.Wpf/
-src/WhiteBoard.Host.Demo/
-src/WhiteBoard.Mcp.Core/
-src/WhiteBoard.McpHost/
-src/WhiteBoard.Plugin/
-src/WhiteBoard.Protocol/
-src/WhiteBoard.UI/
-tests/WhiteBoard.*/
-WhiteBoard.slnx
+legacy/src/WhiteBoard.AI/
+legacy/src/WhiteBoard.Contracts/
+legacy/src/WhiteBoard.Contracts.Wpf/
+legacy/src/WhiteBoard.Core/
+legacy/src/WhiteBoard.Host.Demo/
+legacy/src/WhiteBoard.Mcp.Core/
+legacy/src/WhiteBoard.McpHost/
+legacy/src/WhiteBoard.Plugin/
+legacy/src/WhiteBoard.Protocol/
+legacy/src/WhiteBoard.UI/
+legacy/tests/WhiteBoard.*/
+legacy/StellarDraw.Legacy.slnx
 ```
+
+CI 必须持续运行 `legacy/StellarDraw.Legacy.slnx` 的全部测试，保证冻结基线的
+"行为验证参考"作用不失效。
 
 例外仅限于：
 
