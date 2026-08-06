@@ -118,6 +118,7 @@ public sealed class ThemeServiceTests
         {
             var settings = new MemorySettingsStore();
             var services = new ServiceCollection();
+            services.AddLogging();
             services.AddSingleton<ISettingsStore>(settings);
             services.AddWpfThemes(options =>
             {
@@ -205,6 +206,7 @@ public sealed class ThemeServiceTests
     private static ServiceCollection CreateServices(ISettingsStore settings)
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddSingleton<ISettingsStore>(settings);
         services.AddWpfThemes(options =>
         {

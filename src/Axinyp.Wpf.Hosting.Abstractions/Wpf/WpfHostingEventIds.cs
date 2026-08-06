@@ -55,4 +55,7 @@ public static class WpfHostingEventIds
 
     /// <summary>协调停机完成。</summary>
     public static readonly EventId ApplicationShutdownCompleted = new(1165, nameof(ApplicationShutdownCompleted));
+
+    /// <summary>启动时恢复主题偏好失败（应用继续启动）。</summary>
+    public static readonly EventId ThemeRestoreFailed = new(1150, nameof(ThemeRestoreFailed));
 }

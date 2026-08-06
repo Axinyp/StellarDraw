@@ -1,11 +1,16 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Axinyp.Wpf.Hosting.Settings;
 
 /// <summary>线程安全的单文件 JSON 偏好存储；以临时文件替换避免半写入损坏。</summary>
-internal sealed class JsonSettingsStore(SettingsStoreOptions options) : ISettingsStore
+internal sealed class JsonSettingsStore(SettingsStoreOptions options, ILogger<JsonSettingsStore>? logger = null) : ISettingsStore
 {
+    private static readonly EventId SettingsLoadFailed = new(1060, nameof(SettingsLoadFailed));
+    private static readonly EventId SettingsQuarantineFailed = new(1061, nameof(SettingsQuarantineFailed));
+
     private static readonly string[] ForbiddenSegments = ["secret", "password", "passwd", "pwd", "token", "jwt", "cookie", "apikey", "api-key", "credential", "privatekey", "private-key"];
+    private readonly ILogger _logger = logger ?? NullLogger<JsonSettingsStore>.Instance;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, JsonElement> _values = new(StringComparer.Ordinal);
     private bool _loaded;
@@ -28,7 +33,23 @@ internal sealed class JsonSettingsStore(SettingsStoreOptions options) : ISetting
     {
         ValidateKey(key); await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { _values[key] = JsonSerializer.SerializeToElement(value); await SaveLockedAsync(cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            // 先提交内存再落盘会在保存失败时留下「从未持久化的值」，
+            // 并被下一次任意键的成功保存顺带写入；因此失败时回滚内存，保持内存与磁盘一致。
+            var hadPrevious = _values.TryGetValue(key, out var previous);
+            _values[key] = JsonSerializer.SerializeToElement(value);
+            try
+            {
+                await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (hadPrevious) _values[key] = previous;
+                else _values.Remove(key);
+                throw;
+            }
+        }
         finally { _gate.Release(); }
     }
 
@@ -38,9 +59,18 @@ internal sealed class JsonSettingsStore(SettingsStoreOptions options) : ISetting
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var removed = _values.Remove(key);
-            if (removed) await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
-            return removed;
+            if (!_values.TryGetValue(key, out var previous)) return false;
+            _values.Remove(key);
+            try
+            {
+                await SaveLockedAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                _values[key] = previous;
+                throw;
+            }
+            return true;
         }
         finally { _gate.Release(); }
     }
@@ -63,7 +93,14 @@ internal sealed class JsonSettingsStore(SettingsStoreOptions options) : ISetting
                 }
                 catch (JsonException)
                 {
-                    File.Move(path, $"{path}.bad.{DateTime.UtcNow:yyyyMMddHHmmss}", overwrite: true);
+                    QuarantineCorruptFile(path);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // 设置文件被锁定（杀软/同步工具）或不可读时降级为内存空存储：
+                    // 用户偏好不可用绝不能沿启动任务把整个宿主启动炸掉。
+                    _logger.LogWarning(SettingsLoadFailed, exception,
+                        "无法读取设置文件，已降级为内存空存储；本次会话的偏好可能无法持久化。");
                 }
             }
             _loaded = true;
@@ -71,14 +108,44 @@ internal sealed class JsonSettingsStore(SettingsStoreOptions options) : ISetting
         finally { _gate.Release(); }
     }
 
+    private void QuarantineCorruptFile(string path)
+    {
+        try
+        {
+            File.Move(path, $"{path}.bad.{DateTime.UtcNow:yyyyMMddHHmmss}", overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(SettingsQuarantineFailed, exception, "隔离损坏的设置文件失败，已忽略其内容。");
+        }
+    }
+
     private async Task SaveLockedAsync(CancellationToken cancellationToken)
     {
         var path = options.GetFilePath();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var tempPath = $"{path}.tmp";
-        var json = JsonSerializer.Serialize(new { schemaVersion = 1, values = _values });
-        await File.WriteAllTextAsync(tempPath, json, cancellationToken).ConfigureAwait(false);
-        File.Move(tempPath, path, overwrite: true);
+
+        // GUID 临时名避免多进程共用固定 .tmp 冲突；WriteThrough 确保 rename 前数据真正落盘，
+        // 否则断电仍可能留下空文件——这正是原子替换要防的事。
+        var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, values = _values });
+        try
+        {
+            await using (var stream = new FileStream(
+                tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                bufferSize: 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await stream.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            File.Move(tempPath, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 
     private static void ValidateKey(string key)
