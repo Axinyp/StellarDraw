@@ -10,18 +10,44 @@ internal sealed class StartupPluginState : IDisposable
     private readonly List<PluginDescriptor> _plugins = [];
     private readonly List<PluginLoadFailure> _failures = [];
     private readonly List<StartupPluginDiagnostic> _diagnostics = [];
+    private readonly HashSet<string> _pluginIds = new(StringComparer.OrdinalIgnoreCase);
 
     public IEnumerable<IModule> Modules => _runtimes.SelectMany(runtime => runtime.Modules);
 
-    public void Add(
+    /// <summary>
+    /// 并入一次发现结果，并返回本次被接受插件的模块集合。
+    /// 多次 AddStartupPlugins 指向重叠目录时，同一插件 Id 只接受首个：
+    /// 后到者记为 <see cref="PluginLoadFailureKind.DuplicatePluginId"/> 失败、模块不注册
+    /// （其 ALC 仍由本状态在 Host Dispose 时统一卸载），避免服务被静默注册两遍。
+    /// </summary>
+    public IReadOnlyList<IModule> Add(
         PluginCatalog catalog,
         StartupPluginRuntime runtime,
         IEnumerable<StartupPluginDiagnostic> diagnostics)
     {
-        _plugins.AddRange(catalog.Plugins);
+        var duplicateIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var plugin in catalog.Plugins)
+        {
+            if (_pluginIds.Add(plugin.Id))
+            {
+                _plugins.Add(plugin);
+                continue;
+            }
+
+            duplicateIds.Add(plugin.Id);
+            _failures.Add(new PluginLoadFailure(plugin.Directory, plugin.Id,
+                PluginLoadFailureKind.DuplicatePluginId,
+                "插件 Id 已由先前的 AddStartupPlugins 调用注册，本次发现的副本被跳过。"));
+        }
+
         _failures.AddRange(catalog.Failures);
         _runtimes.Add(runtime);
         _diagnostics.AddRange(diagnostics);
+
+        return runtime.Handles
+            .Where(handle => !duplicateIds.Contains(handle.Descriptor.Id))
+            .SelectMany(handle => handle.Modules)
+            .ToList();
     }
 
     public IPluginCatalog CreateCatalog() => new PluginCatalog(_plugins, _failures);

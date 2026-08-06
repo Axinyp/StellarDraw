@@ -62,6 +62,7 @@ internal sealed class FrameworkHostedLifecycleService(
 
     private async Task StartFrameworkAsync(CancellationToken cancellationToken)
     {
+        ThrowIfModulesWereStagedButNeverMaterialized();
         AttachLifetimeAwareServices();
         lifetime.MoveTo(ApplicationState.Starting);
         logger.LogInformation(FrameworkStarting, "模块化宿主正在进入 {ApplicationState} 状态。", ApplicationState.Starting);
@@ -102,6 +103,19 @@ internal sealed class FrameworkHostedLifecycleService(
 
     private ModuleContext CreateContext(ModuleRegistration registration)
         => new(registration, configuration, services);
+
+    /// <summary>
+    /// 检测「模块经 AddModule/AddStartupPlugins 暂存、宿主却由 builder.Build() 直接构建」的误用：
+    /// 此时模块的 ConfigureServices 从未执行，宿主看似正常启动但功能静默缺失，必须 fail-fast。
+    /// </summary>
+    private void ThrowIfModulesWereStagedButNeverMaterialized()
+    {
+        if (services.GetService<ModuleStagingMarker>() is { Materialized: false, StagedCount: > 0 } marker)
+            throw new InvalidOperationException(
+                $"检测到 {marker.StagedCount} 个经 AddModule/AddStartupPlugins 暂存的模块，" +
+                "但宿主不是由 BuildModularHost 构建的，它们的 ConfigureServices 从未执行。" +
+                "请改用 builder.BuildModularHost() 构建宿主。");
+    }
 
     private void AttachLifetimeAwareServices()
     {

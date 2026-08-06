@@ -92,6 +92,88 @@ public sealed class PluginDiscoveryTests : IDisposable
             typeof(Exception).IsAssignableFrom(property.PropertyType));
     }
 
+    [Fact]
+    public void Build_EntryAssemblyWithoutModules_ReportsModuleDiscoveryFailed()
+    {
+        var directory = CreatePluginDirectory("no-modules");
+        File.Copy(typeof(IModule).Assembly.Location, Path.Combine(directory, "sample.dll"));
+        WriteManifest(directory, "sample.nomodules");
+
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.AddModularHosting().AddStartupPluginsFromDirectory(_root);
+
+        using var host = builder.BuildModularHost();
+        var failure = Assert.Single(host.Services.GetRequiredService<IPluginCatalog>().Failures);
+
+        Assert.Equal(PluginLoadFailureKind.ModuleDiscoveryFailed, failure.Kind);
+        Assert.Empty(host.Services.GetRequiredService<IPluginCatalog>().Plugins);
+    }
+
+    [Fact]
+    public void Build_SameDirectoryScannedTwiceInOneCall_LoadsPluginOnceWithoutConflict()
+    {
+        CreateLoadablePluginDirectory("real", "sample.real");
+
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.AddModularHosting().AddStartupPlugins(options =>
+        {
+            options.PluginDirectories.Add(_root);
+            options.PluginDirectories.Add(_root);
+        });
+
+        using var host = builder.BuildModularHost();
+        var catalog = host.Services.GetRequiredService<IPluginCatalog>();
+
+        // 重叠的根目录扫到同一物理插件目录是配置冗余，不是 ID 冲突。
+        Assert.Single(catalog.Plugins);
+        Assert.Empty(catalog.Failures);
+    }
+
+    [Fact]
+    public void Build_DuplicatePluginIdAcrossCalls_KeepsFirstAndRecordsFailure()
+    {
+        CreateLoadablePluginDirectory("real", "sample.real");
+
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.AddModularHosting()
+            .AddStartupPluginsFromDirectory(_root)
+            .AddStartupPluginsFromDirectory(_root);
+
+        using var host = builder.BuildModularHost();
+        var catalog = host.Services.GetRequiredService<IPluginCatalog>();
+
+        Assert.Single(catalog.Plugins);
+        var failure = Assert.Single(catalog.Failures);
+        Assert.Equal(PluginLoadFailureKind.DuplicatePluginId, failure.Kind);
+
+        // 重复副本的模块不得二次注册：模块目录中只有首个副本的模块。
+        Assert.Single(host.Services.GetRequiredService<IModuleCatalog>().Modules);
+    }
+
+    [Fact]
+    public async Task BuildModularHost_WithPlugins_SupportsAsyncDispose()
+    {
+        CreateLoadablePluginDirectory("real", "sample.real");
+
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.AddModularHosting().AddStartupPluginsFromDirectory(_root);
+
+        var host = builder.BuildModularHost();
+        var asyncDisposable = Assert.IsAssignableFrom<IAsyncDisposable>(host);
+
+        await asyncDisposable.DisposeAsync();
+
+        Assert.Throws<ObjectDisposedException>(() => host.Services);
+    }
+
+    private string CreateLoadablePluginDirectory(string name, string id)
+    {
+        var directory = CreatePluginDirectory(name);
+        File.Copy(typeof(PluginDiscoveryTests).Assembly.Location, Path.Combine(directory, "sample.dll"));
+        WriteManifest(directory, id);
+        return directory;
+    }
+
     private string CreatePluginDirectory(string name)
     {
         var directory = Path.Combine(_root, name);
@@ -108,6 +190,21 @@ public sealed class PluginDiscoveryTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        if (!Directory.Exists(_root)) return;
+
+        // 可回收 ALC 在 GC 前仍映射着插件 DLL；清理竞态不应使测试失败。
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                Directory.Delete(_root, recursive: true);
+                return;
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
     }
 }

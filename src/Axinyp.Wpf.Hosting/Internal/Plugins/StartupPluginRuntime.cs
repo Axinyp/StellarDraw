@@ -6,6 +6,8 @@ namespace Axinyp.Wpf.Hosting.Internal.Plugins;
 /// <summary>仅在 Host 存活期间保存插件 ALC 与模块实例；Host Dispose 后统一卸载。</summary>
 internal sealed class StartupPluginRuntime(IReadOnlyList<StartupPluginLoadHandle> handles) : IDisposable
 {
+    public IReadOnlyList<StartupPluginLoadHandle> Handles => handles;
+
     public IReadOnlyList<IModule> Modules
         => handles.SelectMany(handle => handle.Modules).ToList();
 

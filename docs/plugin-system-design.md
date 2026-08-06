@@ -49,13 +49,12 @@
 
 ### 3.2 已确认的技术债
 
-当前入口程序集加载、`GetExportedTypes()`、空模块判断和 `Activator.CreateInstance()` 失败路径仍可能被外层折叠为 `AssemblyLoadFailed`。因此，下列根因尚未具备稳定、可独立统计的诊断语义：
+`GetExportedTypes()` 失败、空模块结果与 `Activator.CreateInstance()` 失败已分别产出
+`ModuleDiscoveryFailed` / `ModuleActivationFailed`（2026-08 起）。下列根因仍被折叠为
+`AssemblyLoadFailed` 或缺少稳定、可独立统计的诊断语义：
 
 - managed assembly resolution failure；
 - native dependency resolution failure；
-- exported type discovery failure；
-- empty module result；
-- module activation failure；
 - module registration failure；
 - module `InitializeAsync` / `StartAsync` lifecycle failure。
 

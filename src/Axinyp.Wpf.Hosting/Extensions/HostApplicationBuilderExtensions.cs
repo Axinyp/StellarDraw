@@ -56,6 +56,7 @@ public static class HostApplicationBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(module);
         GetOrCreateModuleRegistry(builder).Add(module);
+        GetOrCreateStagingMarker(builder.Services).StagedCount++;
         return builder;
     }
 
@@ -76,22 +77,48 @@ public static class HostApplicationBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddModularHosting();
 
-        var modules = GetOrCreateModuleRegistry(builder)
-            .Materialize(builder.Services, builder.Configuration);
-        builder.Services.Replace(ServiceDescriptor.Singleton<IModuleCatalog>(new ModuleCatalog(modules)));
-
-        if (StartupPluginStateStore.TryGet(builder, out var pluginState) && pluginState is not null)
+        var hasPluginState = StartupPluginStateStore.TryGet(builder, out var pluginState) && pluginState is not null;
+        try
         {
-            builder.Services.Replace(ServiceDescriptor.Singleton<IPluginCatalog>(pluginState.CreateCatalog()));
-            var host = builder.Build();
-            pluginState.LogFailures(host.Services.GetRequiredService<ILoggerFactory>()
-                .CreateLogger("Axinyp.Wpf.Hosting.PluginDiscovery"));
-            return new PluginAwareHost(host, pluginState);
-        }
+            var modules = GetOrCreateModuleRegistry(builder)
+                .Materialize(builder.Services, builder.Configuration);
+            builder.Services.Replace(ServiceDescriptor.Singleton<IModuleCatalog>(new ModuleCatalog(modules)));
+            GetOrCreateStagingMarker(builder.Services).Materialized = true;
 
-        return builder.Build();
+            if (hasPluginState)
+            {
+                builder.Services.Replace(ServiceDescriptor.Singleton<IPluginCatalog>(pluginState!.CreateCatalog()));
+                var host = builder.Build();
+                pluginState.LogFailures(host.Services.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Axinyp.Wpf.Hosting.PluginDiscovery"));
+                return new PluginAwareHost(host, pluginState);
+            }
+
+            return builder.Build();
+        }
+        catch
+        {
+            // 装配或 Build 中途失败时，已加载的插件 ALC 不能依赖 GC 兜底：确定性卸载后再上抛。
+            if (hasPluginState)
+                pluginState!.Dispose();
+            throw;
+        }
     }
 
     private static ModuleRegistry GetOrCreateModuleRegistry(HostApplicationBuilder builder)
         => ModuleRegistries.GetValue(builder, _ => new ModuleRegistry());
+
+    private static ModuleStagingMarker GetOrCreateStagingMarker(IServiceCollection services)
+    {
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType == typeof(ModuleStagingMarker) &&
+                descriptor.ImplementationInstance is ModuleStagingMarker existing)
+                return existing;
+        }
+
+        var marker = new ModuleStagingMarker();
+        services.AddSingleton(marker);
+        return marker;
+    }
 }

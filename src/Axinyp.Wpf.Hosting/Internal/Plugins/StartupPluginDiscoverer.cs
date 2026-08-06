@@ -39,11 +39,15 @@ internal static class StartupPluginDiscoverer
             try { handles.Add(Load(candidate, options.AdditionalSharedAssemblies)); }
             catch (Exception exception)
             {
-                var kind = exception is PluginEntryAssemblyMissingException
-                    ? PluginLoadFailureKind.EntryAssemblyMissing
-                    : PluginLoadFailureKind.AssemblyLoadFailed;
+                var (kind, message) = exception switch
+                {
+                    PluginEntryAssemblyMissingException => (PluginLoadFailureKind.EntryAssemblyMissing, "插件入口程序集无法加载。"),
+                    PluginModuleDiscoveryException => (PluginLoadFailureKind.ModuleDiscoveryFailed, "无法在入口程序集中发现 IModule 实现。"),
+                    PluginModuleActivationException => (PluginLoadFailureKind.ModuleActivationFailed, "插件模块实例化失败。"),
+                    _ => (PluginLoadFailureKind.AssemblyLoadFailed, "插件入口程序集无法加载。"),
+                };
                 var failure = CreateFailure(candidate.Directory, candidate.Manifest.Id, kind,
-                    "插件入口程序集无法加载。", candidate.Manifest.EntryAssembly, exception: exception);
+                    message, candidate.Manifest.EntryAssembly, exception: exception);
                 failures.Add(failure);
                 diagnostics.Add(new StartupPluginDiagnostic(failure, exception));
             }
@@ -105,6 +109,11 @@ internal static class StartupPluginDiscoverer
 
     private static void RemoveDuplicateIds(List<Candidate> candidates, List<PluginLoadFailure> failures)
     {
+        // 同一物理目录被重叠的根目录重复扫到时只保留第一份：这是配置冗余而非 ID 冲突。
+        var seenDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        candidates.RemoveAll(candidate => !seenDirectories.Add(Path.GetFullPath(candidate.Directory)));
+
+        // 真正不同目录声明同一 ID 属于无法自动仲裁的冲突：整组拒绝并逐一记录，避免静默偏袒任一方。
         foreach (var group in candidates.GroupBy(c => c.Manifest!.Id, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
         {
             foreach (var candidate in group)
@@ -161,9 +170,37 @@ internal static class StartupPluginDiscoverer
         try
         {
             var assembly = context.LoadFromAssemblyPath(candidate.AssemblyPath);
-            var modules = assembly.GetExportedTypes().Where(type => !type.IsAbstract && typeof(IModule).IsAssignableFrom(type))
-                .Select(type => (IModule)(Activator.CreateInstance(type) ?? throw new InvalidOperationException($"无法创建模块 {type.FullName}。"))).ToList();
-            if (modules.Count == 0) throw new InvalidOperationException("入口程序集没有公开 IModule 实现。");
+
+            Type[] exportedTypes;
+            try
+            {
+                exportedTypes = assembly.GetExportedTypes();
+            }
+            catch (Exception exception)
+            {
+                throw new PluginModuleDiscoveryException("无法枚举入口程序集的导出类型。", exception);
+            }
+
+            var moduleTypes = exportedTypes
+                .Where(type => !type.IsAbstract && typeof(IModule).IsAssignableFrom(type))
+                .ToList();
+            if (moduleTypes.Count == 0)
+                throw new PluginModuleDiscoveryException("入口程序集没有公开 IModule 实现。");
+
+            var modules = new List<IModule>(moduleTypes.Count);
+            foreach (var type in moduleTypes)
+            {
+                try
+                {
+                    modules.Add((IModule)(Activator.CreateInstance(type)
+                        ?? throw new InvalidOperationException($"无法创建模块 {type.FullName}。")));
+                }
+                catch (Exception exception) when (exception is not PluginModuleActivationException)
+                {
+                    throw new PluginModuleActivationException($"无法创建模块 {type.FullName}。", exception);
+                }
+            }
+
             var descriptor = new PluginDescriptor(candidate.Manifest!.Id, candidate.Manifest.Version, candidate.Directory,
                 candidate.Manifest.EntryAssembly, candidate.Manifest.Dependencies, modules.Select(module => module.GetType().FullName ?? module.GetType().Name).ToList());
             return new StartupPluginLoadHandle(descriptor, context, modules);
@@ -190,6 +227,12 @@ internal static class StartupPluginDiscoverer
         };
 
     private sealed class PluginEntryAssemblyMissingException(string message) : InvalidOperationException(message);
+
+    private sealed class PluginModuleDiscoveryException(string message, Exception? inner = null)
+        : InvalidOperationException(message, inner);
+
+    private sealed class PluginModuleActivationException(string message, Exception inner)
+        : InvalidOperationException(message, inner);
 
     private sealed record Candidate(string Directory, string AssemblyPath, PluginManifest? Manifest, PluginLoadFailure? Failure)
     {
