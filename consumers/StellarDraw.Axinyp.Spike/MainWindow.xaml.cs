@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using Axinyp.Wpf.Hosting.Abstractions.Wpf;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +18,6 @@ public partial class MainWindow : Window
     private readonly LegacyPluginOptions _legacyPluginOptions;
     private IDisposable? _statusRegionRegistration;
     private bool _initialized;
-    private bool _isClosing;
 
     /// <summary>
     /// 由 Axinyp 窗口管理器创建 Shell。
@@ -51,7 +49,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         Loaded += OnLoaded;
-        Closing += OnClosing;
         Closed += OnClosed;
     }
 
@@ -86,30 +83,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, CancelEventArgs e)
+    /// <summary>
+    /// 供 App 层协调停机（WpfApplicationLifecycle.BeforeHostStopAsync）在停止宿主前卸载 legacy 插件。
+    /// 未加载时为无操作；卸载异常向上传播，由协调停机统一按「保持窗口打开 → 二次关闭强制退出」处理。
+    /// </summary>
+    internal async Task UnloadLegacyPluginAsync()
     {
-        if (_isClosing || !_legacyPluginBridge.IsLoaded)
+        if (!_legacyPluginBridge.IsLoaded)
             return;
 
-        e.Cancel = true;
-        _isClosing = true;
-        _ = UnloadAndCloseAsync();
-    }
-
-    private async Task UnloadAndCloseAsync()
-    {
-        try
-        {
-            await _legacyPluginBridge.UnloadAsync(PluginHost);
-        }
-        catch (Exception ex)
-        {
-            _viewModel.Status = $"Legacy 白板插件卸载出现异常：{ex.Message}";
-        }
-        finally
-        {
-            _ = Dispatcher.InvokeAsync(Close);
-        }
+        await _legacyPluginBridge.UnloadAsync(PluginHost);
     }
 
     private void OnClosed(object? sender, EventArgs e)

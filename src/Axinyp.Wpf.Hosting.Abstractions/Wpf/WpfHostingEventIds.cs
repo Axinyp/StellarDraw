@@ -37,4 +37,22 @@ public static class WpfHostingEventIds
 
     /// <summary>不同 Provider 返回了重复的贡献 ID。</summary>
     public static readonly EventId DuplicateUiContributionId = new(1145, nameof(DuplicateUiContributionId));
+
+    /// <summary>WPF 应用宿主启动失败（已回滚并通知用户）。</summary>
+    public static readonly EventId ApplicationStartupFailed = new(1160, nameof(ApplicationStartupFailed));
+
+    /// <summary>启动失败后的宿主停止清理自身失败。</summary>
+    public static readonly EventId ApplicationStartupCleanupFailed = new(1161, nameof(ApplicationStartupCleanupFailed));
+
+    /// <summary>Shell 显示后的后续初始化失败（应用继续运行）。</summary>
+    public static readonly EventId ApplicationPostStartupFailed = new(1162, nameof(ApplicationPostStartupFailed));
+
+    /// <summary>协调停机开始。</summary>
+    public static readonly EventId ApplicationShutdownStarting = new(1163, nameof(ApplicationShutdownStarting));
+
+    /// <summary>协调停机失败；下一次关闭请求将强制退出。</summary>
+    public static readonly EventId ApplicationShutdownFailed = new(1164, nameof(ApplicationShutdownFailed));
+
+    /// <summary>协调停机完成。</summary>
+    public static readonly EventId ApplicationShutdownCompleted = new(1165, nameof(ApplicationShutdownCompleted));
 }

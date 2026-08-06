@@ -117,6 +117,36 @@ public sealed class FrameworkLifecycleTests
             Equals(moduleType, typeof(FailingStartModule).FullName));
     }
 
+    [Fact]
+    public async Task Stop_WhenLifetimeAwareSubscriberThrows_StillStopsModulesAndNotifiesRemainingSubscribers()
+    {
+        var events = new List<string>();
+        var loggerProvider = new RecordingLoggerProvider();
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(loggerProvider);
+        builder.AddModularHosting()
+            .AddModule(new ThrowingLifetimeAwareModule(events))
+            .AddModule(new SecondObserverModule(events));
+
+        using var host = builder.BuildModularHost();
+        await host.StartAsync();
+        await host.StopAsync();
+
+        // 订阅者在 Stopping 上抛异常：模块仍必须被停止，后续订阅者仍要收到通知。
+        Assert.Contains("stop:throwing-aware", events);
+        Assert.Contains("stop:second-observer", events);
+        Assert.Contains("observer:Stopping", events);
+        Assert.Contains("observer:Stopped", events);
+
+        var isolation = Assert.Single(loggerProvider.Entries, entry =>
+            entry.EventId.Name == "StateSubscriberFailed" &&
+            Equals(entry.Properties.TryGetValue("ApplicationState", out var state) ? state : null,
+                ApplicationState.Stopping));
+        Assert.Equal(LogLevel.Error, isolation.LogLevel);
+        Assert.IsType<InvalidOperationException>(isolation.Exception);
+    }
+
     private sealed class FirstModule(List<string> events) : TestModule(events, "first")
     {
         public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
@@ -184,5 +214,35 @@ public sealed class FrameworkLifecycleTests
     private sealed class RecordingLifetimeAware(List<string> events) : IApplicationLifetimeAware
     {
         public void OnStateChanged(ApplicationState state) => events.Add($"state:{state}");
+    }
+
+    private sealed class ThrowingLifetimeAwareModule(List<string> events) : TestModule(events, "throwing-aware")
+    {
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+            => services.AddSingleton<IApplicationLifetimeAware>(new ThrowingOnStoppingAware());
+    }
+
+    private sealed class SecondObserverModule(List<string> events)
+        : TestModule(events, "second-observer"), IModuleDescriptorProvider
+    {
+        public ModuleDescriptor GetDescriptor()
+            => new(nameof(SecondObserverModule), [typeof(ThrowingLifetimeAwareModule)]);
+
+        public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+            => services.AddSingleton<IApplicationLifetimeAware>(new PrefixedLifetimeAware(Events));
+    }
+
+    private sealed class ThrowingOnStoppingAware : IApplicationLifetimeAware
+    {
+        public void OnStateChanged(ApplicationState state)
+        {
+            if (state == ApplicationState.Stopping)
+                throw new InvalidOperationException("Expected lifetime subscriber failure.");
+        }
+    }
+
+    private sealed class PrefixedLifetimeAware(List<string> events) : IApplicationLifetimeAware
+    {
+        public void OnStateChanged(ApplicationState state) => events.Add($"observer:{state}");
     }
 }
